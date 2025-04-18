@@ -118,6 +118,7 @@ class Config(BaseConfig):
 
     start_step: int = 0
     start_total_problems: int | None = None
+    start_rollout_step: int | None = None
 
     @model_validator(mode="after")
     def check_liger(self):
@@ -269,12 +270,15 @@ def train(config: Config):
             f"training will continue as if it was from step {training_progress.step - training_progress.step % config.optim.step_per_rollout}"
         )
 
+    step_count_init = (
+        config.start_rollout_step if config.start_rollout_step is not None else training_progress.step // config.optim.step_per_rollout
+    )
     train_dataloader, prefetcher = get_dataloader(
         tokenizer=tokenizer,
         local_batch_size=local_batch_size,
         batch_size=config.optim.batch_size * config.optim.step_per_rollout,
         data_config=config.data,
-        step_count_init=training_progress.step // config.optim.step_per_rollout,
+        step_count_init=step_count_init,
     )
     train_dataloader_iterator = iter(train_dataloader)
 
