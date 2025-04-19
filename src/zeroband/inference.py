@@ -445,6 +445,8 @@ def inference(config: Config):
 
                 if attempt_count % 30 == 0:
                     logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
+                    if config.step_endpoint is not None:
+                        break
                 time.sleep(1)
             if not success:
                 # Re-read the step from the endpoint
