@@ -17,6 +17,7 @@ def grpo_loss(
     epsilon_low: float,
     epsilon_high: float,
     clamp_log_prob_coef: float,
+    max_tokens: int,
 ) -> tuple[Tensor, Tensor]:
     """
     DeepSeek Math Loss: https://arxiv.org/abs/2402.03300
@@ -39,6 +40,7 @@ def grpo_loss(
         epsilon_low=epsilon_low,
         epsilon_high=epsilon_high,
         clamp_log_prob_coef=clamp_log_prob_coef,
+        max_tokens=max_tokens,
     )
 
 
@@ -90,6 +92,7 @@ def _compile_grpo_loss(
     epsilon_low: float,
     epsilon_high: float,
     clamp_log_prob_coef: float,
+    max_tokens: int,
 ) -> tuple[Tensor, Tensor]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
@@ -112,22 +115,22 @@ def _compile_grpo_loss(
     per_token_loss2 = -coef_2 * advantages
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
-    loss = _apply_mask(per_token_loss, loss_mask)
+    loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
-    clip_ratio = _apply_mask(is_clipped, loss_mask)
+    clip_ratio = _apply_mask(is_clipped, loss_mask, max_tokens)
     return loss, clip_ratio
 
 
 @jaxtyped(typechecker=typechecker)
 def entropy_loss(
-    logits: Float[Tensor, "batch seq vocab"], loss_mask: Int[Tensor, "batch seq"], temperature: float
+    logits: Float[Tensor, "batch seq vocab"], loss_mask: Int[Tensor, "batch seq"], temperature: float, max_tokens: int
 ) -> Tensor:
-    return _compile_entropy_loss(logits=logits, loss_mask=loss_mask, temperature=temperature)
+    return _compile_entropy_loss(logits=logits, loss_mask=loss_mask, temperature=temperature, max_tokens=max_tokens)
 
 
 # @torch.compile
-def _compile_entropy_loss(logits: torch.Tensor, loss_mask: torch.Tensor, temperature: float):
+def _compile_entropy_loss(logits: torch.Tensor, loss_mask: torch.Tensor, temperature: float, max_tokens: int):
     logits = logits[:, :-1, :]
     logits = logits / temperature
 
@@ -135,7 +138,7 @@ def _compile_entropy_loss(logits: torch.Tensor, loss_mask: torch.Tensor, tempera
     pd = torch.nn.functional.softmax(logits, dim=-1)
     entropy = torch.logsumexp(logits, dim=-1) - torch.sum(pd * logits, dim=-1)
 
-    return _apply_mask(entropy, loss_mask)
+    return _apply_mask(entropy, loss_mask, max_tokens)
 
 
 @jaxtyped(typechecker=typechecker)
@@ -143,7 +146,8 @@ def kl_penalty(
     logprob: Float[Tensor, "batch seq_minus_1"],
     ref_logprob: Float[Tensor, "batch seq_minus_1"],
     loss_mask: Int[Tensor, "batch seq"],
-    ) -> Float[Tensor, ""]:
+    max_tokens: int,
+) -> Float[Tensor, ""]:
     """Compute KL divergence given logprob and ref_logprob.
     Copied from https://github.com/huggingface/trl/blob/main/trl/trainer/ppo_trainer.py#L1104
     https://github.com/volcengine/verl/blob/main/verl/trainer/ppo/core_algos.py#L351
@@ -164,9 +168,9 @@ def kl_penalty(
     ratio = torch.exp(kl)
     kld = (ratio - kl - 1).contiguous()
     kl = torch.clamp(kld, min=-10, max=10)
-    return _apply_mask(kl, loss_mask)
+    return _apply_mask(kl, loss_mask, max_tokens)
 
 
-def _apply_mask(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    return (tensor * mask).sum()
+def _apply_mask(tensor: torch.Tensor, mask: torch.Tensor, max_tokens: int) -> torch.Tensor:
+    return (tensor * mask).sum() / max_tokens
 

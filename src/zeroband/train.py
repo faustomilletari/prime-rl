@@ -355,16 +355,14 @@ def train(config: Config):
             data_per_rollout = next(logprobs_aware_iterator)
             num_grad_acc_steps = len(data_per_rollout)
 
+            max_tokens = config.optim.batch_size * config.data.seq_length
             
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
                 batch = data_per_rollout[grad_acc_step]
-                
 
                 input_ids = batch["input_ids"].to("cuda")
                 loss_mask = batch["loss_mask"]
-                
-                
 
                 ## correct aggregated metrics
                 for rewards in batch["rewards"]:
@@ -407,22 +405,20 @@ def train(config: Config):
                     config.grpo_epsilon_low,
                     config.grpo_epsilon_high,
                     config.clamp_log_prob_coef,
+                    max_tokens,
                 )
 
-                entropy = entropy_loss(logits, loss_mask, config.temperature)
+                entropy = entropy_loss(logits, loss_mask, config.temperature, max_tokens)
 
                 loss = pg_loss - config.entropy_loss_coeff * entropy
 
                 if config.kl_coef is not None:
-                    kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask)
+                    kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
                     kl_scaled = kl * config.kl_coef
                     metric_averager.update("kl", kl_scaled)
                     loss = loss + kl_scaled
 
-                # all the loss above did not reduce per token and are still per batch
-                loss_scaler = input_ids.shape[0] * input_ids.shape[1] * num_grad_acc_steps # total token per micro batch time grad acc steps
-                
-                loss = loss / loss_scaler
+                loss = loss / num_grad_acc_steps
 
                 inputs_ids_shape = input_ids.shape
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
