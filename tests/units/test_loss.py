@@ -3,9 +3,8 @@ import torch
 import pytest
 
 
-@pytest.mark.parametrize("masked_mean_axis", [None, 1])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
-def test_grpo_loss(masked_mean_axis, dtype):
+def test_grpo_loss(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
     original_logprobs = torch.randn(10, 9, dtype=dtype).cuda()
     advantages = torch.randn(10, 10).cuda()
@@ -21,8 +20,8 @@ def test_grpo_loss(masked_mean_axis, dtype):
         temperature=0.6,
         epsilon_low=0.2,
         epsilon_high=0.2,
-        masked_mean_axis=masked_mean_axis,
         clamp_log_prob_coef=10.0,
+        max_tokens=100,
     )
     assert loss.shape == ()
     assert loss.item() is not None
@@ -30,19 +29,17 @@ def test_grpo_loss(masked_mean_axis, dtype):
     assert clip_ratio.item() is not None
 
 
-@pytest.mark.parametrize("masked_mean_axis", [None, 1])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
-def test_entropy_loss(masked_mean_axis, dtype):
+def test_entropy_loss(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
-    entropy = entropy_loss(logits, loss_mask, temperature=0.6, masked_mean_axis=masked_mean_axis)
+    entropy = entropy_loss(logits, loss_mask, temperature=0.6, max_tokens=100)
     assert entropy.shape == ()
     assert entropy.item() is not None
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
-@pytest.mark.parametrize("masked_mean_axis", [None, 1])
-def test_grpo_loss_padding(masked_mean_axis, dtype):
+def test_grpo_loss_padding(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
     original_logprobs = torch.randn(10, 9, dtype=dtype).cuda()
     advantages = torch.randn(10, 10).cuda()
@@ -76,8 +73,8 @@ def test_grpo_loss_padding(masked_mean_axis, dtype):
             temperature=0.6,
             epsilon_low=0.2,
             epsilon_high=0.2,
-            masked_mean_axis=masked_mean_axis,
             clamp_log_prob_coef=10.0,
+            max_tokens=100,
         )
         loss_list.append(loss)
 
@@ -89,6 +86,6 @@ def test_kl_penalty():
     logprob = torch.randn(10, 9, dtype=torch.float32).cuda()
     ref_logprob = torch.randn(10, 9, dtype=torch.float32).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
-    kl = kl_penalty(logprob, ref_logprob, loss_mask, None)
+    kl = kl_penalty(logprob, ref_logprob, loss_mask, 100)
     assert kl.shape == ()
     assert kl.item() is not None
