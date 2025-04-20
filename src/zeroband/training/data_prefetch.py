@@ -123,7 +123,8 @@ class _GCPPrefetcherInternal:
         for blob in available_steps:
             try:
                 step_number = int(blob.name.partition("step_")[-1].partition("/")[0])
-                if blob.name.endswith(".parquet") and blob.name not in self.files_downloaded:
+                local_path = self._blob_to_local_path(blob)
+                if blob.name.endswith(".parquet") and blob.name not in self.files_downloaded and not local_path.exists():
                     steps[int(step_number)].append(blob)
             except Exception as e:
                 self.logger.warning(f"Error parsing step number for blob {blob.name}: {e}")
