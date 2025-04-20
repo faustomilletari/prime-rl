@@ -179,13 +179,13 @@ class MetricsAverager:
     @torch.no_grad()
     def sync(self):
         for key in self.metrics:
-            value = self.metrics[key] / self.count[key]
-
-            if value.device == torch.device("cpu"):
-                dist.all_reduce(value, op=dist.ReduceOp.SUM)
-                value = value / self.world_info.world_size
-            else:
-                dist.all_reduce(value, op=dist.ReduceOp.AVG)
+            value = self.metrics[key].clone()
+            count = self.count[key].clone()
+            
+            dist.all_reduce(value, op=dist.ReduceOp.SUM)
+            dist.all_reduce(count, op=dist.ReduceOp.SUM)
+            
+            value = value / count / self.world_info.world_size
 
             self.metrics[key] = value
 
