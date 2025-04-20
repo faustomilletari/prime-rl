@@ -355,13 +355,14 @@ def train(config: Config):
             data_per_rollout = next(logprobs_aware_iterator)
             num_grad_acc_steps = len(data_per_rollout)
 
-            max_tokens = config.optim.batch_size * config.data.seq_length
             
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
                 batch = data_per_rollout[grad_acc_step]
 
                 input_ids = batch["input_ids"].to("cuda")
+                max_tokens = input_ids.shape[0] * input_ids.shape[1]
+                
                 loss_mask = batch["loss_mask"]
 
                 ## correct aggregated metrics
