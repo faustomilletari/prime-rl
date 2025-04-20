@@ -180,7 +180,7 @@ class MetricsAverager:
     def sync(self):
         for key in self.metrics:
             value = self.metrics[key].clone()
-            count = self.count[key].clone()
+            count = torch.tensor(self.count[key])
             
             dist.all_reduce(value, op=dist.ReduceOp.SUM)
             dist.all_reduce(count, op=dist.ReduceOp.SUM)
