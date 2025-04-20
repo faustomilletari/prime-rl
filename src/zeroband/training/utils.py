@@ -185,7 +185,7 @@ class MetricsAverager:
             dist.all_reduce(value, op=dist.ReduceOp.SUM)
             dist.all_reduce(count, op=dist.ReduceOp.SUM)
             
-            value = value / count / self.world_info.world_size
+            value = value / count 
 
             self.metrics[key] = value
 
