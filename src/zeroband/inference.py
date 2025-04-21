@@ -435,16 +435,18 @@ def inference(config: Config):
             f"real_step: {real_step}, ckpt_step: {ckpt_step}, real_step - ckpt_step: {real_step - ckpt_step}, config.async_level: {config.async_level}"
         )
         if config.rollout_path is not None and real_step - ckpt_step > config.async_level:
-            ckpt_step = real_step - config.async_level
             attempt_count = 0
             while True:
-                stable_file = Path(config.rollout_path) / f"step_{ckpt_step}/stable"
+                new_ckpt_step = real_step - config.async_level
+                stable_file = Path(config.rollout_path) / f"step_{new_ckpt_step}/stable"
                 if stable_file.exists():
-                    logger.info(f"Reloading model weights from {config.rollout_path} ckpt {ckpt_step}")
-                    llm = reload_model_weights(llm, Path(config.rollout_path) / f"step_{ckpt_step}/model.safetensors")
+                    logger.info(f"Reloading model weights from {config.rollout_path} ckpt {new_ckpt_step}")
+                    llm = reload_model_weights(llm, Path(config.rollout_path) / f"step_{new_ckpt_step}/model.safetensors")
                     total_problems = 0
                     total_tokens = 0
                     logger.info(f"Reloaded model weights from {config.rollout_path} ckpt {ckpt_step}")
+                    success = True
+                    ckpt_step = new_ckpt_step
                     break
                 if attempt_count % 30 == 0:
                     logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
