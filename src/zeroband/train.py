@@ -218,6 +218,16 @@ def train(config: Config):
         apply_ac_ckpt(model, num)
 
     apply_fsdp(model, config.train.reshard_after_forward)
+    
+    logger.debug("saving rollout ckpt")
+    rollout_step = 0
+    path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
+    safetensor_path = save_ckpt_for_rollout(model, path)
+    if world_info.rank == 0:
+        logger.info(f"Broadcasting {safetensor_path}")
+        shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+        
+    exit()
 
     if config.kl_coef is not None:
         model_reference, _ = get_model_and_tokenizer(config.name_model, config.train.attn_impl)
