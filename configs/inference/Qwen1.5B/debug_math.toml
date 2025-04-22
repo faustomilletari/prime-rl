@@ -13,14 +13,5 @@ temperature = 0.6
 top_k = 40
 min_p = 0.1
 top_p = 0.95
+repetition_penalty = 1.1
 
-
-
-class SamplingParamConfig(BaseConfig):
-    temperature: float = 0.6
-    max_tokens: int | None = None
-    ignore_eos: bool = False
-    top_p: float = 1
-    n: int = 8
-    logprobs: int = 0  # 0 mean 1 logprob here
-    top_k: int = -1
