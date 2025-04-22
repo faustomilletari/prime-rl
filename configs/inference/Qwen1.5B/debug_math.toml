@@ -9,9 +9,5 @@ dataset = "justus27/math-hendrycks-genesys-format"
 
 
 [sampling]
-temperature = 0.6
-top_k = 40
-min_p = 0.1
-top_p = 0.95
-repetition_penalty = 1.1
+temperature = 1.0
 
