@@ -11,6 +11,7 @@ ModelName: TypeAlias = Literal[
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
     "meta-llama/Meta-Llama-3-8B",
     "Qwen/QwQ-32B",
+    "unsloth/QwQ-32B"
 ]
 
 ModelType: TypeAlias = LlamaForCausalLM | Qwen2ForCausalLM
