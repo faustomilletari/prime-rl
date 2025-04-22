@@ -45,7 +45,8 @@ class SamplingParamConfig(BaseConfig):
     n: int = 8
     logprobs: int = 0  # 0 mean 1 logprob here
     top_k: int = -1
-
+    min_p: float = 0.1
+    repetition_penalty: float = 1.0
 
 class LenRewardConfig(BaseConfig):
     reward_type: Literal["exact", "max", "clip"] = "max"
