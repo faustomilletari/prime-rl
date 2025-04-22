@@ -198,8 +198,8 @@ def train(config: Config):
     local_batch_size = get_local_batch_size(config.optim.batch_size, config.train.micro_bs, config.data.num_workers, world_info)
 
     if config.ckpt.rollout_path is not None and world_info.rank == 0:
-        origin_data_dir = os.environ.get("SHARDCAST_OUTPUT_DIR", "./origin_data")
-        shardcast.initialize(origin_data_dir, max_distribution_folders=config.max_async_level)
+        if envs.SHARDCAST_OUTPUT_DIR is not None:
+            shardcast.initialize(envs.SHARDCAST_OUTPUT_DIR, max_distribution_folders=config.max_async_level)
 
     model, tokenizer = get_model_and_tokenizer(config.name_model, config.train.attn_impl)
 
@@ -510,8 +510,9 @@ def train(config: Config):
                 previous_ckpt_rollout.append(path)
                 safetensor_path = save_ckpt_for_rollout(model, path)
                 if world_info.rank == 0:
-                    logger.info(f"Broadcasting {safetensor_path}")
-                    shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+                    if envs.SHARDCAST_OUTPUT_DIR is not None:
+                        logger.info(f"Broadcasting {safetensor_path}")
+                        shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
 
                 if len(previous_ckpt_rollout) > config.max_async_level:
                     path_to_delete = previous_ckpt_rollout.pop(0)
