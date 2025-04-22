@@ -23,5 +23,9 @@ def get_model_and_tokenizer(model_name: ModelName, attn_impl: AttnImpl) -> tuple
     config_model = AutoConfig.from_pretrained(model_name, attn_implementation=attn_impl)
     config_model.use_cache = False
     model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name, config=config_model)
-    tokenizer.pad_token_id = tokenizer.eos_token_id
+    
+    if not model == "unsloth/QwQ-32B":
+        # unsloth/QwQ-32B has already a good pad token id
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        
     return model, tokenizer  # type: ignore
