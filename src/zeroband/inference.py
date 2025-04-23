@@ -435,9 +435,8 @@ def inference(config: Config):
             f"real_step: {real_step}, ckpt_step: {ckpt_step}, real_step - ckpt_step: {real_step - ckpt_step}, config.async_level: {config.async_level}"
         )
         if config.rollout_path is not None and real_step - ckpt_step > config.async_level:
-            attempt_count = 0
-            while True:
-                new_ckpt_step = real_step - config.async_level
+            new_ckpt_step = real_step - config.async_level
+            for attempt_count in range(30):
                 stable_file = Path(config.rollout_path) / f"step_{new_ckpt_step}/stable"
                 if stable_file.exists():
                     logger.info(f"Reloading model weights from {config.rollout_path} ckpt {new_ckpt_step}")
@@ -445,13 +444,14 @@ def inference(config: Config):
                     total_problems = 0
                     total_tokens = 0
                     logger.info(f"Reloaded model weights from {config.rollout_path} ckpt {ckpt_step}")
-                    success = True
                     ckpt_step = new_ckpt_step
                     break
-                if attempt_count % 30 == 0:
+                if attempt_count == 0:
                     logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
                 time.sleep(1)
-                attempt_count += 1
+            print(f"ckpt_step: {ckpt_step}, new_ckpt_step: {new_ckpt_step}")
+            if ckpt_step != new_ckpt_step:  # This means we failed to reload the model weights
+                continue
 
         # Get batch
         if node_address_int is not None:
