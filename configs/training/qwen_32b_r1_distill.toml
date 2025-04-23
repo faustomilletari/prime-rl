@@ -16,11 +16,10 @@ path = "outputs"
 
 [optim]
 batch_size = 512
-warmup_steps = 1
+warmup_steps = 50
 total_steps = 10000000000000000000
 step_per_rollout = 8
 grad_norm_clip = 0.1
-warmup_steps = 50
 
 
 [optim.optim]
