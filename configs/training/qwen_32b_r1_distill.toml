@@ -20,8 +20,8 @@ warmup_steps = 1
 total_steps = 10000000000000000000
 step_per_rollout = 8
 grad_norm_clip = 0.1
+warmup_steps = 50
 
 
 [optim.optim]
 lr = 3e-7
-warmup_steps = 50
