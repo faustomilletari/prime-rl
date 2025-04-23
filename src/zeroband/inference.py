@@ -449,7 +449,6 @@ def inference(config: Config):
                 if attempt_count == 0:
                     logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
                 time.sleep(1)
-            print(f"ckpt_step: {ckpt_step}, new_ckpt_step: {new_ckpt_step}")
             if ckpt_step != new_ckpt_step:  # This means we failed to reload the model weights
                 continue
 
