@@ -118,6 +118,8 @@ class Config(BaseConfig):
     start_total_problems: int | None = None
     start_rollout_step: int | None = None
 
+    loss_coeff: float | None = None
+
     @model_validator(mode="after")
     def check_liger(self):
         if self.train.liger_qwen:
@@ -355,14 +357,13 @@ def train(config: Config):
             data_per_rollout = next(logprobs_aware_iterator)
             num_grad_acc_steps = len(data_per_rollout)
 
-            
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
                 batch = data_per_rollout[grad_acc_step]
 
                 input_ids = batch["input_ids"].to("cuda")
                 max_tokens = input_ids.shape[0] * input_ids.shape[1]
-                
+
                 loss_mask = batch["loss_mask"]
 
                 ## correct aggregated metrics
@@ -376,15 +377,15 @@ def train(config: Config):
                     metric_averager.update("length_penalties", length_penalties)
                 for target_lengths in batch["target_lengths"]:
                     metric_averager.update("target_lengths", target_lengths)
-                    
-                ## per micro batch metrics 
-                
+
+                ## per micro batch metrics
+
                 metric_averager.update("batch_reward", batch["rewards"].float().mean())
                 metric_averager.update("batch_task_reward", batch["task_rewards"].float().mean())
                 metric_averager.update("batch_seq_lens", batch["seq_lens"].float().mean())
                 metric_averager.update("batch_length_penalties", batch["length_penalties"].float().mean())
                 metric_averager.update("batch_target_lengths", batch["target_lengths"].float().mean())
-                
+
                 # Forward
                 logits: Float[torch.Tensor, "batch seq vocab"] = model(
                     input_ids=input_ids, position_ids=batch["position_ids"]
@@ -420,6 +421,9 @@ def train(config: Config):
                     loss = loss + kl_scaled
 
                 loss = loss / num_grad_acc_steps
+
+                if config.loss_coeff is not None:
+                    loss = loss * config.loss_coeff
 
                 inputs_ids_shape = input_ids.shape
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
