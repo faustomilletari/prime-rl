@@ -89,6 +89,7 @@ class CkptConfig(BaseConfig):
 
 class Config(BaseConfig):
     name_model: ModelName = "150M"
+    model_path: str | None = None
 
     ckpt: CkptConfig = CkptConfig()
 
@@ -199,7 +200,7 @@ def train(config: Config):
         if envs.SHARDCAST_OUTPUT_DIR is not None:
             shardcast.initialize(envs.SHARDCAST_OUTPUT_DIR, max_distribution_folders=config.max_async_level)
 
-    model, tokenizer = get_model_and_tokenizer(config.name_model, config.train.attn_impl)
+    model, tokenizer = get_model_and_tokenizer(config.name_model, config.train.attn_impl, config.model_path)
 
     perf_counter = PerfCounter(window_size=min(10, 2 * config.optim.step_per_rollout), model=model, seq_len=config.data.seq_length)
 
