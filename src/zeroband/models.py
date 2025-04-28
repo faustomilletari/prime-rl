@@ -2,7 +2,7 @@ from typing import Literal, TypeAlias
 from transformers import AutoTokenizer, LlamaForCausalLM, Qwen2ForCausalLM, AutoConfig, AutoModelForCausalLM
 
 
-ModelName: TypeAlias = Literal[
+ModelName: TypeAlias = str | Literal[
     "PrimeIntellect/llama-2m-fresh",
     "PrimeIntellect/llama-150m-fresh",
     "PrimeIntellect/llama-1b-fresh",
