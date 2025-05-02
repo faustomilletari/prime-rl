@@ -31,7 +31,7 @@ from zeroband.logger import get_logger
 from pydantic_config import BaseConfig, parse_argv
 from jaxtyping import Float
 
-from zeroband.training.world_info import WorldInfo, get_world_info
+from zeroband.utils.world_info import WorldInfo, get_world_info
 
 from pydantic import model_validator
 
@@ -355,14 +355,13 @@ def train(config: Config):
             data_per_rollout = next(logprobs_aware_iterator)
             num_grad_acc_steps = len(data_per_rollout)
 
-            
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
                 batch = data_per_rollout[grad_acc_step]
 
                 input_ids = batch["input_ids"].to("cuda")
                 max_tokens = input_ids.shape[0] * input_ids.shape[1]
-                
+
                 loss_mask = batch["loss_mask"]
 
                 ## correct aggregated metrics
@@ -376,15 +375,15 @@ def train(config: Config):
                     metric_averager.update("length_penalties", length_penalties)
                 for target_lengths in batch["target_lengths"]:
                     metric_averager.update("target_lengths", target_lengths)
-                    
-                ## per micro batch metrics 
-                
+
+                ## per micro batch metrics
+
                 metric_averager.update("batch_reward", batch["rewards"].float().mean())
                 metric_averager.update("batch_task_reward", batch["task_rewards"].float().mean())
                 metric_averager.update("batch_seq_lens", batch["seq_lens"].float().mean())
                 metric_averager.update("batch_length_penalties", batch["length_penalties"].float().mean())
                 metric_averager.update("batch_target_lengths", batch["target_lengths"].float().mean())
-                
+
                 # Forward
                 logits: Float[torch.Tensor, "batch seq vocab"] = model(
                     input_ids=input_ids, position_ids=batch["position_ids"]

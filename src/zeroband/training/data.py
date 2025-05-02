@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 
 from zeroband.logger import get_logger
 from zeroband.training.data_prefetch import GCPPrefetcher, STABLE_FILE
-from zeroband.training.world_info import get_world_info
+from zeroband.utils.world_info import get_world_info
 from zeroband.training import envs
 from zeroband.schema import pa_schema
 
