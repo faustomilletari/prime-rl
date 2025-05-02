@@ -2,7 +2,7 @@ import os
 import logging
 import pytest
 from zeroband.utils.world_info import reset_world_info
-from zeroband.utils.logger import ALLOWED_LEVELS, get_logger, reset_logger, LocalRankFormatter
+from zeroband.utils.logger import ALLOWED_LEVELS, get_logger, reset_logger, PrimeFormatter
 
 
 @pytest.fixture(autouse=True)
@@ -18,7 +18,7 @@ def test_init_with_default_args():
     assert logger.level == logging.INFO
     assert len(logger.handlers) == 1
     assert isinstance(logger.handlers[0], logging.StreamHandler)
-    assert isinstance(logger.handlers[0].formatter, LocalRankFormatter)
+    assert isinstance(logger.handlers[0].formatter, PrimeFormatter)
 
 
 @pytest.mark.parametrize("log_level", list(ALLOWED_LEVELS.keys()))
