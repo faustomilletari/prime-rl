@@ -1,23 +1,29 @@
-from typing import TYPE_CHECKING, Any, List
 import os
+from typing import TYPE_CHECKING, Any, List, Optional
+
+from zeroband.utils.envs import _BASE_ENV, get_env_value, get_dir
 
 if TYPE_CHECKING:
-    SHARDCAST_SERVERS: list[str] | None = None
-    SHARDCAST_BACKLOG_VERSION: int = -1
+    # Enable type checking for shared envs
+    # ruff: noqa
+    from zeroband.utils.envs import PRIME_LOG_LEVEL
 
-_env = {
+    SHARDCAST_SERVERS: Optional[List[str]] = None
+    SHARDCAST_BACKLOG_VERSION: int = -1
+    NODE_ADDRESS: Optional[str] = None
+
+_INFERENCE_ENV = {
     "SHARDCAST_SERVERS": lambda: os.getenv("SHARDCAST_SERVERS", None).split(",")
     if os.getenv("SHARDCAST_SERVERS", None) is not None
     else None,
     "SHARDCAST_BACKLOG_VERSION": lambda: int(os.getenv("SHARDCAST_BACKLOG_VERSION", "-1")),
+    **_BASE_ENV,
 }
 
 
 def __getattr__(name: str) -> Any:
-    if name not in _env:
-        raise AttributeError(f"Invalid environment variable: {name}")
-    return _env[name]()
+    return get_env_value(_INFERENCE_ENV, name)
 
 
 def __dir__() -> List[str]:
-    return list(_env.keys())
+    return get_dir(_INFERENCE_ENV)
