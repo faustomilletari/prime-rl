@@ -22,7 +22,8 @@ from vllm.sequence import SampleLogprobs
 from vllm.model_executor import SamplingMetadata
 from vllm.model_executor.layers.logits_processor import _prune_hidden_states
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
+from zeroband.utils.world_info import get_world_info
 from zeroband.models import ModelName
 from zeroband.rewards.registry import REWARD_FUNCTIONS
 
@@ -332,7 +333,17 @@ def compute_advantages_grpo(grouped_rewards: dict[int, dict[str, torch.FloatTens
 
 
 def inference(config: Config):
+    # Get world information and initialize logger
+    world_info = get_world_info()
+
+    # Initialize the logger
+    logger = get_logger("INFERENCE")
+    logger.info(f"Start inference on {world_info.num_nodes} node(s) and {world_info.world_size} GPU(s)")
+
+    # Initialize prime metrics
     prime_metric = PrimeMetric(disable=config.prime_log_freq is None, period=config.prime_log_freq)
+
+    # Initialize vLLM and get tokenizer
     llm = LLM(
         model=config.name_model,
         tensor_parallel_size=config.tp,
@@ -344,41 +355,49 @@ def inference(config: Config):
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
     )
     tokenizer = llm.get_tokenizer()
-    rank = int(os.environ.get("RANK", "0"))
-    logger = get_logger(f"INFERENCE {rank}")
 
     sampling_params = SamplingParams(**config.sampling.model_dump())
 
+    # Load  dataset
+    logger.info(f"Loading dataset {config.dataset}")
+    dataset = load_dataset(config.dataset, split="train")
+
+    # Optionally shuffle dataset
     if os.environ.get("NODE_ADDRESS") is not None:
         # We dont shuffle here because we shuffle reproducibly in the sampling loop.
-        dataset = load_dataset(config.dataset, split="train")
         assert config.seed is None, "Seed is not supported when NODE_ADDRESS is set"
-        assert rank == 0, "DP is not supported when NODE_ADDRESS is set"
+        assert world_info.rank == 0, "DP is not supported when NODE_ADDRESS is set"
         node_address_int = int(os.environ.get("NODE_ADDRESS"), 16)
         logger.info(f"Seeding with {node_address_int} ({os.environ.get('NODE_ADDRESS')})")
     else:
-        # not sure what is the default seed for np.random.default_rng so doing this to make sure we use the default value
-        generator = np.random.default_rng(config.seed + rank) if config.seed is not None else np.random.default_rng()
+        # Seed the dataset with a random number
+        # TODO(Mika): This breaks PP because shards load different batches
+        seed = config.seed + world_info.rank if config.seed is not None else None
+        generator = np.random.default_rng(seed)
         dataset = load_dataset(config.dataset, split="train").shuffle(generator=generator)
         node_address_int = None
 
+    # Optionally filter dataset
     if config.difficulty_filtering:
         dataset = dataset.filter(
             lambda x: x[config.difficulty_filtering.solve_rate_field] >= config.difficulty_filtering.min_solve_rate
             and x[config.difficulty_filtering.solve_rate_field] <= config.difficulty_filtering.max_solve_rate
         )
 
-    max_samples = config.max_samples or len(dataset)
-
-    model = llm.llm_engine.model_executor.driver_worker.model_runner.model
-
+    # Initialize TOPLOC cache
     if config.dtype == "fp32":
         config.toploc = False
 
+    model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     toploc_cache = TopLocCache(
-        max_seqs=config.batch_size * config.sampling.n, max_len=32, hidden_size=model.config.hidden_size, disable=not config.toploc
+        max_seqs=config.batch_size * config.sampling.n,
+        max_len=32,
+        hidden_size=model.config.hidden_size,
+        disable=not config.toploc,
     )
 
+    # Register logits processor hook
+    # TODO: Can we move this to toploc submodule?
     def logits_processor_hook(module, input):
         hidden_states, sampling_metadata = input[1], input[2]
         assert isinstance(hidden_states, torch.Tensor)
@@ -414,6 +433,7 @@ def inference(config: Config):
     current_step_batch_counter = 1
     total_problems = 0
     total_tokens = 0
+    max_samples = config.max_samples or len(dataset)
 
     for i in range(0, min(len(dataset), max_samples), config.batch_size):
         if config.step_endpoint is not None:

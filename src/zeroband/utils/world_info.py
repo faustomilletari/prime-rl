@@ -53,7 +53,6 @@ def get_world_info() -> WorldInfo:
     """Returns the WorldInfo. If not initialized, it will initialize."""
     global _WORLD_INFO
     if _WORLD_INFO is None:
-        print("initializing world_info")
         _WORLD_INFO = WorldInfo()
     return _WORLD_INFO
 
