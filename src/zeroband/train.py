@@ -265,7 +265,6 @@ def train(config: Config):
         logger.debug("saving rollout ckpt")
         rollout_step = training_progress.step // config.optim.step_per_rollout
         path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-        previous_ckpt_rollout.append(path)
         safetensor_path = save_ckpt_for_rollout(model, path)
         
         exit()
