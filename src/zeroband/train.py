@@ -88,7 +88,7 @@ class CkptConfig(BaseConfig):
 
 
 class Config(BaseConfig):
-    name_model: ModelName = "150M"
+    name_model: ModelName = "PrimeIntellect/llama-150m-fresh"
 
     ckpt: CkptConfig = CkptConfig()
 
