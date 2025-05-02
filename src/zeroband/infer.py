@@ -4,7 +4,7 @@ import os
 import asyncio
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 import uuid
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ import concurrent.futures
 import time
 from toploc.utils import sha256sum
 from safetensors import safe_open
+import torch.distributed as dist
 
 # from vllm.model_executor.model_loader
 from vllm.model_executor.model_loader.loader import _process_weights_after_loading
@@ -25,6 +26,7 @@ from zeroband.utils.logger import get_logger
 from zeroband.utils.world_info import get_world_info
 from zeroband.utils.models import ModelName
 from zeroband.inference.toploc import setup_toploc_cache
+from zeroband.inference.pipeline import setup_hooks, setup_comm
 from zeroband.rewards.registry import REWARD_FUNCTIONS
 
 from datasets import load_dataset
@@ -74,6 +76,13 @@ class DifficultyFilteringConfig(BaseConfig):
     max_solve_rate: float = 0.5
 
 
+class PipelineConfig(BaseConfig):
+    stage_idx: int = 0
+    num_stages: int = 1
+    iroh_seed: Optional[int] = None
+    iroh_peer_id: Optional[str] = None
+
+
 class Config(BaseConfig):
     model_name: ModelName = "150M"
     dataset: str = "justus27/rl-code-and-math"
@@ -88,6 +97,7 @@ class Config(BaseConfig):
     quant: Literal["fp8"] | None = None
 
     sampling: SamplingParamConfig = SamplingParamConfig()
+    pipeline: PipelineConfig = PipelineConfig()
     enforce_eager: bool = False
     max_model_len: int | None = None
 
@@ -505,6 +515,15 @@ def inference(config: Config):
         else:
             prompts = fake_chat_template(messages)
 
+        # Create communication for pipeline
+        if config.pipeline.num_stages > 1:
+            node = setup_comm(
+                num_stages=config.pipeline.num_stages,
+                iroh_seed=config.pipeline.iroh_seed,
+                iroh_peer_id=config.pipeline.iroh_peer_id,
+            )
+            setup_hooks(stage_idx=config.pipeline.stage_idx, num_stages=config.pipeline.num_stages, llm=llm, node=node)
+
         start_time = time.time()
         generated_tokens = llm.generate(prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
@@ -582,6 +601,9 @@ def inference(config: Config):
         if config.total_step is not None and real_step > config.total_step:
             logger.info(f"Reached total step {config.total_step}, stopping inference")
             break
+
+    # Manually destroy vLLM process group to avoid warnings
+    dist.destroy_process_group()
 
     get_process_executor().shutdown(wait=True)
 

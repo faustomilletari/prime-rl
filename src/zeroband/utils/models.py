@@ -38,6 +38,11 @@ ModelName: TypeAlias = Literal[
     "Qwen/Qwen3-8B",
     "Qwen/Qwen3-14B",
     "Qwen/Qwen3-32B",
+    # Shards
+    "mikasenghaas/Llama-3.2-1B-Instruct-0.2",
+    "mikasenghaas/Llama-3.2-1B-Instruct-1.2",
+    "mikasenghaas/Qwen3-14B-0.2",
+    "mikasenghaas/Qwen3-14B-1.2",
 ]
 
 ModelType: TypeAlias = LlamaForCausalLM | Qwen2ForCausalLM | Qwen3ForCausalLM
