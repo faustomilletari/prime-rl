@@ -1,5 +1,5 @@
 import pickle
-from typing import Tuple, Optional
+from typing import Tuple
 from functools import partial
 
 import torch
@@ -10,11 +10,9 @@ from vllm import LLM
 
 from zeroband.logger import get_logger
 
-comm: Optional[Node] = None
-
 
 # TODO: Outputs of decoder blocks look different for vLLM implementations and HF-based implementations. The implementation currently breaks for HF-based implementations.
-def send_intermediate_states(_, __, output: Tuple) -> None:
+def send_intermediate_states(_, __, output: Tuple, node: Node) -> None:
     """
     A post-hook that sends the hidden states and residual of the last decoder layer to the next stage node's first layer.
 
@@ -23,20 +21,19 @@ def send_intermediate_states(_, __, output: Tuple) -> None:
         __: The arguments to the module
         output: The output of the module (here the decoder layer output)
         node: The node that is being hooked
-        logger: The logger to use for logging
     """
     logger = get_logger(__name__)
     hidden_states, residual = output
     serialized_hidden_states = pickle.dumps(hidden_states.to("cpu"))
     serialized_residual = pickle.dumps(residual.to("cpu"))
-    comm.isend(serialized_hidden_states, tag=0, latency=None).wait()
-    comm.isend(serialized_residual, tag=0, latency=None).wait()
+    node.isend(serialized_hidden_states, tag=0, latency=None).wait()
+    node.isend(serialized_residual, tag=0, latency=None).wait()
     logger.debug(
         f"Sent hidden_states and residual ({hidden_states.shape}, {residual.shape}) ({len(serialized_hidden_states) + len(serialized_residual)} bytes)"
     )
 
 
-def recv_intermediate_states(_, input: Tuple) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def recv_intermediate_states(_, input: Tuple, node: Node) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     A pre-hook that receives the hidden states and residual from the previous stage node's last layer at the first layer of the current node.
 
@@ -46,13 +43,12 @@ def recv_intermediate_states(_, input: Tuple) -> Tuple[torch.Tensor, torch.Tenso
         _: The module that is being hooked
         input: The input to the module (here the positions, hidden states and residual of the previous node's last layer)
         node: The node class instances for communication
-        logger: The logger to use for logging
     """
     logger = get_logger(__name__)
     positions, _, kv_cache, attn_metadata, _ = input
     device = positions.device
-    serialized_hidden_states = comm.irecv(tag=0).wait()
-    serialized_residual = comm.irecv(tag=0).wait()
+    serialized_hidden_states = node.irecv(tag=0).wait()
+    serialized_residual = node.irecv(tag=0).wait()
     hidden_states = pickle.loads(serialized_hidden_states).to(device)
     residuals = pickle.loads(serialized_residual).to(device)
     logger.debug(
@@ -62,7 +58,7 @@ def recv_intermediate_states(_, input: Tuple) -> Tuple[torch.Tensor, torch.Tenso
     return positions, hidden_states, kv_cache, attn_metadata, residuals
 
 
-def recv_output(_, __, output, relay=False) -> SamplerOutput:
+def recv_output(_, __, output, node: Node, relay=False) -> SamplerOutput:
     """
     A post-hook that receives sampling outputs from the last stage node and optionally relays them to the next stage node.
     For a pipeline with 4 stages, this hook should be registered as follows:
@@ -82,16 +78,16 @@ def recv_output(_, __, output, relay=False) -> SamplerOutput:
         relay: Whether to relay the outputs to the next stage node
     """
     logger = get_logger(__name__)
-    serialized_output = comm.irecv(tag=0).wait()
+    serialized_output = node.irecv(tag=0).wait()
     logger.debug(f"Received outputs ({len(serialized_output)} bytes)")
     if relay:
-        comm.isend(serialized_output, tag=0, latency=None).wait()
+        node.isend(serialized_output, tag=0, latency=None).wait()
         logger.debug(f"Sent outputs ({len(serialized_output)} bytes)")
     output = pickle.loads(serialized_output)
     return output
 
 
-def send_output(_, __, output: SamplerOutput) -> None:
+def send_output(_, __, output: SamplerOutput, node: Node) -> None:
     """
     A post-hook that sends the sampling outputs from the last stage node to the first stage node.
 
@@ -100,11 +96,10 @@ def send_output(_, __, output: SamplerOutput) -> None:
         __: The arguments to the module
         output: The outputs of the module
         node: The node class instances for communication
-        logger: The logger to use for logging
     """
     logger = get_logger(__name__)
     serialized_output = pickle.dumps(output)
-    comm.isend(serialized_output, tag=0, latency=None).wait()
+    node.isend(serialized_output, tag=0, latency=None).wait()
     logger.debug(f"Sent outputs ({len(serialized_output)} bytes)")
 
 
@@ -122,10 +117,6 @@ def setup_hooks(stage_idx: int, num_stages: int, llm: LLM, node: Node) -> None:
 
     # Get logger
     logger = get_logger(__name__)
-
-    # Setup node as global var
-    global comm
-    comm = node
 
     # TODO: In vLLM v0.8.5, the sampler is moved to model runner (https://github.com/vllm-project/vllm/pull/17084)
     # Once we bump vLLM version, update this
@@ -145,27 +136,27 @@ def setup_hooks(stage_idx: int, num_stages: int, llm: LLM, node: Node) -> None:
 
     if stage_idx == 0:  # First stage
         # Send intermediate states to next stage (post-hook)
-        last_layer.register_forward_hook(send_intermediate_states)
+        last_layer.register_forward_hook(partial(send_intermediate_states, node=node))
         logger.info("Registered post-hook send_intermediate_states on last layer")
 
         # Receive outputs from last stage (post-hook)
-        sampler.register_forward_hook(partial(recv_output, relay=relay))
+        sampler.register_forward_hook(partial(recv_output, node=node, relay=relay))
         logger.info("Registered post-hook recv_output on sampler")
     elif stage_idx == num_stages - 1:  # Last stage
         # Receive intermediate states from previous stage (pre-hook)
-        first_layer.register_forward_pre_hook(recv_intermediate_states)
+        first_layer.register_forward_pre_hook(partial(recv_intermediate_states, node=node))
         logger.info("Registered pre-hook recv_intermediate_states on first layer")
 
         # Send outputs to first  stage (post-hook)
-        sampler.register_forward_hook(send_output)
+        sampler.register_forward_hook(partial(send_output, node=node))
         logger.info("Registered post-hook send_output on sampler")
     else:
         # Receive intermediate states from previous stage and send positions to next stage (pre-hook)
-        first_layer.register_forward_pre_hook(recv_intermediate_states)
+        first_layer.register_forward_pre_hook(partial(recv_intermediate_states, node=node))
         logger.info("Registered pre-hook recv_intermediate_states on first layer")
 
         # Send intermediate states to next stage (post-hook)
-        last_layer.register_forward_hook(send_intermediate_states)
+        last_layer.register_forward_hook(partial(send_intermediate_states, node=node))
         logger.info("Registered post-hook send_intermediate_states on last layer")
 
         # Receive and relay outputs from last stage (post-hook)
