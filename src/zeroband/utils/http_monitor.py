@@ -1,6 +1,6 @@
 from typing import Any
 import aiohttp
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 import asyncio
 from zeroband.training import envs
 

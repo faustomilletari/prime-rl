@@ -7,7 +7,7 @@ import torch
 from safetensors.torch import save_file
 from torch.distributed.tensor import DTensor
 from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 from zeroband.models import ModelType
 from zeroband.utils.world_info import get_world_info
 

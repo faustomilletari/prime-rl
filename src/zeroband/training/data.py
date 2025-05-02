@@ -14,7 +14,7 @@ from jaxtyping import Float, Int
 from pyarrow import dataset as ds
 import pyarrow.parquet as pq
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 from zeroband.training.data_prefetch import GCPPrefetcher, STABLE_FILE
 from zeroband.utils.world_info import get_world_info
 from zeroband.training import envs

@@ -1,6 +1,6 @@
 from itertools import chain
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 import socket
 import time
 import torch
@@ -11,7 +11,7 @@ from transformers import (
 from torch.distributed.tensor import DTensor
 
 from zeroband.models import ModelType
-from zeroband.training.world_info import get_world_info
+from zeroband.utils.world_info import get_world_info
 import torch.distributed as dist
 from torch.distributed._composable.fsdp import FSDPModule
 
@@ -181,11 +181,11 @@ class MetricsAverager:
         for key in self.metrics:
             value = self.metrics[key].clone()
             count = torch.tensor(self.count[key])
-            
+
             dist.all_reduce(value, op=dist.ReduceOp.SUM)
             dist.all_reduce(count, op=dist.ReduceOp.SUM)
-            
-            value = value / count 
+
+            value = value / count
 
             self.metrics[key] = value
 

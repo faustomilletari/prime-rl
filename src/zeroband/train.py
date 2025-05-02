@@ -26,7 +26,7 @@ from zeroband.training.utils import (
     wake_up_model_from_cpu,
 )
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 
 from pydantic_config import BaseConfig, parse_argv
 from jaxtyping import Float

@@ -4,7 +4,7 @@ from google.cloud import storage
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import wait
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 import multiprocessing as mp
 
 
