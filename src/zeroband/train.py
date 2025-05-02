@@ -11,7 +11,7 @@ import torch.distributed.tensor
 import wandb
 import shardcast
 
-from zeroband.models import AttnImpl, ModelName, ModelType, get_model_and_tokenizer
+from zeroband.utils.models import AttnImpl, ModelName, ModelType, get_model_and_tokenizer
 from zeroband.training import envs
 from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_state, save_checkpoint_fsdp_state, save_ckpt_for_rollout
 from zeroband.training.data import BatchOutput, CollateMode, DataConfig, DatasetOutput, get_dataloader, packed_batch

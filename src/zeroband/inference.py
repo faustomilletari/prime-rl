@@ -24,7 +24,7 @@ from vllm.model_executor.layers.logits_processor import _prune_hidden_states
 
 from zeroband.utils.logger import get_logger
 from zeroband.utils.world_info import get_world_info
-from zeroband.models import ModelName
+from zeroband.utils.models import ModelName
 from zeroband.rewards.registry import REWARD_FUNCTIONS
 
 from datasets import load_dataset

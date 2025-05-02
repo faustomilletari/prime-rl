@@ -10,7 +10,7 @@ from transformers import (
 )
 from torch.distributed.tensor import DTensor
 
-from zeroband.models import ModelType
+from zeroband.utils.models import ModelType
 from zeroband.utils.world_info import get_world_info
 import torch.distributed as dist
 from torch.distributed._composable.fsdp import FSDPModule

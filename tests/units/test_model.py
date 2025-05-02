@@ -1,4 +1,4 @@
-from zeroband.models import get_model_and_tokenizer
+from zeroband.utils.models import get_model_and_tokenizer
 
 import torch
 
