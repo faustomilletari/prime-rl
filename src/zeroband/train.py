@@ -181,7 +181,7 @@ def train(config: Config):
         torch._logging.set_logs(dynamo=logging.CRITICAL)  # silent flex attn error
         torch_log.setLevel(logging.CRITICAL)
 
-    logger = get_logger()
+    logger = get_logger("TRAIN")
     world_info = get_world_info()
 
     logger.info(f"start training on {world_info.world_size} rank(s)")

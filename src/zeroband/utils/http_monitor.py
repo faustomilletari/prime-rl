@@ -16,7 +16,7 @@ class HttpMonitor:
         self.base_url = envs.PRIME_API_BASE_URL
         self.auth_token = envs.PRIME_DASHBOARD_AUTH_TOKEN
 
-        self._logger = get_logger()
+        self._logger = get_logger("TRAIN")
 
         self.run_id = envs.PRIME_RUN_ID
         if self.run_id is None:

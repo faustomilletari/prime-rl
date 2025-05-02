@@ -22,7 +22,7 @@ def apply_ac_ckpt(model: ModelType, num: int):
 
     Example if `num=2` only half of the layers are checkpointed.
     """
-    logger = get_logger()
+    logger = get_logger("TRAIN")
 
     layers_ckpt = 0
 
