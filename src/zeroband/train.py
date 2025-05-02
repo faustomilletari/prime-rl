@@ -262,6 +262,14 @@ def train(config: Config):
         logger.info(f"loading checkpoint from {config.ckpt.resume}")
         load_checkpoint_fsdp_state(model, [optimizer], training_progress, scheduler, config.ckpt.resume)
 
+        logger.debug("saving rollout ckpt")
+        rollout_step = training_progress.step // config.optim.step_per_rollout
+        path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
+        previous_ckpt_rollout.append(path)
+        safetensor_path = save_ckpt_for_rollout(model, path)
+        
+        exit()
+
     if training_progress.step % config.optim.step_per_rollout != 0:
         logger.warning(
             f"Resuming training from step {training_progress.step} seems invalid, as it should be multiple of train.step_per_rollout ({config.optim.step_per_rollout})"
