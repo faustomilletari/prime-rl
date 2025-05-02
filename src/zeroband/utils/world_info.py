@@ -63,6 +63,7 @@ def reset_world_info() -> None:
 
 
 if __name__ == "__main__":
+    # Used in tests/units/test_world_info.py to test init with torchrun
     import torch.distributed as dist
 
     print(get_world_info())
