@@ -8,7 +8,7 @@ from prime_iroh import Node
 from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm import LLM
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 
 
 # TODO: Outputs of decoder blocks look different for vLLM implementations and HF-based implementations. The implementation currently breaks for HF-based implementations.

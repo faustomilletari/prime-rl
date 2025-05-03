@@ -2,7 +2,7 @@ import pytest
 from prime_iroh import Node
 from multiprocessing import Process
 
-from zeroband.inferencing.pipeline import setup_comm
+from zeroband.inference.pipeline import setup_comm
 
 # Pre-computed node IDs for different seeds (useful for debugging)
 IROH_NODE_ID_MAP = {

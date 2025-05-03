@@ -2,7 +2,7 @@ import time
 from prime_iroh import Node
 from typing import Optional
 
-from zeroband.logger import get_logger
+from zeroband.utils.logger import get_logger
 
 
 def setup_comm(num_stages: int, iroh_seed: Optional[int], iroh_peer_id: Optional[str]) -> Node:
