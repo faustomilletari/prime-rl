@@ -6,7 +6,7 @@ from zeroband.utils.envs import _BASE_ENV, get_env_value, get_dir
 if TYPE_CHECKING:
     # Enable type checking for shared envs
     # ruff: noqa
-    from zeroband.utils.envs import PRIME_LOG_LEVEL
+    from zeroband.utils.envs import PRIME_LOG_LEVEL, RANK, WORLD_SIZE, LOCAL_RANK, LOCAL_WORLD_SIZE
 
     SHARDCAST_SERVERS: Optional[List[str]] = None
     SHARDCAST_BACKLOG_VERSION: int = -1
@@ -17,6 +17,7 @@ _INFERENCE_ENV = {
     if os.getenv("SHARDCAST_SERVERS", None) is not None
     else None,
     "SHARDCAST_BACKLOG_VERSION": lambda: int(os.getenv("SHARDCAST_BACKLOG_VERSION", "-1")),
+    "NODE_ADDRESS": lambda: os.getenv("NODE_ADDRESS", None),
     **_BASE_ENV,
 }
 

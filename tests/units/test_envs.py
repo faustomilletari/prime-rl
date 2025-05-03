@@ -1,10 +1,10 @@
 import os
 import pytest
+
 from zeroband.inferencing import envs as inference_env
 from zeroband.training import envs as training_env
 
 
-# Temporarily set environment variables
 @pytest.fixture
 def set_env():
     original_env = dict(os.environ)

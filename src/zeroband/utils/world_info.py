@@ -1,6 +1,7 @@
-import os
 from typing import Optional
 from typing import Dict
+
+from zeroband.utils import envs
 
 
 class WorldInfo:
@@ -18,10 +19,10 @@ class WorldInfo:
         Initialize the WorldInfo object by parsing enviornment variables. If not set,
         it will set variables for single-node single-GPU training.
         """
-        self.rank = int(os.environ.get("RANK", 0))
-        self.world_size = int(os.environ.get("WORLD_SIZE", 1))
-        self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        self.local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", 1))
+        self.rank = envs.RANK
+        self.world_size = envs.WORLD_SIZE
+        self.local_rank = envs.LOCAL_RANK
+        self.local_world_size = envs.LOCAL_WORLD_SIZE
         self._check_world_info()
         self.num_nodes = self.world_size // self.local_world_size
 

@@ -1,8 +1,8 @@
 import logging
 from logging import Logger, Formatter
-import os
 
 from zeroband.utils.world_info import get_world_info, WorldInfo
+from zeroband.utils import envs
 
 
 class PrimeFormatter(Formatter):
@@ -32,7 +32,7 @@ def get_logger(name: str) -> Logger:
         # Set log level
         if world_info.local_rank == 0:
             # On first rank, set log level from env var
-            level = os.environ.get("PRIME_LOG_LEVEL", "INFO")
+            level = envs.PRIME_LOG_LEVEL
             logger.setLevel(ALLOWED_LEVELS.get(level.upper(), logging.INFO))
         else:
             # Else, only log critical messages by default
