@@ -356,12 +356,13 @@ def inference(config: Config):
 
     # Initialize the logger
     logger = get_logger("INFERENCE")
-    logger.info(f"Start inference on {world_info.num_nodes} node(s) and {world_info.world_size} GPU(s)")
+    logger.info(f"Start inference on {world_info.num_nodes} node(s), each with {world_info.local_world_size} GPU(s)")
 
     # Initialize prime metrics
     prime_metric = PrimeMetric(disable=config.prime_log_freq is None, period=config.prime_log_freq)
 
     # Initialize vLLM and get tokenizer
+    logger.info("Initializing vLLM")
     llm = LLM(
         model=config.model_name,
         tensor_parallel_size=config.tp,
@@ -390,8 +391,8 @@ def inference(config: Config):
         logger.info(f"Seeding with {node_address_int} ({envs.NODE_ADDRESS})")
     else:
         # Seed the dataset with a random number
-        # TODO(Mika): This breaks PP because shards load different batches
-        seed = config.seed + world_info.rank if config.seed is not None else None
+        # TODO(Mika): Check that DP is still working correctly
+        seed = config.seed + world_info.local_rank if config.seed is not None else None
         generator = np.random.default_rng(seed)
         dataset = load_dataset(config.dataset, split="train").shuffle(generator=generator)
         node_address_int = None
