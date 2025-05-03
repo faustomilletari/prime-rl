@@ -58,7 +58,7 @@ uv run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/debu
 
 inference
 ```bash
-uv run python src/zeroband/inference.py @ configs/inference/debug.toml
+uv run python src/zeroband/infer.py @ configs/inference/debug.toml
 ```
 
 
@@ -69,7 +69,7 @@ on two different terminal do:
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-uv run python src/zeroband/inference.py @ configs/inference/Qwen1.5B/debug_math.toml
+uv run python src/zeroband/infer.py @ configs/inference/Qwen1.5B/debug_math.toml
 ```
 
 then start the trainer
@@ -88,7 +88,7 @@ on two different terminal do:
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-uv run python src/zeroband/inference.py @ configs/inference/Qwen1.5B/Qwen1.5B.toml
+uv run python src/zeroband/infer.py @ configs/inference/Qwen1.5B/Qwen1.5B.toml
 ```
 
 then start the trainer

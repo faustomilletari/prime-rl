@@ -1,6 +1,6 @@
 import pyarrow as pa
 import pyarrow.parquet as pq
-from zeroband.inferencing.schema import pa_schema
+from zeroband.inference.schema import pa_schema
 from pathlib import Path
 import os
 import pytest

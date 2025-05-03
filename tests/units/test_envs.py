@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from zeroband.inferencing import envs as inference_env
+from zeroband.inference import envs as inference_env
 from zeroband.training import envs as training_env
 
 

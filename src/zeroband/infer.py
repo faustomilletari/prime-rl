@@ -32,12 +32,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import multiprocessing as mp
 
-from zeroband.inferencing.toploc import TopLocCache
+from zeroband.inference.toploc import TopLocCache
 from zeroband.training.mp import EnvWrapper, cuda_available_devices
 from zeroband.utils.metrics import PrimeMetric
-from zeroband.inferencing.schema import pa_schema
+from zeroband.inference.schema import pa_schema
 
-from zeroband.inferencing import envs
+from zeroband.inference import envs
 
 
 class SamplingParamConfig(BaseConfig):
@@ -667,10 +667,10 @@ if __name__ == "__main__":
         assert isinstance(current_step, int), "Current step must be an integer"
 
     # Maybe start shardcast downloader
-    from zeroband.inferencing import envs as inference_envs
+    from zeroband.inference import envs as inference_envs
 
     if inference_envs.SHARDCAST_SERVERS is not None:
-        from zeroband.inferencing.shardcast_downloader import run_main_bg
+        from zeroband.inference.shardcast_downloader import run_main_bg
 
         shardcast_process = run_main_bg(
             inference_envs.SHARDCAST_SERVERS,
