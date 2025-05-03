@@ -5,7 +5,7 @@ Need to be run from the root folder
 
 import os
 from zeroband.train import Config as TrainingConfig
-from zeroband.inference import Config as InferenceConfig
+from zeroband.infer import Config as InferenceConfig
 import pytest
 import tomli
 
