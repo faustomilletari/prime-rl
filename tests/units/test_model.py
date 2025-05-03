@@ -4,14 +4,14 @@ import pytest
 from zeroband.models import get_model_and_tokenizer
 
 
-@pytest.fixture(scope="session")
-def attention_impl():
+@pytest.fixture(params=["eager", "sdpa", "flash_attention_2"], scope="session")
+def attention_impl(request):
     try:
         # ruff: noqa: F401
         import flash_attn
     except ImportError:
         pytest.skip("Flash Attention not available")
-    return "flash_attention_2"
+    return request.param
 
 
 def test_model(attention_impl):
@@ -59,6 +59,8 @@ def test_model_with_sequence_packing(attention_impl, correct_position_ids):
     [B, seq]  and doing [1, B*seq] with the proper masking.
 
     """
+    if attention_impl != "flash_attention_2":
+        pytest.skip("Test only works with flash attention")
 
     model, tokenizer = get_model_and_tokenizer("PrimeIntellect/llama-2m-fresh", attention_impl)
     assert model is not None
