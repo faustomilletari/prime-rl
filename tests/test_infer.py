@@ -6,7 +6,7 @@ import pyarrow.parquet as pq
 def _test_torchrun(config, extra_args=[]):
     cmd = [
         "python",
-        "src/zeroband/inference.py",
+        "src/zeroband/infer.py",
         f"@configs/{config}",
         *extra_args,
     ]
