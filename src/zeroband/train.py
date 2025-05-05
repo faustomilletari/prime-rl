@@ -267,7 +267,6 @@ def train(config: Config):
         path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
         safetensor_path = save_ckpt_for_rollout(model, path)
         
-        exit()
 
     if training_progress.step % config.optim.step_per_rollout != 0:
         logger.warning(
@@ -449,6 +448,8 @@ def train(config: Config):
 
             logger.debug(f"loss: {loss_batch.item()}, grad_norm: {grad_norm.item()}")
 
+            optimizer.zero_grad() # this line is on purpose to not updated any paramters for ckpt
+
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
@@ -517,6 +518,7 @@ def train(config: Config):
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
                 previous_ckpt_rollout.append(path)
                 safetensor_path = save_ckpt_for_rollout(model, path)
+                exit()
                 if world_info.rank == 0:
                     if envs.SHARDCAST_OUTPUT_DIR is not None:
                         logger.info(f"Broadcasting {safetensor_path}")
