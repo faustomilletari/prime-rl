@@ -260,12 +260,7 @@ def train(config: Config):
 
     if config.ckpt.resume:
         logger.info(f"loading checkpoint from {config.ckpt.resume}")
-        load_checkpoint_fsdp_state(model, [optimizer], training_progress, scheduler, config.ckpt.resume)
-
-        logger.debug("saving rollout ckpt")
-        rollout_step = training_progress.step // config.optim.step_per_rollout
-        path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-        
+        load_checkpoint_fsdp_state(model, [optimizer], training_progress, scheduler, config.ckpt.resume)        
         og_step = training_progress.step
 
     if training_progress.step % config.optim.step_per_rollout != 0:
@@ -447,9 +442,6 @@ def train(config: Config):
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.optim.grad_norm_clip).full_tensor()  # type: ignore (is a dtensor)
 
             logger.debug(f"loss: {loss_batch.item()}, grad_norm: {grad_norm.item()}")
-
-            optimizer.zero_grad() # this line is on purpose to not updated any paramters for ckpt
-
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
