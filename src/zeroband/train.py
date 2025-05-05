@@ -265,8 +265,8 @@ def train(config: Config):
         logger.debug("saving rollout ckpt")
         rollout_step = training_progress.step // config.optim.step_per_rollout
         path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-        safetensor_path = save_ckpt_for_rollout(model, path)
         
+        og_step = training_progress.step
 
     if training_progress.step % config.optim.step_per_rollout != 0:
         logger.warning(
@@ -511,6 +511,7 @@ def train(config: Config):
 
             logger.info(log)
 
+            training_progress.step = og_step
             # Lets do this first so that clients can start downloading as soon as possible
             if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
                 logger.debug("saving rollout ckpt")
