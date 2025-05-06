@@ -24,17 +24,19 @@ from vllm.sequence import SampleLogprobs
 
 from zeroband.utils.logger import get_logger
 from zeroband.utils.world_info import get_world_info
+
 from zeroband.utils.models import ModelName
 from zeroband.inference.toploc import setup_toploc_cache
 from zeroband.inference.pipeline import PipelineConfig, setup_pipeline
 from zeroband.rewards.registry import REWARD_FUNCTIONS
+
 
 from datasets import load_dataset
 import pyarrow as pa
 import pyarrow.parquet as pq
 import multiprocessing as mp
 
-from zeroband.training.mp import EnvWrapper, cuda_available_devices
+from zeroband.training.mp import EnvWrapper
 from zeroband.utils.metrics import PrimeMetric
 from zeroband.inference.schema import pa_schema
 
@@ -114,10 +116,39 @@ class Config(BaseConfig):
     len_reward: LenRewardConfig | None = None
     difficulty_filtering: DifficultyFilteringConfig | None = None
 
+    # Set automatically by the model validator
+    rank: int = 0
+    local_rank: int = 0
+    world_size: int = 1
+    local_world_size: int = 1
+
     @model_validator(mode="after")
     def disable_toploc_for_fp32(self):
         if self.dtype == "fp32":
             self.toploc = False
+        return self
+
+    @model_validator(mode="after")
+    def enforce_eager_for_tp(self):
+        if self.pp.world_size > 1:
+            self.enforce_eager = True
+        return self
+
+    @model_validator(mode="after")
+    def set_world_info(self):
+        assert not (self.dp > 1 and self.pp.world_size > 1), "Cannot use PP and DP together"
+        if self.pp.world_size > 1:
+            if self.tp == "auto":
+                self.tp = torch.cuda.device_count()
+            self.rank = self.pp.rank
+            num_ranks = self.pp.world_size
+        else:
+            if self.tp == "auto":
+                assert torch.cuda.device_count() % self.dp == 0
+                self.tp = torch.cuda.device_count() // self.dp
+            num_ranks = self.dp
+        self.local_world_size = self.tp
+        self.world_size = self.local_world_size * num_ranks
         return self
 
 
@@ -345,12 +376,17 @@ def compute_advantages_grpo(grouped_rewards: dict[int, dict[str, torch.FloatTens
 
 
 def inference(config: Config):
-    # Get world information and initialize logger
-    world_info = get_world_info()
+    # Get world information
+    world_info = get_world_info(
+        rank=config.rank, local_rank=config.local_rank, local_world_size=config.local_world_size, world_size=config.world_size
+    )
 
     # Initialize the logger
-    logger = get_logger("INFERENCE")
-    logger.info(f"Start inference on {world_info.num_nodes} node(s), each with {world_info.local_world_size} GPU(s)")
+    logger = get_logger(__name__)
+    logger.info("Starting inference")
+    logger.info(f"TP={config.tp}, DP={config.dp}, PP={config.pp.world_size}")
+    logger.info(world_info)
+    exit(0)
 
     # Initialize prime metrics
     prime_metric = PrimeMetric(disable=config.prime_log_freq is None, period=config.prime_log_freq)
@@ -605,54 +641,26 @@ def inference(config: Config):
     get_process_executor().shutdown(wait=True)
 
 
-def inference_sub_process(config: Config, gpus_ids: list[int], rank: int) -> list[mp.Process]:
-    """
-    This function is used to run inference by creating a sub process.
-    """
-    os.environ["CUDA_VISIBLE_DEVICES"] = cuda_available_devices(gpus_ids)
-    # this is a hack that work with spawn, basically allow the env var to be overridden when spawn read the env var a second time
-
-    envs = {"CUDA_VISIBLE_DEVICES": cuda_available_devices(gpus_ids), "RANK": str(rank)}
-    print(f"start inference on {gpus_ids} with rank {rank}")
-    fn_env = EnvWrapper(inference, envs)
-    process = mp.Process(target=fn_env, args=(config,))
-    process.start()
-
-    return process
-
-
-def inference_run(config: Config) -> list[mp.Process]:
-    if config.dp > 1:
-        processes = []
-
-        gpus_ids = config.gpus_ids if config.gpus_ids is not None else list(range(torch.cuda.device_count()))
-
-        if config.tp == "auto":
-            assert len(gpus_ids) % config.dp == 0, "Number of GPUs must be divisible by dp when using tp=auto"
-            config.tp = len(gpus_ids) // config.dp
-            get_logger("PRE-INFERENCE").info(f"AUTO gpu config: now using {config.tp} GPUs for tp")
-
-        assert len(gpus_ids) % (config.dp * config.tp) == 0, "Number of GPUs must be divisible by dp * tp"
-
-        num_process = len(gpus_ids) // config.tp
-        sub_process_ids = [gpus_ids[i * config.tp : (i + 1) * config.tp] for i in range(num_process)]
-
-        for rank, sub_process_id in enumerate(sub_process_ids):
-            processes.append(inference_sub_process(config, sub_process_id, rank))
-
-        return processes
-
-    else:
-        if config.tp == "auto":
-            config.tp = torch.cuda.device_count()
-            get_logger("PRE-INFERENCE").info(f"AUTO gpu config: now using all {config.tp} GPUs for tp")
-
-        inference(config)
-        return []
-
-
 def main(config: Config) -> list[mp.Process]:
-    processes = inference_run(config)
+    processes = []
+    from zeroband.inference import envs as inference_envs
+
+    if config.dp > 1:
+        gpu_ids = inference_envs.CUDA_VISIBLE_DEVICES
+        gpu_ids_per_rank = [gpu_ids[i : i + config.tp] for i in range(0, len(gpu_ids), config.tp)]
+        for rank, gpu_ids in enumerate(gpu_ids_per_rank):
+            envs = {"CUDA_VISIBLE_DEVICES": ",".join(map(str, gpu_ids)), "RANK": str(rank)}
+            process = mp.Process(target=EnvWrapper(inference, envs), args=(config,))
+            processes.append(process)
+    else:
+        process = mp.Process(target=inference, args=(config,))
+        processes.append(process)
+
+    # Start all processes
+    for process in processes:
+        process.start()
+
+    # Wait for all processes to finish
     for process in processes:
         process.join()
 
@@ -664,8 +672,6 @@ if __name__ == "__main__":
 
     if config.step_endpoint is not None:
         current_step = requests.get(config.step_endpoint).json()
-        logger = get_logger("PRE-INFERENCE")
-        logger.info(f"Current step: {current_step}")
         assert isinstance(current_step, int), "Current step must be an integer"
 
     # Maybe start shardcast downloader

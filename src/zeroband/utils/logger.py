@@ -11,8 +11,8 @@ class PrimeFormatter(Formatter):
         self.world_info = world_info
 
     def format(self, record):
-        record.local_rank = self.world_info.local_rank
-        log_format = "{asctime} [{name}] [{levelname}] [Rank {local_rank}] {message}"
+        record.rank = self.world_info.rank
+        log_format = "{asctime} [{name}] [{levelname}] [Rank {rank}] {message}"
         formatter = logging.Formatter(log_format, style="{", datefmt="%m-%d %H:%M:%S")
         return formatter.format(record)
 
