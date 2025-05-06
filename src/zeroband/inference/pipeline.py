@@ -81,18 +81,16 @@ def setup_hooks(rank: int, world_size: int, llm: LLM, node: Node) -> None:
     """
     assert world_size > 1, "Pipeline parallel inference requires at least 2 stages"
 
-    # TODO: In vLLM v0.8.5, the sampler is moved to model runner (https://github.com/vllm-project/vllm/pull/17084)
-    # Once we bump vLLM version, update this
-
-    # Model runner owns model and sampler
-    model: nn.Module = llm.llm_engine.model_executor.driver_worker.model_runner.model
+    # Model runner owns sampler, model owns layers
+    model_runner: nn.Module = llm.llm_engine.model_executor.driver_worker.model_runner
+    model: nn.Module = model_runner.model
 
     # Extract first and last layers (pre/post-hook to recv/send intermediate states)
     first_layer: nn.Module = model.model.layers[0]
     last_layer: nn.Module = model.model.layers[-1]
 
     # Extract sampler (post-hook to recv/send outputs)
-    sampler: nn.Module = model.sampler
+    sampler: nn.Module = model_runner.sampler
 
     # Don't relay outputs from stage with index -2->-1
     relay = rank != world_size - 2
@@ -161,7 +159,7 @@ def recv_intermediate_states(_, input: Tuple, node: Node) -> Tuple[torch.Tensor,
         node: The node class instances for communication
     """
     logger = get_logger(__name__)
-    positions, _, kv_cache, attn_metadata, _ = input
+    positions, _, _ = input
     device = positions.device
     serialized_hidden_states = node.irecv(tag=0).wait()
     serialized_residual = node.irecv(tag=0).wait()
@@ -171,7 +169,7 @@ def recv_intermediate_states(_, input: Tuple, node: Node) -> Tuple[torch.Tensor,
         f"Got hidden_states and residuals ({hidden_states.shape}, {residuals.shape}) ({len(serialized_hidden_states) + len(serialized_residual)} bytes)"
     )
 
-    return positions, hidden_states, kv_cache, attn_metadata, residuals
+    return positions, hidden_states, residuals
 
 
 def recv_output(_, __, output, node: Node, relay=False) -> SamplerOutput:
