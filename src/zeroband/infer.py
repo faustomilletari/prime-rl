@@ -26,7 +26,7 @@ from zeroband.utils.logger import get_logger
 from zeroband.utils.world_info import get_world_info
 from zeroband.utils.models import ModelName
 from zeroband.inference.toploc import setup_toploc_cache
-from zeroband.inference.pipeline import setup_hooks, setup_comm
+from zeroband.inference.pipeline import setup_pipeline
 from zeroband.rewards.registry import REWARD_FUNCTIONS
 
 from datasets import load_dataset
@@ -77,8 +77,8 @@ class DifficultyFilteringConfig(BaseConfig):
 
 
 class PipelineConfig(BaseConfig):
-    stage_idx: int = 0
-    num_stages: int = 1
+    rank: int = 0
+    world_size: int = 1
     iroh_seed: Optional[int] = None
     iroh_peer_id: Optional[str] = None
 
@@ -97,15 +97,16 @@ class Config(BaseConfig):
     quant: Literal["fp8"] | None = None
 
     sampling: SamplingParamConfig = SamplingParamConfig()
-    pipeline: PipelineConfig = PipelineConfig()
     enforce_eager: bool = False
     max_model_len: int | None = None
 
     async_level: int = 2  # the amount of step for which we can be in advance
 
-    # mutli gpu
+    # Parallelism
     tp: int | Literal["auto"] = 1
     dp: int = 1
+    pp: PipelineConfig = PipelineConfig()
+
     gpus_ids: list[int] | None = None
     prime_log_freq: int | None = None
 
@@ -517,17 +518,19 @@ def inference(config: Config):
             prompts = fake_chat_template(messages)
 
         # Create communication for pipeline
-        if config.pipeline.num_stages > 1:
-            node = setup_comm(
-                num_stages=config.pipeline.num_stages,
-                iroh_seed=config.pipeline.iroh_seed,
-                iroh_peer_id=config.pipeline.iroh_peer_id,
+        if config.pp.world_size > 1:
+            setup_pipeline(
+                llm=llm,
+                rank=config.pp.rank,
+                world_size=config.pp.world_size,
+                iroh_seed=config.pp.iroh_seed,
+                iroh_peer_id=config.pp.iroh_peer_id,
             )
-            setup_hooks(stage_idx=config.pipeline.stage_idx, num_stages=config.pipeline.num_stages, llm=llm, node=node)
 
         start_time = time.time()
         generated_tokens = llm.generate(prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
+        print(generated_tokens)
 
         # Dropping like this isnt ideal. But in practice, we shouldnt have any prompts that are too long.
         generated_tokens = [req for req in generated_tokens if len(req.outputs[0].token_ids) > 0]
