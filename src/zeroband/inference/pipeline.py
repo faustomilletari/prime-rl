@@ -13,7 +13,6 @@ from prime_iroh import Node
 from zeroband.utils.logger import get_logger
 
 # Global logger
-logger = get_logger(__name__)
 
 
 class PipelineConfig(BaseConfig):
@@ -48,6 +47,7 @@ def setup_comm(world_size: int, iroh_seed: int | None, iroh_peer_id: str | None)
         iroh_seed: The seed for the PRIME-IROH node (optional, will lead to deterministic connection strings)
         iroh_peer_id: The peer ID for the PRIME-IROH node (optional, will connect to a random peer if not provided)
     """
+    logger = get_logger(__name__)
     assert world_size > 1, "Pipeline parallel inference requires at least 2 stages"
 
     # Setup node (with or without seed)
@@ -87,6 +87,7 @@ def setup_hooks(rank: int, world_size: int, llm: LLM, node: Node) -> None:
         llm: The LLM model shard instance
         node: The node class instances for communication
     """
+    logger = get_logger(__name__)
     assert world_size > 1, "Pipeline parallel inference requires at least 2 stages"
 
     # Model runner owns sampler, model owns layers
