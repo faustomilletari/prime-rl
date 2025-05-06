@@ -6,6 +6,7 @@ from functools import partial
 import torch
 import torch.nn as nn
 from vllm.model_executor.layers.sampler import SamplerOutput
+from pydantic_config import BaseConfig
 from vllm import LLM
 
 from prime_iroh import Node
@@ -13,6 +14,13 @@ from zeroband.utils.logger import get_logger
 
 # Global logger
 logger = get_logger(__name__)
+
+
+class PipelineConfig(BaseConfig):
+    rank: int = 0
+    world_size: int = 1
+    iroh_seed: int | None = None
+    iroh_peer_id: str | None = None
 
 
 def setup_pipeline(llm: LLM, rank: int, world_size: int, iroh_seed: int | None = None, iroh_peer_id: str | None = None) -> Node:

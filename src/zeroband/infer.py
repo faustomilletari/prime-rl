@@ -4,7 +4,7 @@ import os
 import asyncio
 import json
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 import uuid
 import numpy as np
 import torch
@@ -26,7 +26,7 @@ from zeroband.utils.logger import get_logger
 from zeroband.utils.world_info import get_world_info
 from zeroband.utils.models import ModelName
 from zeroband.inference.toploc import setup_toploc_cache
-from zeroband.inference.pipeline import setup_pipeline
+from zeroband.inference.pipeline import PipelineConfig, setup_pipeline
 from zeroband.rewards.registry import REWARD_FUNCTIONS
 
 from datasets import load_dataset
@@ -74,13 +74,6 @@ class DifficultyFilteringConfig(BaseConfig):
     solve_rate_field: str = "solve_rate_qwen_r1_distill_7b"
     min_solve_rate: float = 0.0
     max_solve_rate: float = 0.5
-
-
-class PipelineConfig(BaseConfig):
-    rank: int = 0
-    world_size: int = 1
-    iroh_seed: Optional[int] = None
-    iroh_peer_id: Optional[str] = None
 
 
 class Config(BaseConfig):
