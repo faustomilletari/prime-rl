@@ -13,6 +13,7 @@ from prime_iroh import Node
 from zeroband.utils.logger import get_logger
 
 # Global logger
+logger = get_logger("INFER")
 
 
 class PipelineConfig(BaseConfig):
@@ -47,7 +48,6 @@ def setup_comm(world_size: int, iroh_seed: int | None, iroh_peer_id: str | None)
         iroh_seed: The seed for the PRIME-IROH node (optional, will lead to deterministic connection strings)
         iroh_peer_id: The peer ID for the PRIME-IROH node (optional, will connect to a random peer if not provided)
     """
-    logger = get_logger(__name__)
     assert world_size > 1, "Pipeline parallel inference requires at least 2 stages"
 
     # Setup node (with or without seed)
@@ -87,7 +87,6 @@ def setup_hooks(rank: int, world_size: int, llm: LLM, node: Node) -> None:
         llm: The LLM model shard instance
         node: The node class instances for communication
     """
-    logger = get_logger(__name__)
     assert world_size > 1, "Pipeline parallel inference requires at least 2 stages"
 
     # Model runner owns sampler, model owns layers
@@ -145,7 +144,6 @@ def send_intermediate_states(_, __, output: Tuple, node: Node) -> None:
         output: The output of the module (here the decoder layer output)
         node: The node that is being hooked
     """
-    logger = get_logger(__name__)
     hidden_states, residual = output
     serialized_hidden_states = pickle.dumps(hidden_states.to("cpu"))
     serialized_residual = pickle.dumps(residual.to("cpu"))
@@ -167,7 +165,6 @@ def recv_intermediate_states(_, input: Tuple, node: Node) -> Tuple[torch.Tensor,
         input: The input to the module (here the positions, hidden states and residual of the previous node's last layer)
         node: The node class instances for communication
     """
-    logger = get_logger(__name__)
     positions, _, _ = input
     device = positions.device
     serialized_hidden_states = node.irecv(tag=0).wait()
@@ -200,7 +197,6 @@ def recv_output(_, __, output, node: Node, relay=False) -> SamplerOutput:
         node: The node class instances for communication
         relay: Whether to relay the outputs to the next stage node
     """
-    logger = get_logger(__name__)
     serialized_output = node.irecv(tag=0).wait()
     logger.debug(f"Received outputs ({len(serialized_output)} bytes)")
     if relay:
@@ -220,7 +216,6 @@ def send_output(_, __, output: SamplerOutput, node: Node) -> None:
         output: The outputs of the module
         node: The node class instances for communication
     """
-    logger = get_logger(__name__)
     serialized_output = pickle.dumps(output)
     node.isend(serialized_output, tag=0, latency=None).wait()
     logger.debug(f"Sent outputs ({len(serialized_output)} bytes)")

@@ -23,7 +23,6 @@ from vllm.model_executor.model_loader.loader import _process_weights_after_loadi
 from vllm.sequence import SampleLogprobs
 
 from zeroband.utils.logger import get_logger
-from zeroband.utils.world_info import get_world_info
 
 from zeroband.utils.models import ModelName
 from zeroband.inference.toploc import setup_toploc_cache
@@ -41,6 +40,9 @@ from zeroband.utils.metrics import PrimeMetric
 from zeroband.inference.schema import pa_schema
 
 from zeroband.inference import envs
+
+# Global logger
+logger = get_logger("INFER")
 
 
 class SamplingParamConfig(BaseConfig):
@@ -116,12 +118,6 @@ class Config(BaseConfig):
     len_reward: LenRewardConfig | None = None
     difficulty_filtering: DifficultyFilteringConfig | None = None
 
-    # Set automatically by the model validator
-    rank: int = 0
-    local_rank: int = 0
-    world_size: int = 1
-    local_world_size: int = 1
-
     @model_validator(mode="after")
     def disable_toploc_for_fp32(self):
         if self.dtype == "fp32":
@@ -135,20 +131,8 @@ class Config(BaseConfig):
         return self
 
     @model_validator(mode="after")
-    def set_world_info(self):
+    def assert_valid_parallelism(self):
         assert not (self.dp > 1 and self.pp.world_size > 1), "Cannot use PP and DP together"
-        if self.pp.world_size > 1:
-            if self.tp == "auto":
-                self.tp = torch.cuda.device_count()
-            self.rank = self.pp.rank
-            num_ranks = self.pp.world_size
-        else:
-            if self.tp == "auto":
-                assert torch.cuda.device_count() % self.dp == 0
-                self.tp = torch.cuda.device_count() // self.dp
-            num_ranks = self.dp
-        self.local_world_size = self.tp
-        self.world_size = self.local_world_size * num_ranks
         return self
 
 
@@ -376,17 +360,9 @@ def compute_advantages_grpo(grouped_rewards: dict[int, dict[str, torch.FloatTens
 
 
 def inference(config: Config):
-    # Get world information
-    world_info = get_world_info(
-        rank=config.rank, local_rank=config.local_rank, local_world_size=config.local_world_size, world_size=config.world_size
-    )
-
     # Initialize the logger
-    logger = get_logger(__name__)
     logger.info("Starting inference")
     logger.info(f"TP={config.tp}, DP={config.dp}, PP={config.pp.world_size}")
-    logger.info(world_info)
-    exit(0)
 
     # Initialize prime metrics
     prime_metric = PrimeMetric(disable=config.prime_log_freq is None, period=config.prime_log_freq)
@@ -416,13 +392,12 @@ def inference(config: Config):
     if envs.NODE_ADDRESS is not None:
         # We dont shuffle here because we shuffle reproducibly in the sampling loop.
         assert config.seed is None, "Seed is not supported when NODE_ADDRESS is set"
-        assert world_info.rank == 0, "DP is not supported when NODE_ADDRESS is set"
+        assert envs.RANK == 0, "DP is not supported when NODE_ADDRESS is set"
         node_address_int = int(envs.NODE_ADDRESS, 16)
         logger.info(f"Seeding with {node_address_int} ({envs.NODE_ADDRESS})")
     else:
         # Seed the dataset with a random number
-        # TODO(Mika): Check that DP is still working correctly
-        seed = config.seed + world_info.local_rank if config.seed is not None else None
+        seed = config.seed + envs.RANK if config.seed is not None else None
         generator = np.random.default_rng(seed)
         dataset = load_dataset(config.dataset, split="train").shuffle(generator=generator)
         node_address_int = None
@@ -559,7 +534,6 @@ def inference(config: Config):
         start_time = time.time()
         generated_tokens = llm.generate(prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
-        print(generated_tokens)
 
         # Dropping like this isnt ideal. But in practice, we shouldnt have any prompts that are too long.
         generated_tokens = [req for req in generated_tokens if len(req.outputs[0].token_ids) > 0]
@@ -649,12 +623,11 @@ def main(config: Config) -> list[mp.Process]:
         gpu_ids = inference_envs.CUDA_VISIBLE_DEVICES
         gpu_ids_per_rank = [gpu_ids[i : i + config.tp] for i in range(0, len(gpu_ids), config.tp)]
         for rank, gpu_ids in enumerate(gpu_ids_per_rank):
-            envs = {"CUDA_VISIBLE_DEVICES": ",".join(map(str, gpu_ids)), "RANK": str(rank)}
+            envs = {"CUDA_VISIBLE_DEVICES": ",".join(map(str, gpu_ids)), "RANK": str(rank), "LOCAL_RANK": str(rank)}
             process = mp.Process(target=EnvWrapper(inference, envs), args=(config,))
             processes.append(process)
     else:
-        process = mp.Process(target=inference, args=(config,))
-        processes.append(process)
+        inference(config)
 
     # Start all processes
     for process in processes:
