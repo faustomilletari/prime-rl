@@ -10,11 +10,11 @@ ModelName: TypeAlias = Literal[
     # Llama 3
     "meta-llama/Meta-Llama-3-8B-Instruct",
     "meta-llama/Meta-Llama-3-70B-Instruct",
-    "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    "meta-llama/Meta-Llama-3.1-70B-Instruct",
-    "meta-llama/Meta-Llama-3.1-405B-Instruct",
-    "meta-llama/Meta-Llama-3.2-1B-Instruct",
-    "meta-llama/Meta-Llama-3.2-3B-Instruct",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "meta-llama/Llama-3.1-70B-Instruct",
+    "meta-llama/Llama-3.1-405B-Instruct",
+    "meta-llama/Llama-3.2-1B-Instruct",
+    "meta-llama/Llama-3.2-3B-Instruct",
     # Qwen2.5
     "Qwen/Qwen2.5-0.5B-Instruct",
     "Qwen/Qwen2.5-1.5B-Instruct",
