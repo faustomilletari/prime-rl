@@ -618,6 +618,7 @@ def inference_run(config: Config) -> list[mp.Process]:
         num_process = len(gpus_ids) // config.tp
         sub_process_ids = [gpus_ids[i * config.tp : (i + 1) * config.tp] for i in range(num_process)]
 
+        print(f"sub_process_ids: {sub_process_ids}")
         for rank, sub_process_id in enumerate(sub_process_ids):
             processes.append(inference_sub_process(config, sub_process_id, rank))
 
