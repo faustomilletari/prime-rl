@@ -16,6 +16,7 @@ IROH_NODE_ID_MAP = {
     7: "478243aed376da313d7cf3a60637c264cb36acc936efb341ff8d3d712092d244",
 }
 
+TIMEOUT = 10
 SEEDS = list(range(8))
 
 
@@ -31,32 +32,33 @@ def test_node_seeding(seed):
     assert node.node_id() == IROH_NODE_ID_MAP[seed]
 
 
-def _setup_comm(stage_idx: int, num_stages: int):
-    peer_id = IROH_NODE_ID_MAP[(stage_idx + 1) % num_stages]
-    node = setup_comm(num_stages, stage_idx, peer_id)
+def _setup_comm(rank: int, world_size: int):
+    peer_id = IROH_NODE_ID_MAP[(rank + 1) % world_size]
+    node = setup_comm(world_size, rank, peer_id)
     assert isinstance(node, Node)
 
 
-# TODO: Fix num_stages=8 not working (No addressing information for NodeId(e2e8aa145e), unable to connect
-@pytest.mark.parametrize("num_stages", [1, 2, 4])
-def test_setup_comm(num_stages: int):
-    import time
-
+@pytest.mark.parametrize("world_size", [1, 2, 4, 8])
+def test_setup_comm(world_size: int):
     # Test that setup_comm raises an error for 1 stage
-    if num_stages == 1:
+    if world_size == 1:
         with pytest.raises(AssertionError):
-            setup_comm(num_stages, None, None)
-        return
+            setup_comm(world_size, None, None)
+
+    # Setup processes
     processes = []
-    for rank in range(num_stages):
-        p = Process(target=_setup_comm, args=(rank, num_stages))
-        processes.append(p)
+    for rank in range(world_size):
+        process = Process(target=_setup_comm, args=(rank, world_size))
+        processes.append(process)
+
+    # Start processes
     for p in processes:
         p.start()
-        time.sleep(0.1)
-    # Join processes with timeout
+
+    # Terminate processes (raise exception with timeout)
     for p in processes:
-        p.join(timeout=5)
-        if p.is_alive():
+        try:
+            p.join(timeout=TIMEOUT)
+        except TimeoutError:
             p.terminate()
-            raise TimeoutError("Process took longer than 5 seconds to complete")
+            raise TimeoutError(f"Process took longer than {TIMEOUT} seconds to complete")
