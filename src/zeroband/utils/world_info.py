@@ -22,7 +22,7 @@ class WorldInfo:
         self.world_size = envs.WORLD_SIZE
         self.local_rank = envs.LOCAL_RANK
         self.local_world_size = envs.LOCAL_WORLD_SIZE
-        # self._check_world_info()
+        self._check_world_info()
         self.num_nodes = self.world_size // self.local_world_size
 
     def _check_world_info(self):

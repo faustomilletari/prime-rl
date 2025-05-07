@@ -586,14 +586,14 @@ def inference(config: Config):
     get_process_executor().shutdown(wait=True)
 
 
-def inference_sub_process(config: Config, gpus_ids: list[int], rank: int) -> list[mp.Process]:
+def inference_sub_process(config: Config, gpus_ids: list[int], rank: int, world_size: int) -> list[mp.Process]:
     """
     This function is used to run inference by creating a sub process.
     """
     os.environ["CUDA_VISIBLE_DEVICES"] = cuda_available_devices(gpus_ids)
     # this is a hack that work with spawn, basically allow the env var to be overridden when spawn read the env var a second time
 
-    envs = {"CUDA_VISIBLE_DEVICES": cuda_available_devices(gpus_ids), "RANK": str(rank)}
+    envs = {"CUDA_VISIBLE_DEVICES": cuda_available_devices(gpus_ids), "RANK": str(rank), "WORLD_SIZE": str(world_size)}
     print(f"start inference on {gpus_ids} with rank {rank}")
     fn_env = EnvWrapper(inference, envs)
     process = mp.Process(target=fn_env, args=(config,))
@@ -606,7 +606,8 @@ def inference_run(config: Config) -> list[mp.Process]:
     if config.dp > 1:
         processes = []
 
-        gpus_ids = config.gpus_ids if config.gpus_ids is not None else list(range(torch.cuda.device_count()))
+        world_size = torch.cuda.device_count()
+        gpus_ids = config.gpus_ids if config.gpus_ids is not None else list(range(world_size))
 
         if config.tp == "auto":
             assert len(gpus_ids) % config.dp == 0, "Number of GPUs must be divisible by dp when using tp=auto"
@@ -620,7 +621,7 @@ def inference_run(config: Config) -> list[mp.Process]:
 
         print(f"sub_process_ids: {sub_process_ids}")
         for rank, sub_process_id in enumerate(sub_process_ids):
-            processes.append(inference_sub_process(config, sub_process_id, rank))
+            processes.append(inference_sub_process(config, sub_process_id, rank, world_size))
 
         return processes
 
