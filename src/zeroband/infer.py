@@ -620,6 +620,9 @@ def main(config: Config) -> list[mp.Process]:
     from zeroband.inference import envs as inference_envs
 
     if config.dp > 1:
+        if config.tp == "auto":
+            assert torch.cuda.device_count() % config.dp == 0, "Number of GPUs must be divisible by DP"
+            config.tp = torch.cuda.device_count() // config.dp
         gpu_ids = inference_envs.CUDA_VISIBLE_DEVICES
         gpu_ids_per_rank = [gpu_ids[i : i + config.tp] for i in range(0, len(gpu_ids), config.tp)]
         for rank, gpu_ids in enumerate(gpu_ids_per_rank):
@@ -627,6 +630,8 @@ def main(config: Config) -> list[mp.Process]:
             process = mp.Process(target=EnvWrapper(inference, envs), args=(config,))
             processes.append(process)
     else:
+        if config.tp == "auto":
+            config.tp = torch.cuda.device_count()
         inference(config)
 
     # Start all processes
