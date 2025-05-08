@@ -177,34 +177,16 @@ def get_logprobs(model: ModelType, input_ids: torch.Tensor, position_ids: torch.
 
 
 def log_to_wandb(metrics_dict, tokenizer=None, batch=None, step=None):
-    """Log metrics to wandb with proper grouping and sample prompts/responses."""
+    """Log metrics to wandb with proper grouping."""
     # Initialize grouped metrics dictionary
     wandb_metrics = {}
 
-    # Group: train/
-    train_metrics = {k: v for k, v in metrics_dict.items() if k in ["step", "rollout_step", "inner_lr", "total_tokens", "total_problems"]}
-    for k, v in train_metrics.items():
-        if v is not None:
-            wandb_metrics[f"train/{k}"] = v
-
-    # Group: losses/
-    loss_metrics = {k: v for k, v in metrics_dict.items() if k in ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"]}
-    for k, v in loss_metrics.items():
-        if v is not None:
-            wandb_metrics[f"losses/{k}"] = v
-
-    # Group: rewards/
-    reward_metrics = {k: v for k, v in metrics_dict.items() if k in ["sample_reward", "task_reward", "batch_reward", "batch_task_reward"]}
-    for k, v in reward_metrics.items():
-        if v is not None:
-            wandb_metrics[f"rewards/{k}"] = v
-
-    # Group: lengths/
-    length_metrics = {
-        k: v
-        for k, v in metrics_dict.items()
-        if k
-        in [
+    # Group metrics by category
+    categories = {
+        "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_problems"],
+        "losses/": ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"],
+        "rewards/": ["sample_reward", "task_reward", "batch_reward", "batch_task_reward"],
+        "lengths/": [
             "seq_lens",
             "batch_seq_lens",
             "target_lengths",
@@ -212,18 +194,8 @@ def log_to_wandb(metrics_dict, tokenizer=None, batch=None, step=None):
             "padding_proportion",
             "length_penalties",
             "batch_length_penalties",
-        ]
-    }
-    for k, v in length_metrics.items():
-        if v is not None:
-            wandb_metrics[f"lengths/{k}"] = v
-
-    # Group: perf/
-    perf_metrics = {
-        k: v
-        for k, v in metrics_dict.items()
-        if k
-        in [
+        ],
+        "perf/": [
             "tokens_per_second",
             "tokens_per_second_per_gpu",
             "mfu",
@@ -231,138 +203,102 @@ def log_to_wandb(metrics_dict, tokenizer=None, batch=None, step=None):
             "time_logprob",
             "time_data_loading",
             "time_packing",
-        ]
+        ],
     }
-    for k, v in perf_metrics.items():
-        if v is not None:
-            wandb_metrics[f"perf/{k}"] = v
 
-    # Add sample prompts and responses if provided
-    if tokenizer is not None and batch is not None:
-        log_interval = 1  # Only log samples every 1 steps
-        curr_step = metrics_dict.get("step", 0)
+    # Add metrics to respective groups
+    for prefix, keys in categories.items():
+        for k in keys:
+            if k in metrics_dict and metrics_dict[k] is not None:
+                wandb_metrics[f"{prefix}{k}"] = metrics_dict[k]
 
-        if curr_step % log_interval == 0:
-            # Use pandas style implementation for sample logging
-            import pandas as pd
-
-            # Create data structures to hold our samples
-            table_data = {"step": [], "prompt": [], "completion": [], "reward": [], "task_reward": []}
-
-            # Get up to 5 samples from the batch
-            batch_size = batch["input_ids"].size(0)
-            max_samples = min(5, batch_size)
-            indices = torch.randperm(batch_size)[:max_samples]
-
-            for idx in indices:
-                # Get the tokens
-                tokens = batch["input_ids"][idx].cpu().tolist()
-                mask = batch["loss_mask"][idx].cpu().tolist()
-
-                # Find where the model response starts (where loss is applied)
-                try:
-                    response_start = mask.index(1)
-                except ValueError:
-                    response_start = len(tokens) // 3  # Fallback if no mask
-
-                # Split and decode
-                prompt_tokens = tokens[:response_start]
-                response_tokens = tokens[response_start:]
-
-                # Decode the tokens to text
-                prompt_text = tokenizer.decode(prompt_tokens, skip_special_tokens=True)
-                response_text = tokenizer.decode(response_tokens, skip_special_tokens=True)
-
-                # Clean and truncate text
-                max_len = 500
-                prompt_text = prompt_text.replace("\n", " ").replace("\r", " ")
-                response_text = response_text.replace("\n", " ").replace("\r", " ")
-
-                if len(prompt_text) > max_len:
-                    prompt_text = prompt_text[:max_len] + "..."
-                if len(response_text) > max_len:
-                    response_text = response_text[:max_len] + "..."
-
-                # Get the reward values
-                reward = batch["rewards"][idx].item() if "rewards" in batch else None
-                task_reward = batch["task_rewards"][idx].item() if "task_rewards" in batch else None
-
-                # Add to the data dictionary
-                table_data["step"].append(str(curr_step))
-                table_data["prompt"].append(prompt_text)
-                table_data["completion"].append(response_text)
-                table_data["reward"].append(reward)
-                table_data["task_reward"].append(task_reward)
-
-            # Create pandas DataFrame
-            df = pd.DataFrame(table_data)
-
-            # Add the table to the metrics
-            wandb_metrics["completions"] = wandb.Table(dataframe=df)
-
-    # Log everything at once
-    wandb.log(wandb_metrics, step=metrics_dict.get("step"))
+    # Log everything
+    wandb.log(wandb_metrics, step=metrics_dict.get("step", step))
 
 
-def log_prompt_response_samples(tokenizer, batch, step):
-    """Log samples with pandas DataFrame for Wandb tables"""
+def log_prompt_response_samples(tokenizer, batch, step, sample_history=None):
+    """Log samples using wandb.Table with accumulated history.
+    Only logs every 5 steps to reduce overhead.
+
+    Args:
+        tokenizer: The tokenizer to decode tokens
+        batch: The current batch of data
+        step: The current training step
+        sample_history: Optional dict to store sample history between calls
+    """
+    # Initialize the history dictionary if not provided
+    if sample_history is None:
+        sample_history = {
+            "step": [],
+            "prompt": [],
+            "completion": [],
+            "rewards": [] if "rewards" in batch else None,
+            "task_rewards": [] if "task_rewards" in batch else None,
+            "last_logged_step": -5,  # Initialize to trigger first logging
+        }
+
     try:
         import pandas as pd
+        import wandb
 
-        # Create data structures
-        table_data = {"step": [], "prompt": [], "completion": [], "reward": [], "task_reward": []}
-
-        # Process samples
+        # Process batch items
         batch_size = batch["input_ids"].size(0)
-        for i in range(min(3, batch_size)):
-            # Get tokens and mask
+        for i in range(batch_size):
+            # Find response start from loss mask
             tokens = batch["input_ids"][i].cpu().tolist()
             mask = batch["loss_mask"][i].cpu().tolist()
 
-            # Find response start
-            response_start = -1
-            for j, val in enumerate(mask):
-                if val == 1:
-                    response_start = j
-                    break
-
-            if response_start == -1:
+            try:
+                response_start = mask.index(1)
+            except ValueError:
                 response_start = len(tokens) // 3
 
-            # Decode and clean text
+            # Decode text directly without cleaning
             prompt = tokenizer.decode(tokens[:response_start], skip_special_tokens=True)
-            response = tokenizer.decode(tokens[response_start:], skip_special_tokens=True)
+            completion = tokenizer.decode(tokens[response_start:], skip_special_tokens=True)
 
-            # Replace problematic characters that might cause issues
-            prompt = prompt.replace("\n", " ").replace("\r", " ")
-            response = response.replace("\n", " ").replace("\r", " ")
+            # Add to history data
+            sample_history["step"].append(str(step))
+            sample_history["prompt"].append(prompt)
+            sample_history["completion"].append(completion)
 
-            # Truncate if too long
-            max_len = 500
-            if len(prompt) > max_len:
-                prompt = prompt[:max_len] + "..."
-            if len(response) > max_len:
-                response = response[:max_len] + "..."
+            # Add rewards if present
+            if "rewards" in batch and sample_history["rewards"] is not None:
+                sample_history["rewards"].append(float(batch["rewards"][i].item()))
+            if "task_rewards" in batch and sample_history["task_rewards"] is not None:
+                sample_history["task_rewards"].append(float(batch["task_rewards"][i].item()))
 
-            # Get rewards
-            reward = float(batch["rewards"][i].item())
-            task_reward = float(batch["task_rewards"][i].item())
+        # Only log every 5 steps to reduce overhead
+        if step >= sample_history["last_logged_step"] + 5:
+            # Create table data dictionary
+            table_data = {"step": sample_history["step"], "prompt": sample_history["prompt"], "completion": sample_history["completion"]}
 
-            # Add to data
-            table_data["step"].append(str(step))
-            table_data["prompt"].append(prompt)
-            table_data["completion"].append(response)
-            table_data["reward"].append(reward)
-            table_data["task_reward"].append(task_reward)
+            # Add rewards if present
+            if sample_history["rewards"] is not None:
+                table_data["reward"] = sample_history["rewards"]
+            if sample_history["task_rewards"] is not None:
+                table_data["task_reward"] = sample_history["task_rewards"]
 
-        # Create DataFrame
-        df = pd.DataFrame(table_data)
+            # Create DataFrame
+            df = pd.DataFrame(table_data)
 
-        # Create and log table
-        wandb.log({"completions": wandb.Table(dataframe=df)}, step=step)
+            # Create and log the table with accumulated data
+            table = wandb.Table(dataframe=df)
+
+            # Log using step in wandb.log call
+            wandb.log({"completions": table}, step=step)
+
+            # Update last logged step
+            sample_history["last_logged_step"] = step
+
+            print(f"Logged table with {len(df)} rows at step {step}")
+
+        # Return the updated history for the next call
+        return sample_history
 
     except Exception as e:
-        print(f"Error logging samples: {e}")
+        print(f"Error logging table: {e}")
+        return sample_history
 
 
 def train(config: Config):
@@ -372,6 +308,7 @@ def train(config: Config):
 
     logger = get_logger()
     world_info = get_world_info()
+    wandb_sample_history = None
 
     logger.info(f"start training on {world_info.world_size} rank(s)")
 
@@ -533,6 +470,8 @@ def train(config: Config):
             logger.info(f"Time to compute logprobs: {time_logprob:.2f} seconds")
 
         logger.debug("start training rollout")
+
+        # In the training loop
         for rollout_step in range(config.optim.step_per_rollout):
             logger.debug(f"training rollout step {rollout_step} / {config.optim.step_per_rollout}")
             metric_averager = MetricsAverager()
@@ -544,7 +483,19 @@ def train(config: Config):
             data_per_rollout = next(logprobs_aware_iterator)
             num_grad_acc_steps = len(data_per_rollout)
 
-            # Now here's the complete grad_acc_step loop with the new logging code added:
+            # Collect samples for WandB logging - do this ONCE per step
+            if world_info.rank == 0 and config.wandb:
+                # Use the first batch for logging (could be configurable if needed)
+                batch = data_per_rollout[0]
+
+                # Log the samples to WandB with history management
+                try:
+                    # Pass and update the sample history
+                    wandb_sample_history = log_prompt_response_samples(tokenizer, batch, training_progress.step, wandb_sample_history)
+                except Exception as e:
+                    logger.warning(f"Error logging samples to WandB: {e}")
+
+            # Now here's the complete grad_acc_step loop WITHOUT the WandB logging inside it:
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
                 batch = data_per_rollout[grad_acc_step]
@@ -567,7 +518,6 @@ def train(config: Config):
                     metric_averager.update("target_lengths", target_lengths)
 
                 ## per micro batch metrics
-
                 metric_averager.update("batch_reward", batch["rewards"].float().mean())
                 metric_averager.update("batch_task_reward", batch["task_rewards"].float().mean())
                 metric_averager.update("batch_seq_lens", batch["seq_lens"].float().mean())
@@ -612,11 +562,7 @@ def train(config: Config):
 
                 inputs_ids_shape = input_ids.shape
 
-                # Log sample prompts and responses to Wandb
-                # Add this right before deleting the batch data
-                # In your grad_acc_step loop, before deleting batch:
-                if world_info.rank == 0 and config.wandb:
-                    log_prompt_response_samples(tokenizer, batch, training_progress.step)
+                # REMOVED: WandB logging from here - it's now done once before the grad_acc_step loop
 
                 # Now we can delete the batch data
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
@@ -694,7 +640,7 @@ def train(config: Config):
 
             if world_info.rank == 0:
                 if config.wandb:
-                    log_to_wandb(metrics)  # No changes here
+                    log_to_wandb(metrics)
                 if envs.PRIME_API_BASE_URL is not None:
                     monitor.log(metrics)
 
