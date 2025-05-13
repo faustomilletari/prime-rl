@@ -218,3 +218,20 @@ PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=2,3 uv run p
 ```
 
 We don't support DP+PP and so that configuration will raise an exception.
+
+
+## Citation
+
+If you find `prime-rl` useful, feel free to cite our work:
+
+```
+@misc{primeintellectteam2025intellect2reasoningmodeltrained,
+      title={INTELLECT-2: A Reasoning Model Trained Through Globally Decentralized Reinforcement Learning}, 
+      author={Prime Intellect Team and Sami Jaghouar and Justus Mattern and Jack Min Ong and Jannik Straube and Manveer Basra and Aaron Pazdera and Kushal Thaman and Matthew Di Ferrante and Felix Gabriel and Fares Obeid and Kemal Erdem and Michael Keiblinger and Johannes Hagemann},
+      year={2025},
+      eprint={2505.07291},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2505.07291}, 
+}
+```
