@@ -47,7 +47,7 @@ def test_compute_rewards(precomputed_rewards):
 
     # Re-compute rewards
     task_types = ["verifiable_math"] * len(request_outputs)
-    request_rewards = compute_rewards(request_outputs, verification_infos, task_types, config)
+    request_rewards = compute_rewards(request_outputs, verification_infos, task_types, None, config)
 
     assert all(isinstance(request_reward, RequestRewards) for request_reward in request_rewards)
 

