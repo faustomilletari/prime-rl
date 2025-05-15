@@ -78,9 +78,7 @@ def vllm_output_to_serializable(
     task_types: list[TaskType],
     config: RewardsConfig | None = None,
 ) -> RewardRequest:
-    model_outputs = [
-        unwrap_request_output(request_output) for request_output in request_outputs
-    ]
+    model_outputs = [unwrap_request_output(request_output) for request_output in request_outputs]
     return RewardRequest(
         model_outputs=model_outputs,
         verification_infos=verification_infos,
