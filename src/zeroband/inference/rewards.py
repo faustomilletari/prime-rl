@@ -58,6 +58,9 @@ class RewardRequest(BaseConfig):
         ):
             yield request_output, verification_info, task_type, self.config
 
+class RewardRequests(BaseConfig):
+    requests: list[RewardRequest]
+
 def reformat_to_reward_request(
     request_outputs: list[RequestOutput],
     verification_infos: list[dict],
