@@ -245,7 +245,6 @@ def compute_vllm_rewards(
         request_outputs: The request outputs to compute the rewards for.
         verification_infos: The verification infos for the request outputs.
         task_types: The task types for the request outputs.
-        remote_rewards: The remote server to delegate reward calculation to.
         config: The config for the rewards.
 
     Returns:
