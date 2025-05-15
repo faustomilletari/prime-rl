@@ -17,6 +17,8 @@ AUTH = args.auth
 
 try:
     ip_addr = get('https://api.ipify.org').content.decode('utf8')
+    print(f"IP Address: {ip_addr}")
+    print(f"Port: {PORT}")
     print(f"To connect to the server, use the following URL: http://{ip_addr}:{PORT}/compute_rewards")
 except Exception as e:
     print(f"Could not determine IP address: {e}")
