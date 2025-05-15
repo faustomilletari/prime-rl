@@ -200,8 +200,8 @@ def _compute_request_rewards(
 
 def compute_rewards(
     reward_request: RewardRequest,
-    remote_url: str | None = None,
 ) -> RewardsResponse:
+    remote_url = os.getenv("REWARD_URL", None)
     if remote_url is None:
         max_workers = min(32, len(reward_request))
         futures = []
@@ -212,12 +212,16 @@ def compute_rewards(
 
         return RewardsResponse(rewards=list(future.result() for future in futures))
     else:
-        remote_url = "http://204.52.26.80:8000/compute_rewards"
-        auth = os.environ.get("REWARD_AUTH")
+        port = os.getenv("REWARD_PORT", 8000)
+        remote_auth = os.getenv("REWARD_AUTH", None)
+        if remote_auth is None:
+            raise ValueError("Remote URL is set but no authentication token provided. Set the REWARD_AUTH environment variable.")
+
+        # TODO: SSL/HTTPS?
         response = requests.post(
-            remote_url,
+            f"http://{remote_url}:{port}/compute_rewards",
             data=json.dumps(reward_request.model_dump()),
-            headers={"Authorization": f"Bearer {auth}"},
+            headers={"Authorization": f"Bearer {remote_auth}"},
         )
 
         if response.status_code != 200:
@@ -231,7 +235,6 @@ def compute_vllm_rewards(
     request_outputs: list[RequestOutput],
     verification_infos: list[dict],
     task_types: list[TaskType],
-    remote_rewards: str | None = None,
     config: RewardsConfig | None = None,
 ) -> list[RequestRewards]:
     """
@@ -256,4 +259,4 @@ def compute_vllm_rewards(
         task_types=task_types,
         config=config,
     )
-    return compute_rewards(reward_request, remote_url=remote_rewards).rewards
+    return compute_rewards(reward_request).rewards

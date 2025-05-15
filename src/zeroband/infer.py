@@ -89,7 +89,6 @@ class Config(BaseConfig):
 
     toploc: bool = False
 
-    remote_rewards: str | None = None
     rewards: RewardsConfig = RewardsConfig()
     difficulty_filtering: DifficultyFilteringConfig | None = None
 
@@ -384,8 +383,7 @@ def inference(config: Config):
 
         # Compute rewards and advantages
         start = time.time()
-        config.remote_rewards = True
-        request_rewards = compute_vllm_rewards(request_outputs, verification_infos, task_types, config.remote_rewards, config.rewards)
+        request_rewards = compute_vllm_rewards(request_outputs, verification_infos, task_types, config.rewards)
         logger.info(f"Computed rewards and advantages in in {time.time() - start:.2f}s")
 
         table = get_parquet_table(
