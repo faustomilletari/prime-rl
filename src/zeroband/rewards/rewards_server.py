@@ -36,14 +36,14 @@ async def compute_rewards_endpoint(request: Request):
         reward_json = reward_response.model_dump_json()
 
         return Response(
-            content=reward_json, 
+            content=reward_json,
             media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=compute_rewards.json"}
         )
-        
+
     except Exception as e:
         return Response(
-            content=f"Error processing json: {str(e)}", 
+            content=f"Error processing json: {str(e)}",
             status_code=400
         )
 
