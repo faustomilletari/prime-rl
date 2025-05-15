@@ -3041,7 +3041,7 @@ requires-dist = [
     { name = "llmcompressor" },
     { name = "ninja" },
     { name = "numpy" },
-    { name = "prime-iroh", specifier = ">=0.1.2" },
+    { name = "prime-iroh", specifier = ">=0.2.1" },
     { name = "pyarrow" },
     { name = "pydantic-config", git = "https://github.com/samsja/pydantic_config.git?rev=b7becc3" },
     { name = "pyext", specifier = ">=0.7" },
