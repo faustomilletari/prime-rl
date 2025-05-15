@@ -1,4 +1,4 @@
-from typing import Literal, Sequence
+from typing import Any, Iterator, List, Literal, Sequence
 from dataclasses import dataclass, asdict
 import os
 import json
@@ -34,47 +34,28 @@ class LenRewardsConfig(BaseConfig):
     # only applicable for reward_type == "max"
     max_reward_delta: float = 0.5
 
-@dataclass
-class ModelCompletion:
+class ModelCompletion(BaseConfig):
     index: int
     text: str
     token_ids: Sequence[int]
 
-@dataclass
-class ModelOutput:
+class ModelOutput(BaseConfig):
     request_id: str
     outputs: list[ModelCompletion]
 
-@dataclass
-class RewardRequest:
+class RewardRequest(BaseConfig):
     model_outputs: list[ModelOutput]
-    verification_infos: list[dict]
+    verification_infos: list[dict[str, Any]]
     task_types: list[TaskType]
     config: LenRewardsConfig | None = None
 
     def __len__(self) -> int:
         return len(self.model_outputs)
-   
-    def to_json(self) -> str:
-        return json.dumps({
-            "request_outputs": [asdict(o) for o in self.model_outputs],
-            "verification_infos": self.verification_infos,
-            "task_types": self.task_types,
-            "config": self.config.model_dump() if self.config else None,
-        })
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "RewardRequest":
-        data = json.loads(json_str)
-        return RewardRequest(
-            model_outputs=[unwrap_request_output(o) for o in data["request_outputs"]],
-            verification_infos=data["verification_infos"],
-            task_types=data["task_types"],
-            config=LenRewardsConfig(**data["config"]) if data.get("config") else None,
-        )
     
-    def __iter__(self):
-        for request_output, verification_info, task_type in zip(self.model_outputs, self.verification_infos, self.task_types):
+    def __iter__(self) -> Iterator[tuple[ModelOutput, dict[str, Any], TaskType, LenRewardsConfig | None]]:
+        for request_output, verification_info, task_type in zip(
+            self.model_outputs, self.verification_infos, self.task_types
+        ):
             yield request_output, verification_info, task_type, self.config
 
 def reformat_to_reward_request(
@@ -88,7 +69,7 @@ def reformat_to_reward_request(
 
 
 def unwrap_request_output(request_output: RequestOutput) -> ModelOutput:
-    outputs = [ModelCompletion(o.index, o.text, o.token_ids) for o in request_output.outputs]
+    outputs = [ModelCompletion(index=o.index, text=o.text, token_ids=o.token_ids) for o in request_output.outputs]
     return ModelOutput(request_id=request_output.request_id, outputs=outputs)
     
 
@@ -240,7 +221,7 @@ def compute_rewards(
     else:
         response = requests.post(
             remote_rewards,
-            data=reward_request.to_json(),
+            data=json.dumps(reward_request.model_dump()),
             headers={
                 "Authorization": f"Bearer {auth}",
             },
@@ -249,7 +230,7 @@ def compute_rewards(
         if response.status_code != 200:
             logger.error(f"Failed to compute rewards: {response.status_code} - {response.text}")
             raise RuntimeError(f"Failed to compute rewards: {response.status_code} - {response.text}")
-        reward_request = RewardRequest.from_json(response.text)
+        reward_request = RewardRequest.model_validate(json.loads(response.text))
 
         max_workers = min(32, len(reward_request))
         futures = []
