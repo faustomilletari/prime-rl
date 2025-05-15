@@ -104,6 +104,9 @@ class RequestRewards(Serializable):
     request_id: str  # type(RequestOutput.request_id)
     rewards: list[CompletionReward]
 
+class RewardsResponse(Serializable):
+    rewards: list[RequestRewards]
+
 
 def _compute_completion_reward(
     completion_output: ModelCompletion,
@@ -203,7 +206,7 @@ def _compute_request_rewards(
 def compute_rewards(
     reward_request: RewardRequest,
     remote_url: str | None = None,
-) -> list[RequestRewards]:
+) -> RewardsResponse:
     if remote_url is None:
         max_workers = min(32, len(reward_request))
         futures = []
@@ -212,7 +215,7 @@ def compute_rewards(
                 args = (request, info, task_type, reward_request.config)
                 futures.append(executor.submit(_compute_request_rewards, *args))
 
-        return list(future.result() for future in futures)
+        return RewardsResponse(rewards=list(future.result() for future in futures))
     else:
         remote_url = "http://204.52.26.80:8000/compute_rewards"
         auth = os.environ.get("REWARD_AUTH")
@@ -225,9 +228,8 @@ def compute_rewards(
         if response.status_code != 200:
             logger.error(f"Failed to compute rewards: {response.status_code} - {response.text}")
             raise RuntimeError(f"Failed to compute rewards: {response.status_code} - {response.text}")
-        reward_request = RewardRequest.model_validate(json.loads(response.text))
-
-        raise NotImplementedError("Remote reward computation is not implemented yet.")
+        response = RewardsResponse.model_validate(json.loads(response.text))
+        return response
 
 
 def compute_vllm_rewards(
@@ -259,4 +261,4 @@ def compute_vllm_rewards(
         task_types=task_types,
         config=config,
     )
-    return compute_rewards(reward_request, remote_url=remote_rewards)
+    return compute_rewards(reward_request, remote_url=remote_rewards).rewards
