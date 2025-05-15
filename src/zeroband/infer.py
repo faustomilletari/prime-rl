@@ -20,7 +20,7 @@ from zeroband.inference.config import Config
 from zeroband.utils.logger import get_logger
 
 from zeroband.inference.toploc import setup_toploc_cache
-from zeroband.inference.pipeline import PipelineConfig, setup_pipeline
+from zeroband.inference.pipeline import setup_pipeline
 from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.parquet import get_parquet_table
 

@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import StreamingResponse
 from requests import get
 import json
 import argparse
