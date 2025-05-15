@@ -66,9 +66,6 @@ class RewardRequest(Serializable):
             yield request_output, verification_info, task_type
 
 
-class RewardRequests(Serializable):
-    requests: list[RewardRequest]
-
 
 def unwrap_request_output(request_output: RequestOutput) -> ModelOutput:
     outputs = [ModelCompletion(index=o.index, text=o.text, token_ids=o.token_ids) for o in request_output.outputs]
