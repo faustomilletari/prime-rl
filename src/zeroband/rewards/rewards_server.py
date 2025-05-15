@@ -32,7 +32,7 @@ async def compute_rewards_endpoint(request: Request):
     try:
         body = await request.body()
         reward_request: RewardRequest = RewardRequest.model_validate(json.loads(body))
-        reward_response: RewardsResponse = compute_rewards(reward_request, None)
+        reward_response: RewardsResponse = compute_rewards(reward_request)
         reward_json = reward_response.model_dump_json()
 
         return Response(
