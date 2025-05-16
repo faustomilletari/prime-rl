@@ -149,9 +149,7 @@ def train(config: Config):
         num_training_steps=config.optim.total_steps,
     )
 
-    total_problems = (
-        config.start_total_problems if config.start_total_problems is not None else config.optim.batch_size * config.optim.total_steps
-    )
+    total_problems = config.start_total_problems if config.start_total_problems is not None else 0
     training_progress = TrainingProgress(total_tokens=0, step=config.start_step, total_problems=total_problems)
 
     if world_info.rank == 0 and config.wandb:
