@@ -1,5 +1,4 @@
-from typing import Any, Iterator, List, Literal, Sequence
-from dataclasses import dataclass, asdict
+from typing import Any, Iterator, Literal, Sequence
 import os
 import json
 import requests
@@ -8,7 +7,7 @@ import numpy as np
 from pydantic_config import BaseConfig
 from pydantic_config import BaseConfig as Serializable
 
-from vllm import RequestOutput, CompletionOutput
+from vllm import RequestOutput
 from concurrent.futures import ThreadPoolExecutor
 
 from zeroband.inference.genesys import get_reward_function, TaskType
