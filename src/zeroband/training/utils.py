@@ -239,11 +239,10 @@ def log_to_wandb(
     batch: dict[str, torch.Tensor] | None = None,
     step: int | None = None,
 ) -> None:
-    """Log metrics to wandb with proper grouping."""
-    # Initialize grouped metrics dictionary
+    """Log our metrics to wandb, grouped by type."""
+    # Initialize dictionary
     wandb_metrics = {}
 
-    # Group metrics by category
     categories = {
         "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_problems"],
         "losses/": ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"],
@@ -290,7 +289,6 @@ def log_prompt_response_samples(
         step: The current training step
         sample_history: Optional dict to store sample history between calls
     """
-    # Initialize the history dictionary if not provided
     if sample_history is None:
         sample_history = {
             "step": [],
@@ -302,10 +300,9 @@ def log_prompt_response_samples(
         }
 
     try:
-        # Process batch items
         batch_size = batch["input_ids"].size(0)
         for i in range(batch_size):
-            # Find response start from loss mask
+            # Find completion start from the loss mask
             tokens = batch["input_ids"][i].cpu().tolist()
             mask = batch["loss_mask"][i].cpu().tolist()
 
@@ -314,45 +311,32 @@ def log_prompt_response_samples(
             except ValueError:
                 response_start = len(tokens) // 3
 
-            # Decode text directly without cleaning
             prompt = tokenizer.decode(tokens[:response_start], skip_special_tokens=True)
             completion = tokenizer.decode(tokens[response_start:], skip_special_tokens=True)
 
-            # Add to history data
             sample_history["step"].append(str(step))
             sample_history["prompt"].append(prompt)
             sample_history["completion"].append(completion)
 
-            # Add rewards if present
             if "rewards" in batch and sample_history["rewards"] is not None:
                 sample_history["rewards"].append(float(batch["rewards"][i].item()))
             if "task_rewards" in batch and sample_history["task_rewards"] is not None:
                 sample_history["task_rewards"].append(float(batch["task_rewards"][i].item()))
 
-        # Only log every 5 steps to reduce overhead
         if step >= sample_history["last_logged_step"] + 5:
-            # Create table data dictionary
+            # Create table data dictionary (we are forced to remake it each time)
             table_data = {"step": sample_history["step"], "prompt": sample_history["prompt"], "completion": sample_history["completion"]}
 
-            # Add rewards if present
             if sample_history["rewards"] is not None:
                 table_data["reward"] = sample_history["rewards"]
             if sample_history["task_rewards"] is not None:
                 table_data["task_reward"] = sample_history["task_rewards"]
 
-            # Create DataFrame
             df = pd.DataFrame(table_data)
-
-            # Create and log the table with accumulated data
             table = wandb.Table(dataframe=df)
-
-            # Log using step in wandb.log call
             wandb.log({"completions": table}, step=step)
-
-            # Update last logged step
             sample_history["last_logged_step"] = step
 
-        # Return the updated history for the next call
         return sample_history
 
     except Exception as e:
