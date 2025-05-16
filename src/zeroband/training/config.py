@@ -78,7 +78,7 @@ class Config(BaseConfig):
     kl_coef: float | None = None
 
     start_step: int = 0
-    start_total_problems: int | None = None
+    start_total_samples: int | None = None
     start_rollout_step: int | None = None
 
     @model_validator(mode="after")

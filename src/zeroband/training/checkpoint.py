@@ -16,7 +16,7 @@ from zeroband.utils.world_info import get_world_info
 class TrainingProgress:
     total_tokens: int
     step: int
-    total_problems: int
+    total_samples: int
 
 
 def _local_file_path(path: Path, local_rank: int) -> Path:
@@ -84,7 +84,7 @@ def load_checkpoint_fsdp_state(
 
     training_progress.total_tokens = state["training_progress"].total_tokens
     training_progress.step = state["training_progress"].step
-    training_progress.total_problems = state["training_progress"].total_problems
+    training_progress.total_samples = state["training_progress"].total_samples
 
     scheduler.load_state_dict(state["scheduler"])
 

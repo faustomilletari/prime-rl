@@ -244,7 +244,7 @@ def log_to_wandb(
     wandb_metrics = {}
 
     categories = {
-        "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_problems"],
+        "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_samples"],
         "losses/": ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"],
         "rewards/": ["sample_reward", "task_reward", "batch_reward", "batch_task_reward"],
         "lengths/": [

@@ -149,8 +149,8 @@ def train(config: Config):
         num_training_steps=config.optim.total_steps,
     )
 
-    total_problems = config.start_total_problems if config.start_total_problems is not None else 0
-    training_progress = TrainingProgress(total_tokens=0, step=config.start_step, total_problems=total_problems)
+    total_samples = config.start_total_samples if config.start_total_samples is not None else 0
+    training_progress = TrainingProgress(total_tokens=0, step=config.start_step, total_samples=total_samples)
 
     if world_info.rank == 0 and config.wandb:
         wandb.init(project=config.project, config=config.model_dump())
@@ -382,7 +382,7 @@ def train(config: Config):
             new_tokens = world_info.world_size * token_per_gpu
             perf_counter.count_tokens(new_tokens)
             training_progress.total_tokens += new_tokens
-            training_progress.total_problems += config.optim.batch_size
+            training_progress.total_samples += config.optim.batch_size
 
             padding_proportion = (config.data.seq_length - metric_averager["seq_lens"].item() - 1) / config.data.seq_length
 
@@ -396,7 +396,7 @@ def train(config: Config):
                 "grad_norm": grad_norm.item(),
                 "padding_proportion": padding_proportion,
                 "grad_acc_steps": num_grad_acc_steps,
-                "total_problems": training_progress.total_problems,
+                "total_samples": training_progress.total_samples,
             }
 
             for key, value in metric_averager.items():
