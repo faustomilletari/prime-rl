@@ -45,19 +45,9 @@ main() {
         source $HOME/.local/bin/env
     fi
     
-    log_info "Creating virtual environment..."
-    uv venv --python 3.10
-    
-    log_info "Activating virtual environment..."
-    source .venv/bin/activate
-    
-    log_info "Installing dependencies..."
-    uv sync
-
-    log_info "Installing flash-attn..."
-    uv pip install flash-attn --no-build-isolation
-    
-    log_info "Installation completed! You can double check that everything is install correctly by running"
+    log_info "Installing dependencies in virtual environment..."
+    uv sync && uv sync --extra fa
+    log_info "Installation completed!"
 }
 
 main

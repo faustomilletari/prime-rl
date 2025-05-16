@@ -3,7 +3,7 @@ name = "zeroband"
 version = "0.1.0"
 description = "ZeroBand is a production ready codebase for decentralized training of LLM"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.11"
 dependencies = [
     "torch",
     "numpy",
@@ -16,7 +16,7 @@ dependencies = [
     "zstandard",
     "pyarrow",
     "wandb",
-    "vllm>=0.7.3",
+    "vllm>=0.8.5",
     "jaxtyping",
     "beartype",
     "toploc>=0.1.6",
@@ -28,7 +28,12 @@ dependencies = [
     "asyncio>=3.4.3",
     "aiohttp>=3.10.5",
     "pyext>=0.7",
+    "prime-iroh>=0.2.1",
+    "setuptools"
 ] 
+
+[project.optional-dependencies]
+fa = ["flash-attn>=2.7.4"]
 
 [build-system]
 requires = ["hatchling"]
@@ -39,7 +44,10 @@ allow-direct-references = true # allow direct references to git repos in depende
 
 [tool.ruff]
 line-length = 140
+
+[tool.ruff.lint]
 ignore = ["F722", "F821"]
 
 [tool.uv]
 dev-dependencies = ["ruff>=0.5.0", "pre-commit>=3.0.0","pytest>=7.0.0", "faker"]
+no-build-isolation-package = ["flash-attn"]

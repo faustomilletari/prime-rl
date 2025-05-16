@@ -28,13 +28,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 ```
 
-3. Set up the environment:
+3. Set up the environment (will default to Python 3.10)
+
 ```bash
-uv venv --python 3.10
-source .venv/bin/activate
-uv sync
-uv pip install flash-attn --no-build-isolation
+uv sync && uv sync --extra fa
 ```
+
+You can check that `flash_attn` is installed correctly by running `uv run python -c "import flash_attn"` and ensure no error is thrown.
 
 4. Precommit install
 
@@ -58,26 +58,61 @@ uv run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/debu
 
 inference
 ```bash
-uv run python src/zeroband/inference.py @ configs/inference/debug.toml
+uv run python src/zeroband/infer.py @ configs/inference/debug.toml
 ```
 
 
-## Debug math run
+## Simple Math Run
 
-on two different terminal do:
+This debug run trains `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` on the `justus27/math-hendrycks-genesys-format` dataset using separate inference and training processes.
+Depending on the number of available GPUs, we have to adjust the number of generated samples on the inference workers to match the batch size of the training process.
+
+If you have 2 GPUs, run the following commands:
 
 ```bash
+# Start inference worker
+export CUDA_VISIBLE_DEVICES=0
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml --dp 1 --batch-size 64
+```
+
+```bash
+# Start trainer
+ulimit -n 4096
+export CUDA_VISIBLE_DEVICES=1
+uv  run torchrun src/zeroband/train.py @ configs/training/simple_math.toml
+```
+
+If you have 4 GPUs, run the following commands:
+
+```bash
+# Start inference workers
+export CUDA_VISIBLE_DEVICES=0,1
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml --dp 2 --batch-size 32
+```
+
+```bash
+# Start trainer
+ulimit -n 4096
+export CUDA_VISIBLE_DEVICES=2
+uv  run torchrun src/zeroband/train.py @ configs/training/simple_math.toml
+```
+
+If you have 8 GPUs, run the following commands:
+
+```bash
+# Start inference workers
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-uv run python src/zeroband/inference.py @ configs/inference/Qwen1.5B/debug_math.toml
+uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml
 ```
 
-then start the trainer
-
 ```bash
+# Start trainer
 ulimit -n 4096
 export CUDA_VISIBLE_DEVICES=6,7
-uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/Qwen1.5B/debug_math.toml
+uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/simple_math.toml --data.num_workers 2
 ```
 
 
@@ -88,7 +123,7 @@ on two different terminal do:
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-uv run python src/zeroband/inference.py @ configs/inference/Qwen1.5B/Qwen1.5B.toml
+uv run python src/zeroband/infer.py @ configs/inference/deepscaler.toml
 ```
 
 then start the trainer
@@ -96,9 +131,109 @@ then start the trainer
 ```bash
 ulimit -n 4096
 export CUDA_VISIBLE_DEVICES=6,7
-uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/Qwen1.5B/Qwen1.5b.toml
+uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/deepscaler.toml
 ```
 
 if running on h100 node instead of H200 you should add ` --train.micro_bs 4`
 
+## Distributed inference
 
+Inference supports running in multi-node multi-GPU setups supporting DP, TP and PP, and sensible combinations of these.
+Below are examples of how to run inference for different parallelization strategies.
+
+Single Node (DP=1, TP=1, PP=1, *requires 1 GPU*)
+
+```bash
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name Qwen/Qwen3-14B
+```
+
+Only TP (TP=2, PP=1, DP=1, *requires 2 GPUs*)
+
+```bash
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0,1 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name Qwen/Qwen3-14B \
+	--tp 2
+```
+
+Only DP (DP=2, TP=1, PP=1, *requires 2 GPUs*)
+
+```bash
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0,1 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name Qwen/Qwen3-14B \
+	--dp 2
+```
+
+Only PP (DP=1, TP=1, PP=2, *requires 2 GPUs*)
+
+```bash
+# Node 1
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name mikasenghaas/Qwen3-14B-0.2 \
+	--pp.rank 0 \
+	--pp.world-size 2 \
+	--pp.iroh-seed 0 \
+	--pp.iroh-peer-id ff87a0b0a3c7c0ce827e9cada5ff79e75a44a0633bfcb5b50f99307ddb26b337 \
+	--seed 69
+```
+
+```bash
+# Node 2
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=1 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name mikasenghaas/Qwen3-14B-1.2 \
+	--pp.rank 1 \
+	--pp.world-size 2 \
+	--pp.iroh-seed 1 \
+	--pp.iroh-peer-id ee1aa49a4459dfe813a3cf6eb882041230c7b2558469de81f87c9bf23bf10a03 \
+	--seed 69
+```
+
+*Note: Setting the seed here is important to ensure model shards work on the same data shards.*
+
+DP+TP (DP=2, TP=2, PP=1, *requires 4 GPUs*)
+
+```bash
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0,1,2,3 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name Qwen/Qwen3-14B \
+	--dp 2 \
+	--tp auto
+```
+
+PP+TP (DP=1, TP=2, PP=2, *requires 4 GPUs*)
+
+```bash
+# Node 1
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=0,1 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name mikasenghaas/Qwen3-14B-0.2 \
+	--tp auto \
+	--pp.rank 0 \
+	--pp.world-size 2 \
+	--pp.iroh-seed 0 \
+	--pp.iroh-peer-id ff87a0b0a3c7c0ce827e9cada5ff79e75a44a0633bfcb5b50f99307ddb26b337 \
+	--seed 69
+```
+
+```bash
+# Node 2
+PRIME_LOG_LEVEL=DEBUG VLLM_CONFIGURE_LOGGING=0 CUDA_VISIBLE_DEVICES=2,3 uv run python src/zeroband/infer.py @ configs/inference/debug.toml --model-name mikasenghaas/Qwen3-14B-1.2 \
+	--tp auto \
+	--pp.rank 1 \
+	--pp.world-size 2 \
+	--pp.iroh-seed 1 \
+	--pp.iroh-peer-id ee1aa49a4459dfe813a3cf6eb882041230c7b2558469de81f87c9bf23bf10a03 \
+	--seed 69
+```
+
+*Note: To check the logs of `prime-iroh` (used for connecting PP nodes), you can add the `RUST_LOG=prime_iroh=info` environment variable.*
+
+We don't support DP+PP and so that configuration will raise an exception.
+
+
+## Citation
+
+If you find `prime-rl` useful, feel free to cite our work:
+
+```
+@misc{primeintellectteam2025intellect2reasoningmodeltrained,
+      title={INTELLECT-2: A Reasoning Model Trained Through Globally Decentralized Reinforcement Learning}, 
+      author={Prime Intellect Team and Sami Jaghouar and Justus Mattern and Jack Min Ong and Jannik Straube and Manveer Basra and Aaron Pazdera and Kushal Thaman and Matthew Di Ferrante and Felix Gabriel and Fares Obeid and Kemal Erdem and Michael Keiblinger and Johannes Hagemann},
+      year={2025},
+      eprint={2505.07291},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2505.07291}, 
+}
+```
