@@ -350,8 +350,6 @@ def train(config: Config):
 
                 inputs_ids_shape = input_ids.shape
 
-                # REMOVED: WandB logging from here - it's now done once before the grad_acc_step loop
-
                 # Now we can delete the batch data
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
 
