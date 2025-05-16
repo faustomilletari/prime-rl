@@ -7,8 +7,10 @@ import torch
 from transformers import (
     LlamaConfig,
     LlamaForCausalLM,
+    PreTrainedTokenizer,
 )
 from torch.distributed.tensor import DTensor
+from typing import Any
 
 from zeroband.utils.models import ModelType
 from zeroband.utils.world_info import get_world_info
