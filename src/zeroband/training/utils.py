@@ -352,8 +352,6 @@ def log_prompt_response_samples(
             # Update last logged step
             sample_history["last_logged_step"] = step
 
-            # print(f"Logged table with {len(df)} rows at step {step}")
-
         # Return the updated history for the next call
         return sample_history
 
