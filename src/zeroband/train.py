@@ -24,6 +24,8 @@ from zeroband.training.utils import (
     offload_model_to_cpu,
     reshard_module,
     wake_up_model_from_cpu,
+    log_prompt_response_samples,
+    log_to_wandb,
 )
 
 from zeroband.logger import get_logger
@@ -174,131 +176,6 @@ def get_logprobs(model: ModelType, input_ids: torch.Tensor, position_ids: torch.
     logprobs = selective_log_softmax(logits_shifted, input_ids_shifted)
     del logits, logits_shifted
     return logprobs
-
-
-def log_to_wandb(metrics_dict, tokenizer=None, batch=None, step=None):
-    """Log metrics to wandb with proper grouping."""
-    # Initialize grouped metrics dictionary
-    wandb_metrics = {}
-
-    # Group metrics by category
-    categories = {
-        "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_problems"],
-        "losses/": ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"],
-        "rewards/": ["sample_reward", "task_reward", "batch_reward", "batch_task_reward"],
-        "lengths/": [
-            "seq_lens",
-            "batch_seq_lens",
-            "target_lengths",
-            "batch_target_lengths",
-            "padding_proportion",
-            "length_penalties",
-            "batch_length_penalties",
-        ],
-        "perf/": [
-            "tokens_per_second",
-            "tokens_per_second_per_gpu",
-            "mfu",
-            "time_rollout_step",
-            "time_logprob",
-            "time_data_loading",
-            "time_packing",
-        ],
-    }
-
-    # Add metrics to respective groups
-    for prefix, keys in categories.items():
-        for k in keys:
-            if k in metrics_dict and metrics_dict[k] is not None:
-                wandb_metrics[f"{prefix}{k}"] = metrics_dict[k]
-
-    # Log everything
-    wandb.log(wandb_metrics, step=metrics_dict.get("step", step))
-
-
-def log_prompt_response_samples(tokenizer, batch, step, sample_history=None):
-    """Log samples using wandb.Table with accumulated history.
-    Only logs every 5 steps to reduce overhead.
-
-    Args:
-        tokenizer: The tokenizer to decode tokens
-        batch: The current batch of data
-        step: The current training step
-        sample_history: Optional dict to store sample history between calls
-    """
-    # Initialize the history dictionary if not provided
-    if sample_history is None:
-        sample_history = {
-            "step": [],
-            "prompt": [],
-            "completion": [],
-            "rewards": [] if "rewards" in batch else None,
-            "task_rewards": [] if "task_rewards" in batch else None,
-            "last_logged_step": -5,  # Initialize to trigger first logging
-        }
-
-    try:
-        import pandas as pd
-        import wandb
-
-        # Process batch items
-        batch_size = batch["input_ids"].size(0)
-        for i in range(batch_size):
-            # Find response start from loss mask
-            tokens = batch["input_ids"][i].cpu().tolist()
-            mask = batch["loss_mask"][i].cpu().tolist()
-
-            try:
-                response_start = mask.index(1)
-            except ValueError:
-                response_start = len(tokens) // 3
-
-            # Decode text directly without cleaning
-            prompt = tokenizer.decode(tokens[:response_start], skip_special_tokens=True)
-            completion = tokenizer.decode(tokens[response_start:], skip_special_tokens=True)
-
-            # Add to history data
-            sample_history["step"].append(str(step))
-            sample_history["prompt"].append(prompt)
-            sample_history["completion"].append(completion)
-
-            # Add rewards if present
-            if "rewards" in batch and sample_history["rewards"] is not None:
-                sample_history["rewards"].append(float(batch["rewards"][i].item()))
-            if "task_rewards" in batch and sample_history["task_rewards"] is not None:
-                sample_history["task_rewards"].append(float(batch["task_rewards"][i].item()))
-
-        # Only log every 5 steps to reduce overhead
-        if step >= sample_history["last_logged_step"] + 5:
-            # Create table data dictionary
-            table_data = {"step": sample_history["step"], "prompt": sample_history["prompt"], "completion": sample_history["completion"]}
-
-            # Add rewards if present
-            if sample_history["rewards"] is not None:
-                table_data["reward"] = sample_history["rewards"]
-            if sample_history["task_rewards"] is not None:
-                table_data["task_reward"] = sample_history["task_rewards"]
-
-            # Create DataFrame
-            df = pd.DataFrame(table_data)
-
-            # Create and log the table with accumulated data
-            table = wandb.Table(dataframe=df)
-
-            # Log using step in wandb.log call
-            wandb.log({"completions": table}, step=step)
-
-            # Update last logged step
-            sample_history["last_logged_step"] = step
-
-            print(f"Logged table with {len(df)} rows at step {step}")
-
-        # Return the updated history for the next call
-        return sample_history
-
-    except Exception as e:
-        print(f"Error logging table: {e}")
-        return sample_history
 
 
 def train(config: Config):
