@@ -77,7 +77,7 @@ def test_model_with_sequence_packing(model_tokenizer: tuple[ModelType, AutoToken
 
     model = model.to("cuda")
     inputs = [0, 1, 2, 3]
-
+    
     with torch.autocast("cuda", dtype=torch.bfloat16):
         inputs_ids = torch.Tensor(inputs).repeat(1, 1).int().to("cuda")
         output_base = model(input_ids=inputs_ids).logits
@@ -92,7 +92,11 @@ def test_model_with_sequence_packing(model_tokenizer: tuple[ModelType, AutoToken
         else:
             position_ids = torch.Tensor([0, 1, 2, 3, 4, 5, 6, 7]).repeat(1, 1).int().to("cuda")
             # should fail
-        outputs_packed = model(input_ids=inputs_ids, position_ids=position_ids).logits
+        
+        cu_seqlens = position_ids.cumsum(0).to(torch.int32).to("cuda")
+        max_seqlen = position_ids.max()
+
+        outputs_packed = model(input_ids=inputs_ids, cu_seqlens_q=cu_seqlens, cu_seqlens_k=cu_seqlens, max_seqlen_q=max_seqlen, max_seqlen_k=max_seqlen).logits
 
         assert outputs_packed.shape == (1, 2 * len(inputs), model.config.vocab_size)
 
