@@ -57,7 +57,6 @@ def test_model_with_position_ids(model_tokenizer: tuple[ModelType, AutoTokenizer
         assert outputs.shape == (BS, SEQ_LEN, model.config.vocab_size)
 
 
-@pytest.mark.skip(reason="Sequence packing for Qwen not working.")
 @pytest.mark.parametrize("correct_position_ids", [True, False])
 def test_model_with_sequence_packing(model_tokenizer: tuple[ModelType, AutoTokenizer], correct_position_ids):
     """
