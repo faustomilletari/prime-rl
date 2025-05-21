@@ -2,9 +2,8 @@ import random
 
 import torch
 from einops import rearrange
-from flash_attn import flash_attn_func
+from flash_attn import flash_attn_func, flash_attn_varlen_func
 from torch import nn
-from torch.nn import functional as F
 
 ERROR_ATOL = {
     torch.float: 3e-4,
@@ -160,17 +159,42 @@ class Attention(nn.Module):
         output = output.view(bs, seqlen, -1)
         return self.wo(output)
 
-    def _sdpa_attention(self, xq, xk, xv) -> torch.Tensor:
-        output = F.scaled_dot_product_attention(xq, xk, xv, is_causal=True)
-        output = output.transpose(1, 2).contiguous()  # (bs, seqlen, n_local_heads, head_dim)
-        return output
-
     def self_attention(self, xq: torch.Tensor, xk: torch.Tensor, xv: torch.Tensor, seqlens: torch.Tensor | None = None) -> torch.Tensor:
+        if seqlens is not None:
+            return self._fa_attention_with_seqlens(xq, xk, xv, seqlens)
+        else:
+            return self._flash_attention(xq, xk, xv)
+
+    def _flash_attention(self, xq, xk, xv) -> torch.Tensor:
         q = rearrange(xq, "b n t h -> b t n h")
         k = rearrange(xk, "b n t h -> b t n h")
         v = rearrange(xv, "b n t h -> b t n h")
         # q/k/b is [b, nh, t, hs] but fa2 expected [b , t, nh, hs]
         return flash_attn_func(q, k, v, causal=True)
+
+    def _fa_attention_with_seqlens(self, xq, xk, xv, seqlens) -> torch.Tensor:
+        b = xq.shape[0]
+        cu_seqlens = torch.concat([torch.tensor([0]).to(xq.device), seqlens.cumsum(0)], dim=0).to(torch.int32).to(xq.device)
+        max_seqlen = seqlens.max()
+
+        q = rearrange(xq, "b n t h -> (b t) n h")
+        k = rearrange(xk, "b n t h -> (b t) n h")
+        v = rearrange(xv, "b n t h -> (b t) n h")
+        # q/k/v is [b, nh, t, hs] but fa expected [b * t, nh, hs]
+
+        y = flash_attn_varlen_func(
+            q,
+            k,
+            v,
+            cu_seqlens_q=cu_seqlens,
+            cu_seqlens_k=cu_seqlens,
+            max_seqlen_q=max_seqlen,
+            max_seqlen_k=max_seqlen,
+            causal=True,
+        )
+
+        y = rearrange(y, "(b t) n h -> b t n h", b=b)
+        return y
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0) -> torch.Tensor:
