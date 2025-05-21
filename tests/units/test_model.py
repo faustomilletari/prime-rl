@@ -1,7 +1,8 @@
 import pytest
 import torch
+from transformers import AutoTokenizer
 
-from zeroband.utils.models import get_model_and_tokenizer
+from zeroband.utils.models import ModelType, get_model_and_tokenizer
 
 BS = 1
 SEQ_LEN = 16
@@ -23,12 +24,12 @@ def model_name():
 
 
 @pytest.fixture(scope="session")
-def model_tokenizer(model_name, attn_impl):
+def model_tokenizer(model_name, attn_impl) -> tuple[ModelType, AutoTokenizer]:
     model, tokenizer = get_model_and_tokenizer(model_name, attn_impl)
     return model, tokenizer
 
 
-def test_model_forward(model_tokenizer):
+def test_model_forward(model_tokenizer: tuple[ModelType, AutoTokenizer]):
     model, tokenizer = model_tokenizer
     assert model is not None
     assert tokenizer is not None
@@ -41,7 +42,7 @@ def test_model_forward(model_tokenizer):
         assert outputs.shape == (BS, SEQ_LEN, model.config.vocab_size)
 
 
-def test_model_with_position_ids(model_tokenizer):
+def test_model_with_position_ids(model_tokenizer: tuple[ModelType, AutoTokenizer]):
     model, tokenizer = model_tokenizer
     assert model is not None
     assert tokenizer is not None
@@ -58,7 +59,7 @@ def test_model_with_position_ids(model_tokenizer):
 
 @pytest.mark.skip(reason="Sequence packing for Qwen not working.")
 @pytest.mark.parametrize("correct_position_ids", [True, False])
-def test_model_with_sequence_packing(model_tokenizer, correct_position_ids):
+def test_model_with_sequence_packing(model_tokenizer: tuple[ModelType, AutoTokenizer], correct_position_ids):
     """
     The goal of this test is to check that the sequence packing works correctly.
 
