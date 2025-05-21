@@ -20,7 +20,7 @@ def attn_impl(request):
 
 @pytest.fixture(scope="session")
 def model_name():
-    return "Qwen/Qwen2.5-0.5B-Instruct"
+    return "meta-llama/Llama-3.2-1B-Instruct"
 
 
 @pytest.fixture(scope="session")
