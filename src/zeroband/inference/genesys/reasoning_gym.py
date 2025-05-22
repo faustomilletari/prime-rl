@@ -1,5 +1,6 @@
 import json
 import re
+
 from reasoning_gym.factory import get_score_answer_fn
 
 
@@ -24,20 +25,20 @@ def _find_last_json_block(text: str) -> str | None:
     if matches:
         return matches[-1].group(1).strip()
 
-    end = text.rfind('}')
+    end = text.rfind("}")
     if end == -1:
         return None
 
     depth = 0
     i = end
     while i >= 0:
-        if text[i] == '}':
+        if text[i] == "}":
             depth += 1
-        elif text[i] == '{':
+        elif text[i] == "{":
             depth -= 1
             if depth == 0:
                 start = i
-                return text[start:end+1].strip()
+                return text[start : end + 1].strip()
         i -= 1
     return None
 
@@ -66,12 +67,16 @@ def _extract_json_field(completion: str, field: str) -> str | None:
 
 
 def extract_answer_arc_agi(completion: str, verification_info: dict):
-    verification_info["reasoning_gym_entry"]["metadata"]["output"] = tuple([tuple(b) for b in verification_info["reasoning_gym_entry"]["metadata"]["output"]])
+    verification_info["reasoning_gym_entry"]["metadata"]["output"] = tuple(
+        [tuple(b) for b in verification_info["reasoning_gym_entry"]["metadata"]["output"]]
+    )
     return _extract_post_string(completion), verification_info
 
 
 def extract_answer_rearc(completion: str, verification_info: dict):
-    verification_info["reasoning_gym_entry"]["metadata"]["output"] = tuple([tuple(b) for b in verification_info["reasoning_gym_entry"]["metadata"]["output"]])
+    verification_info["reasoning_gym_entry"]["metadata"]["output"] = tuple(
+        [tuple(b) for b in verification_info["reasoning_gym_entry"]["metadata"]["output"]]
+    )
     return _extract_post_string(completion), verification_info
 
 
@@ -119,11 +124,11 @@ def verify_reasoning_gym(completion: str, verification_info: dict) -> float:
 
     answer_preprocess_fn = ANSWER_PREPROCESS_FUNCTIONS[dataset]
     score_answer_fn = get_score_answer_fn(name=dataset)
-    
+
     answer, verification_info = answer_preprocess_fn(completion, verification_info)
     if answer is None:
         return 0.0
-    
+
     score = score_answer_fn(answer=answer, entry=verification_info["reasoning_gym_entry"])
 
     return 1.0 if score == 1 else 0.0
