@@ -21,7 +21,7 @@ from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import setup_pipeline
 from zeroband.inference.rewards import compute_rewards
 from zeroband.inference.toploc import setup_toploc_cache
-from zeroband.inference.utils import fake_chat_template, generate_target_length_prompts, reload_model_weights
+from zeroband.inference.utils import fake_chat_template, filter_data_by_prompt_length, generate_target_length_prompts, reload_model_weights
 from zeroband.training.mp import EnvWrapper
 from zeroband.utils.logger import get_logger
 from zeroband.utils.metrics import PrimeMetric
@@ -82,12 +82,18 @@ def inference(config: Config):
         dataset = load_dataset(config.dataset, split="train").shuffle(generator=generator)
         node_address_int = None
 
+    if config.max_prompt_len:
+        dataset = filter_data_by_prompt_length(dataset, config.max_prompt_len, tokenizer)
+        logger.info(f"✨ Removed long prompts - {len(dataset)} samples remaining")
+
     # Optionally filter dataset
     if config.difficulty_filtering:
         dataset = dataset.filter(
             lambda x: x[config.difficulty_filtering.solve_rate_field] >= config.difficulty_filtering.min_solve_rate
             and x[config.difficulty_filtering.solve_rate_field] <= config.difficulty_filtering.max_solve_rate
         )
+
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # to avoid HF warning
 
     # Setup TOPLOC
     toploc_cache, _ = setup_toploc_cache(
