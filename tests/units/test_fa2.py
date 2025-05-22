@@ -1,5 +1,6 @@
 import random
 
+import pytest
 import torch
 from einops import rearrange
 from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -271,3 +272,74 @@ def test_sequence_packing_vs_normal_random():
 
         torch.testing.assert_close(output_1, output_packed_1, atol=atol, rtol=rtol)
         torch.testing.assert_close(output_2, output_packed_2, atol=atol, rtol=rtol)
+
+
+@pytest.mark.parametrize("seq_len, head_dim, nheads", [(8, 64, 1), (16, 64, 2)])
+def test_flashattn_equivalence_on_subsequence(seq_len, head_dim, nheads):
+    torch.manual_seed(42)
+    dtype = torch.float16
+    device = "cuda"
+
+    batch_size = 1
+    d_model = nheads * head_dim
+
+    # Input (1, S, d_model)
+    x = torch.randn(batch_size, seq_len, d_model, device=device, dtype=dtype, requires_grad=True)
+
+    # Projections
+    proj_q = torch.nn.Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
+    proj_k = torch.nn.Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
+    proj_v = torch.nn.Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
+
+    q = proj_q(x).reshape(batch_size * seq_len, nheads, head_dim)
+    k = proj_k(x).reshape(batch_size * seq_len, nheads, head_dim)
+    v = proj_v(x).reshape(batch_size * seq_len, nheads, head_dim)
+
+    cu_seqlens_q = torch.tensor([0, seq_len], dtype=torch.int32, device=device)
+    cu_seqlens_k = torch.tensor([0, seq_len], dtype=torch.int32, device=device)
+
+    # FlashAttention on (1, S)
+    out_ref = flash_attn_varlen_func(
+        q=q,
+        k=k,
+        v=v,
+        cu_seqlens_q=cu_seqlens_q,
+        cu_seqlens_k=cu_seqlens_k,
+        max_seqlen_q=seq_len,
+        max_seqlen_k=seq_len,
+        dropout_p=0.0,
+        softmax_scale=None,
+        causal=False,
+    )
+
+    # Double input along sequence dimension -> (1, 2S, d_model)
+    x2 = torch.cat([x, x], dim=1)
+    total_len = 2 * seq_len
+
+    q2 = proj_q(x2).reshape(batch_size * total_len, nheads, head_dim)
+    k2 = proj_k(x2).reshape(batch_size * total_len, nheads, head_dim)
+    v2 = proj_v(x2).reshape(batch_size * total_len, nheads, head_dim)
+
+    cu_seqlens_q2 = torch.tensor([0, seq_len, 2 * seq_len], dtype=torch.int32, device=device)
+    cu_seqlens_k2 = torch.tensor([0, seq_len, 2 * seq_len], dtype=torch.int32, device=device)
+
+    # FlashAttention on (1, 2S)
+    out_2S = flash_attn_varlen_func(
+        q=q2,
+        k=k2,
+        v=v2,
+        cu_seqlens_q=cu_seqlens_q2,
+        cu_seqlens_k=cu_seqlens_k2,
+        max_seqlen_q=total_len,
+        max_seqlen_k=total_len,
+        dropout_p=0.0,
+        softmax_scale=None,
+        causal=False,
+    )
+
+    # Slice only the first S positions from out_2S
+    out_2S_sliced_left = out_2S[:seq_len]
+    out_2S_sliced_right = out_2S[seq_len : 2 * seq_len]
+
+    torch.testing.assert_close(out_ref, out_2S_sliced_left)
+    torch.testing.assert_close(out_ref, out_2S_sliced_right)
