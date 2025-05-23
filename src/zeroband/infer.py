@@ -98,8 +98,6 @@ def inference(config: Config):
             and x[config.difficulty_filtering.solve_rate_field] <= config.difficulty_filtering.max_solve_rate
         )
 
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # to avoid HF warning
-
     # Setup TOPLOC
     toploc_cache, _ = setup_toploc_cache(
         llm,
