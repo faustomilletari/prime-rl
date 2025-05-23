@@ -18,8 +18,6 @@ from unittest.mock import mock_open, patch
 import numpy as np
 from pyext import RuntimeModule
 
-# private fork context just for the sandbox
-
 
 def truncatefn(s, length=300):
     assert isinstance(s, str)
