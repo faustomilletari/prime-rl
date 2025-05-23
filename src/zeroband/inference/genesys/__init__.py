@@ -5,7 +5,7 @@ from zeroband.inference.genesys.code_output_prediction import verify_code_output
 from zeroband.inference.genesys.math import compute_math_reward
 from zeroband.inference.genesys.reasoning_gym import verify_reasoning_gym
 
-TaskType = Literal["verifiable_math", "prime_rl_code"]
+TaskType = Literal["verifiable_math", "prime_rl_code", "reasoning_gym", "code_output_prediction"]
 
 
 def get_reward_function(task_type: TaskType) -> Callable[[str, dict], float]:
