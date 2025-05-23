@@ -4,7 +4,7 @@
 import ast
 import faulthandler
 import json
-import multiprocessing as _mp
+import multiprocessing
 import os
 import platform
 import signal
@@ -19,17 +19,6 @@ import numpy as np
 from pyext import RuntimeModule
 
 # private fork context just for the sandbox
-_fork_ctx = _mp.get_context("fork")
-
-
-# helper to make sure the child never trips world_info assertions
-def _seed_single_rank_env():
-    import os
-
-    os.environ.setdefault("RANK", "0")
-    os.environ.setdefault("WORLD_SIZE", "1")
-    os.environ.setdefault("LOCAL_RANK", "0")
-    os.environ.setdefault("LOCAL_WORLD_SIZE", "1")
 
 
 def truncatefn(s, length=300):
@@ -703,7 +692,6 @@ def reliability_guard(maximum_memory_bytes=None):
 
 def _temp_run(sample, generation, debug, result, metadata_list, timeout):
     # test is run silently. If it is killed, nothing will be printed
-    _seed_single_rank_env()
     with open(os.devnull, "w") as devnull:
         sys.stdout = devnull
         sys.stderr = devnull
@@ -723,10 +711,10 @@ def check_correctness(in_outs: dict | None, generation, timeout=10, debug=True):
     The global timeout is to catch some extreme/rare cases not handled by the timeouts
     inside `run_test`"""
 
-    manager = _fork_ctx.Manager()
+    manager = multiprocessing.Manager()
     result = manager.list()
     metadata_list = manager.list()
-    p = _fork_ctx.Process(target=_temp_run, args=(in_outs, generation, debug, result, metadata_list, timeout))
+    p = multiprocessing.Process(target=_temp_run, args=(in_outs, generation, debug, result, metadata_list, timeout))
     p.start()
     p.join(timeout=timeout + 1)
     if p.is_alive():
