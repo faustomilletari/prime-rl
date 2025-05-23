@@ -1,5 +1,6 @@
-from format_utils import extract_last_json
 from reasoning_gym.factory import get_score_answer_fn
+
+from zeroband.inference.genesys.format_utils import extract_last_json
 
 
 def _extract_post_string(completion: str) -> str | None:

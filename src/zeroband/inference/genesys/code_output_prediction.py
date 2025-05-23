@@ -1,4 +1,4 @@
-from format_utils import extract_last_json
+from zeroband.inference.genesys.format_utils import extract_last_json
 
 
 def verify_code_output_prediction(completion: str, verification_info: dict) -> float:
