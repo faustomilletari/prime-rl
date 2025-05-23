@@ -18,8 +18,6 @@ from unittest.mock import mock_open, patch
 import numpy as np
 from pyext import RuntimeModule
 
-import zeroband.inference.genesys.compat_inspect  # noqa | must be before any legacy import
-
 # private fork context just for the sandbox
 _fork_ctx = _mp.get_context("fork")
 
