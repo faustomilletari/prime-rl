@@ -29,7 +29,10 @@ class Config(BaseConfig):
     dataset: str
     batch_size: int = 32
     max_samples: int | None = None
+
     output_path: str = "outputs"
+    clean_output_path: bool = False  # if true, the output path will be cleaned up before running the inference
+
     total_step: int | None = None
     rollout_path: str | None = None
     step_endpoint: str | None = None

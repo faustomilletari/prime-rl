@@ -91,6 +91,10 @@ def train(config: Config):
     world_info = get_world_info()
     wandb_sample_history = None
 
+    if config.ckpt.clean_rollout_path and config.ckpt.rollout_path is not None:
+        logger.info(f"Cleaning rollout path {config.ckpt.rollout_path}")
+        shutil.rmtree(config.ckpt.rollout_path, ignore_errors=True)
+
     logger.info(f"start training on {world_info.world_size} rank(s)")
 
     # Allow eager fallback during production so that training runs don't die if compile fails
@@ -147,7 +151,7 @@ def train(config: Config):
     training_progress = TrainingProgress(total_tokens=0, step=config.start_step, total_samples=total_samples)
 
     if world_info.rank == 0 and config.wandb:
-        wandb.init(project=config.project, config=config.model_dump())
+        wandb.init(project=config.project, config=config.model_dump(), dir="wandb_logs")
 
     if envs.PRIME_API_BASE_URL is not None:
         monitor = HttpMonitor()

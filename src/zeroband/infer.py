@@ -1,6 +1,7 @@
 import json
 import multiprocessing as mp
 import os
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -34,6 +35,10 @@ def inference(config: Config):
     # Initialize the logger
     logger.info("Starting inference")
     logger.info(f"TP={config.tp}, DP={config.dp}, PP={config.pp.world_size}")
+
+    if config.clean_output_path and config.output_path is not None:
+        logger.info(f"Cleaning output path {config.output_path}")
+        shutil.rmtree(config.output_path, ignore_errors=True)
 
     # Initialize prime metrics
     prime_metric = PrimeMetric(disable=config.prime_log_freq is None, period=config.prime_log_freq)

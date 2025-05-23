@@ -30,7 +30,7 @@ dependencies = [
     "pyext @ git+https://github.com/justusmattern27/PyExt.git",
     "prime-iroh>=0.2.1",
     "setuptools",
-    "reasoning-gym",
+    "reasoning-gym @ git+https://github.com/open-thought/reasoning-gym.git",
     "tomli>=2.2.1",
 ] 
 
@@ -55,5 +55,9 @@ ignore = ["F722", "F821"]
 dev-dependencies = ["ruff>=0.5.0", "pre-commit>=3.0.0","pytest>=7.0.0", "faker"]
 no-build-isolation-package = ["flash-attn"]
 
-[tool.uv.sources]
-reasoning-gym = { git = "https://github.com/open-thought/reasoning-gym.git" }
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gpu: marks tests as gpu (deselect with '-m \"not gpu\"')",
+]
