@@ -46,7 +46,6 @@ main() {
     fi
     
     log_info "Installing dependencies in virtual environment..."
-    uv venv --python 3.11
     uv sync && uv sync --extra fa
     log_info "Installation completed!"
 }

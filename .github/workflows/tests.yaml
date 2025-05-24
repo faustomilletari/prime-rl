@@ -41,6 +41,6 @@ jobs:
           cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
-        run: uv venv --python 3.11 && uv sync && uv sync --extra fa
+        run: uv sync && uv sync --extra fa
       - name: Run GPU tests
         run: uv run pytest tests -m gpu
