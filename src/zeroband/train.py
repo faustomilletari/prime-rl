@@ -23,6 +23,7 @@ from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, p
 from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.lr_scheduler import get_scheduler
 from zeroband.training.utils import (
+    GCPPushManager,
     MetricsAverager,
     PerfCounter,
     apply_ac_ckpt,
@@ -109,6 +110,11 @@ def train(config: Config):
     if config.ckpt.rollout_path is not None and world_info.rank == 0:
         if envs.SHARDCAST_OUTPUT_DIR is not None:
             shardcast.initialize(envs.SHARDCAST_OUTPUT_DIR, max_distribution_folders=config.max_async_level)
+
+    if config.ckpt.gcp_ckpt_rollout_path is not None and world_info.rank == 0:
+        gcp_push_manager = GCPPushManager(config.ckpt.gcp_ckpt_rollout_path)
+    else:
+        gcp_push_manager = None
 
     model, tokenizer = get_model_and_tokenizer(config.model_name, config.train.attn_impl)
 
@@ -428,6 +434,9 @@ def train(config: Config):
                 previous_ckpt_rollout.append(path)
                 safetensor_path = save_ckpt_for_rollout(model, path)
                 if world_info.rank == 0:
+                    if gcp_push_manager is not None:
+                        logger.info(f"Pushing {path} to gcp")
+                        gcp_push_manager.push(path, training_progress.step)
                     if envs.SHARDCAST_OUTPUT_DIR is not None:
                         logger.info(f"Broadcasting {safetensor_path}")
                         shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
@@ -435,8 +444,12 @@ def train(config: Config):
                 if len(previous_ckpt_rollout) > config.max_async_level:
                     path_to_delete = previous_ckpt_rollout.pop(0)
                     if path_to_delete.exists():
-                        logger.info(f"Removing past rollout ckpt at {path_to_delete}")
-                        shutil.rmtree(path_to_delete, ignore_errors=True)
+                        if gcp_push_manager is not None:
+                            if path_to_delete in gcp_push_manager.list_of_pushed_files:
+                                logger.info(f"Removing past rollout ckpt at {path_to_delete}")
+                                shutil.rmtree(path_to_delete, ignore_errors=True)
+                            else:
+                                logger.info(f"Skipping deletion of {path_to_delete} as it is push to gcp yet")
 
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
@@ -470,6 +483,9 @@ def train(config: Config):
 
     if prefetcher is not None:
         prefetcher.shutdown()
+
+    if config.ckpt.gcp_ckpt_rollout_path is not None and world_info.rank == 0:
+        gcp_push_manager.wait_for_completion()
 
     if world_info.rank == 0 and envs.PRIME_API_BASE_URL is not None:
         monitor.finish()

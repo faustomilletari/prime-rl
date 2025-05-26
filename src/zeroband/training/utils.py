@@ -1,12 +1,19 @@
+import base64
+import json
+import multiprocessing
+import os
 import socket
 import time
 from itertools import chain
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import torch
 import torch.distributed as dist
 import wandb
+from google.cloud import storage
+from google.oauth2 import service_account
 from torch.distributed._composable.fsdp import FSDPModule
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
 from torch.distributed.tensor import DTensor
@@ -199,6 +206,61 @@ class MetricsAverager:
 
     def items(self):
         return self.metrics.items()
+
+
+class GCPPushManager:
+    """
+    A class to push ckpts to GCP.
+    Take credentials from GCP_CREDENTIALS_BASE64 env var.
+    push to a folder in GCP in a separate non blocking process.
+    """
+
+    def __init__(self, gcp_path: str):
+        path = gcp_path.replace("gs://", "")
+        self.bucket_name = path.split("/")[0]
+        self.destination_folder = "/".join(path.split("/")[1:])
+
+        credentials_base64 = os.environ.get("GCP_CREDENTIALS_BASE64")
+        credentials_json = base64.b64decode(credentials_base64).decode("utf-8")
+        credentials_info = json.loads(credentials_json)
+        credentials = service_account.Credentials.from_service_account_info(credentials_info)
+
+        self.client = storage.Client(credentials=credentials)
+        self.bucket = self.client.bucket(self.bucket_name)
+
+        self.processes: list[multiprocessing.Process] = []
+
+        self.manager = multiprocessing.Manager()
+        self.list_of_pushed_files = self.manager.list()
+
+    def push(self, path: Path, step_count: int):
+        process = multiprocessing.Process(target=self._push_async, args=(self.bucket, path, step_count))
+        process.start()
+        self.processes.append(process)
+
+    def _push_async(self, bucket: storage.Bucket, path: Path, step_count: int):
+        logger = get_logger("TRAIN")
+        logger.info(f"Pushing {path} to gcp")
+        logger.info(f"destination_folder: {self.destination_folder}/step_{step_count}/")
+        blob = bucket.blob(f"{self.destination_folder}/step_{step_count}/")
+
+        for file_path in path.rglob("*"):
+            logger.info(f"file: {file_path} to gcp")
+            if file_path.is_file():
+                logger.info(f"uploading {file_path} to gcp")
+                blob.upload_from_filename(file_path)
+                logger.info(f"uploaded {file_path} to gcp")
+
+        self.list_of_pushed_files.append(path)
+        logger.info(f"Pushed {path} to gcp")
+
+    def wait_for_completion(self):
+        for process in self.processes:
+            process.join()
+
+    def __del__(self):
+        if hasattr(self, "processes"):
+            self.wait_for_completion()
 
 
 def get_real_tensor(tensor: torch.Tensor | DTensor):
