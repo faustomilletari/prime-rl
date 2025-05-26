@@ -9,7 +9,7 @@ reshard_after_forward = true
 
 [data]
 seq_length = 8192
-path = "outputs"
+path = "data_rollout"
 
 [optim]
 warmup_steps = 1
