@@ -4,7 +4,7 @@ project = "math-ablation"
 collate_mode = "packing"
 
 [train]
-micro_bs = 8 # change to 8 for H200
+micro_bs = 1 # change to 8 for H200
 reshard_after_forward = true
 
 [data]
