@@ -4,13 +4,12 @@ project = "intellect-2"
 collate_mode = "packing"
 
 [train]
-micro_bs = 4 # change to 8 for H200
+micro_bs = 8 # change to 8 for H200
 reshard_after_forward = true
 
 [data]
-seq_length = 16000
+seq_length = 8192
 path = "outputs"
-clean_output_path = true
 
 [optim]
 warmup_steps = 1
@@ -21,3 +20,7 @@ step_per_rollout = 4
 
 [optim.optim]
 lr = 1e-6
+
+[ckpt]
+rollout_path = "outputs"
+clean_rollout_path = true

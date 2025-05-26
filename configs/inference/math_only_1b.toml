@@ -1,10 +1,12 @@
 model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-dataset = "PrimeIntellect/INTELLECT-2-RL-Dataset"
+dataset = "PrimeIntellect/INTELLECT-2-only-math"
 
 batch_size = 44
 dp = 6
-max_model_len = 8000
+max_model_len = 8192
 clean_output_path = true
+rollout_path = "outputs"
+output_path = "data_rollout"
 
 [difficulty_filtering]
 solve_rate_field = "solve_rate_qwen_r1_distill_7b"
