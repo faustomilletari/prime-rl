@@ -5,7 +5,7 @@ import requests
 
 import numpy as np
 from pydantic_config import BaseConfig
-from pydantic_config import BaseConfig as Serializable
+from pydantic import BaseModel
 
 from vllm import RequestOutput
 from concurrent.futures import ThreadPoolExecutor
@@ -40,18 +40,18 @@ class RewardsConfig(BaseConfig):
     len_reward: LenRewardsConfig | None = None
 
 
-class ModelCompletion(Serializable):
+class ModelCompletion(BaseModel):
     index: int
     text: str
     token_ids: Sequence[int]
 
 
-class ModelOutput(Serializable):
+class ModelOutput(BaseModel):
     request_id: str
     outputs: list[ModelCompletion]
 
 
-class RewardRequest(Serializable):
+class RewardRequest(BaseModel):
     model_outputs: list[ModelOutput]
     verification_infos: list[dict[str, Any]]
     task_types: list[TaskType]
@@ -86,7 +86,7 @@ def vllm_output_to_serializable(
     )
 
 
-class CompletionReward(Serializable):
+class CompletionReward(BaseModel):
     completion_id: int  # type(CompletionOutput.index)
     reward: float
     task_reward: float
@@ -94,11 +94,11 @@ class CompletionReward(Serializable):
     advantage: float | None = None
 
 
-class RequestRewards(Serializable):
+class RequestRewards(BaseModel):
     request_id: str  # type(RequestOutput.request_id)
     rewards: list[CompletionReward]
 
-class RewardsResponse(Serializable):
+class RewardsResponse(BaseModel):
     rewards: list[RequestRewards]
 
 
