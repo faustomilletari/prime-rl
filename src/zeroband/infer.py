@@ -92,9 +92,6 @@ def inference(config: Config):
     else:
         # Seed the dataset with a random number
         seed = config.seed + int(os.environ.get("DP_RANK", 0)) if config.seed is not None else None
-        generator = np.random.default_rng(seed)
-        logger.info(f"Shuffling dataset with seed {seed}")
-        dataset = dataset.shuffle(generator=generator)
         node_address_int = None
 
     if config.max_prompt_len:
@@ -182,10 +179,10 @@ def inference(config: Config):
 
             # We reseed the generator here to make the sampling reproducible at each step.
             # This would work even if the node restarts and resumes from the current step.
-            generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
-            indices = generator.integers(0, len(dataset), config.batch_size)
-        else:
-            indices = list(range(i, min(i + config.batch_size, len(dataset))))
+            seed = node_address_int * current_step_batch_counter + real_step
+
+        generator = np.random.default_rng(seed)
+        indices = generator.integers(0, len(dataset), config.batch_size)
 
         logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
         batch = dataset.select(indices)
