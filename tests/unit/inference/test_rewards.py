@@ -1,8 +1,10 @@
 import pickle
+
 import pytest
 
-from zeroband.inference.rewards import RequestRewards, CompletionReward, compute_vllm_rewards
 from zeroband.inference.genesys import TaskType
+from zeroband.inference.rewards import CompletionReward, RequestRewards, compute_vllm_rewards
+
 
 @pytest.fixture
 def precomputed_rewards(path):

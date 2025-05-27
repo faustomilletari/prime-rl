@@ -1,23 +1,14 @@
 
-from typing import Any, Iterator, Literal, Sequence
-import os
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Iterator, Literal, Sequence
+
+import numpy as np
 import requests
-
-import numpy as np
-from pydantic_config import BaseConfig
 from pydantic import BaseModel
-
-from vllm import RequestOutput
-from concurrent.futures import ThreadPoolExecutor
-
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from typing import Literal
-
-import numpy as np
 from pydantic_config import BaseConfig
-from vllm import CompletionOutput, RequestOutput
+from vllm import RequestOutput
 
 from zeroband.inference.genesys import TaskType, get_reward_function
 from zeroband.utils.logger import get_logger

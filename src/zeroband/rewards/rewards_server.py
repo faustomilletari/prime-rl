@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Request, Response
-from requests import get
-import json
 import argparse
+import json
 import os
 
-from zeroband.inference.rewards import compute_rewards, RewardRequest, RewardsResponse
+from fastapi import FastAPI, Request, Response
+from requests import get
 
+from zeroband.inference.rewards import RewardRequest, RewardsResponse, compute_rewards
 
 app = FastAPI(title="Prime Rewards API")
 

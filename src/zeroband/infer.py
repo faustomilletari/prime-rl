@@ -24,13 +24,9 @@ from zeroband.inference.config import Config
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import setup_pipeline
 from zeroband.inference.rewards import compute_vllm_rewards
-from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.toploc import setup_toploc_cache
 from zeroband.inference.utils import fake_chat_template, filter_data_by_prompt_length, generate_target_length_prompts, reload_model_weights
 
-from datasets import load_dataset
-import pyarrow.parquet as pq
-import multiprocessing as mp
 
 from zeroband.training.mp import EnvWrapper
 from zeroband.utils.logger import get_logger
