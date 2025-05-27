@@ -204,8 +204,8 @@ def inference(config: Config):
         task_types = [item["task_type"] for item in batch]
 
         len_reward = config.rewards.len_reward
+        length_prompt_additions, target_lengths = generate_target_length_prompts(len_reward, len(batch))
         if len_reward:
-            length_prompt_additions, target_lengths = generate_target_length_prompts(len_reward, len(batch))
             for target_length, verification_info in zip(target_lengths, verification_infos):
                 verification_info["target_length"] = target_length
 
@@ -226,7 +226,7 @@ def inference(config: Config):
         else:
             messages = [
                 [{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}]
-                for item, length_prompt in zip(batch, length_prompt_additions)
+                for item in batch
             ]
 
         if tokenizer.chat_template:

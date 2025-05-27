@@ -47,7 +47,7 @@ def reload_model_weights(llm: LLM, ckpt_path: str):
     return llm
 
 
-def generate_target_length_prompts(config: LenRewardsConfig, batch_size: int):
+def generate_target_length_prompts(config: LenRewardsConfig | None, batch_size: int):
     if config is None:
         return [""] * batch_size, [-1] * batch_size
 
