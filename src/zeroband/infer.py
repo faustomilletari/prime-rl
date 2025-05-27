@@ -139,11 +139,10 @@ def inference(config: Config):
     total_problems = 0
     total_samples = 0
     total_tokens = 0
-    max_samples = config.max_samples or len(dataset)
 
     continue_loop_dataset = True
     while continue_loop_dataset:
-        for i in range(0, min(len(dataset), max_samples), config.batch_size):
+        for i in range(0, min(len(dataset), len(dataset)), config.batch_size):
             if config.step_endpoint is not None:
                 # We get the step from the endpoint at the start of each batch to know what to work on
                 try:
