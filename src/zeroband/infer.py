@@ -197,14 +197,13 @@ def inference(config: Config):
 
         # Assume verification_info is stored as a JSON string in the dataset.
         verification_infos = [json.loads(item["verification_info"]) for item in batch]
+        for target_length, verification_info in zip(target_lengths, verification_infos):
+            verification_info["target_length"] = target_length
         task_types = [item["task_type"] for item in batch]
 
         len_reward = config.rewards.len_reward
         length_prompt_additions, target_lengths = generate_target_length_prompts(len_reward, len(batch))
         if len_reward:
-            for target_length, verification_info in zip(target_lengths, verification_infos):
-                verification_info["target_length"] = target_length
-
             if len_reward.length_prompt_location == "system_prompt":
                 messages = [
                     [
