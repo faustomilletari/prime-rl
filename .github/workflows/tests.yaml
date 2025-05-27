@@ -10,6 +10,7 @@ jobs:
   cpu-tests:
     name: Run CPU Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,6 +30,7 @@ jobs:
   gpu-tests:
     name: Run GPU Tests
     runs-on: self-hosted
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
