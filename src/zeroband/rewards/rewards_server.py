@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Response
 from requests import get
 import json
 import argparse
+import os
 
 from zeroband.inference.rewards import compute_rewards, RewardRequest, RewardsResponse
 
@@ -36,12 +37,19 @@ if __name__ == "__main__":
 
     # Parse CLI args
     parser = argparse.ArgumentParser(description="Prime Rewards API Server")
-    parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
-    parser.add_argument("--auth", type=str, required=True, help="Authentication password")
+    parser.add_argument("--port", type=int, help="Port to run the server on")
+    parser.add_argument("--auth", type=str, help="Authentication password")
     args = parser.parse_args()
 
-    PORT = args.port
-    AUTH = args.auth
+    PORT = args.port if args.port is not None else os.getenv("REWARD_PORT")
+    AUTH = args.auth if args.auth is not None else os.getenv("REWARD_AUTH")
+    if not AUTH:
+        print("Error: No authentication password provided. Use --auth or set REWARD_AUTH environment variable.")
+        exit(1)
+    if not PORT:
+        print("Error: No port provided. Use --port or set REWARD_PORT environment variable.")
+        exit(1)
+    PORT = int(PORT)
 
     # Print the server URL
     try:
