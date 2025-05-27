@@ -58,6 +58,10 @@ class PrimeMetric:
     def log_prime(self, metric: dict[str, Any]) -> None:
         if self.disable:
             return
+        if self.socket_path is None:
+            logger.warning("Socket path not initialized, skipping logging")
+            return
+
         logger.debug(f"Trying to log {metric}")
 
         task_id = os.getenv("PRIME_TASK_ID", None)
