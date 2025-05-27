@@ -141,164 +141,169 @@ def inference(config: Config):
     total_tokens = 0
     max_samples = config.max_samples or len(dataset)
 
-    for i in range(0, min(len(dataset), max_samples), config.batch_size):
-        if config.step_endpoint is not None:
-            # We get the step from the endpoint at the start of each batch to know what to work on
-            try:
-                new_real_step = requests.get(config.step_endpoint).json()
-            except Exception as e:
-                logger.warning(f"Failed to get step from endpoint {config.step_endpoint}: {e}")
-                time.sleep(10)
-                continue
+    continue_loop_dataset = True
+    while continue_loop_dataset:
+        for i in range(0, min(len(dataset), max_samples), config.batch_size):
+            if config.step_endpoint is not None:
+                # We get the step from the endpoint at the start of each batch to know what to work on
+                try:
+                    new_real_step = requests.get(config.step_endpoint).json()
+                except Exception as e:
+                    logger.warning(f"Failed to get step from endpoint {config.step_endpoint}: {e}")
+                    time.sleep(10)
+                    continue
 
-            if new_real_step != real_step:
-                real_step = new_real_step
-                current_step_batch_counter = 1
+                if new_real_step != real_step:
+                    real_step = new_real_step
+                    current_step_batch_counter = 1
+                else:
+                    current_step_batch_counter += 1
+
+            logger.info(f"Inference step {real_step} (Checkpoint step: {ckpt_step})")
+            if config.rollout_path is not None and real_step - ckpt_step > config.async_level:
+                logger.info(f"Required to reload model weights for step {ckpt_step} from {config.rollout_path}")
+                ckpt_step = real_step - config.async_level
+                attempt_count = 0
+                while True:
+                    stable_file = Path(config.rollout_path) / f"step_{ckpt_step}/stable"
+                    if stable_file.exists():
+                        logger.info(f"Reloading model weights for step {ckpt_step} from {stable_file}")
+                        llm = reload_model_weights(llm, Path(config.rollout_path) / f"step_{ckpt_step}/model.safetensors")
+                        total_problems = 0
+                        total_tokens = 0
+                        logger.info(f"Reloaded model weights for step {ckpt_step} from {stable_file}")
+                        break
+                    if attempt_count % 30 == 0:
+                        logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
+                    time.sleep(1)
+                    attempt_count += 1
+
+            # Get batch
+            if node_address_int is not None:
+                # TODO: What if we have multiple sample per real step?
+                # Its impossible right now but we need to fix this if accept counter is used.
+
+                # We reseed the generator here to make the sampling reproducible at each step.
+                # This would work even if the node restarts and resumes from the current step.
+                generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
+                indices = generator.integers(0, len(dataset), config.batch_size)
             else:
-                current_step_batch_counter += 1
+                indices = list(range(i, min(i + config.batch_size, len(dataset))))
 
-        logger.info(f"Inference step {real_step} (Checkpoint step: {ckpt_step})")
-        if config.rollout_path is not None and real_step - ckpt_step > config.async_level:
-            logger.info(f"Required to reload model weights for step {ckpt_step} from {config.rollout_path}")
-            ckpt_step = real_step - config.async_level
-            attempt_count = 0
-            while True:
-                stable_file = Path(config.rollout_path) / f"step_{ckpt_step}/stable"
-                if stable_file.exists():
-                    logger.info(f"Reloading model weights for step {ckpt_step} from {stable_file}")
-                    llm = reload_model_weights(llm, Path(config.rollout_path) / f"step_{ckpt_step}/model.safetensors")
-                    total_problems = 0
-                    total_tokens = 0
-                    logger.info(f"Reloaded model weights for step {ckpt_step} from {stable_file}")
-                    break
-                if attempt_count % 30 == 0:
-                    logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
-                time.sleep(1)
-                attempt_count += 1
+            logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
+            batch = dataset.select(indices)
 
-        # Get batch
-        if node_address_int is not None:
-            # TODO: What if we have multiple sample per real step?
-            # Its impossible right now but we need to fix this if accept counter is used.
+            messages = [[{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}] for item in batch]
 
-            # We reseed the generator here to make the sampling reproducible at each step.
-            # This would work even if the node restarts and resumes from the current step.
-            generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
-            indices = generator.integers(0, len(dataset), config.batch_size)
-        else:
-            indices = list(range(i, min(i + config.batch_size, len(dataset))))
+            length_prompt_additions, target_lengths = generate_target_length_prompts(config.len_reward, len(batch))
+            # Assume verification_info is stored as a JSON string in the dataset.
+            verification_infos = [json.loads(item["verification_info"]) for item in batch]
+            for target_length, verification_info in zip(target_lengths, verification_infos):
+                verification_info["target_length"] = target_length
+            task_types = [item["task_type"] for item in batch]
 
-        logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
-        batch = dataset.select(indices)
-
-        messages = [[{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}] for item in batch]
-
-        length_prompt_additions, target_lengths = generate_target_length_prompts(config.len_reward, len(batch))
-        # Assume verification_info is stored as a JSON string in the dataset.
-        verification_infos = [json.loads(item["verification_info"]) for item in batch]
-        for target_length, verification_info in zip(target_lengths, verification_infos):
-            verification_info["target_length"] = target_length
-        task_types = [item["task_type"] for item in batch]
-
-        if config.len_reward:
-            if config.len_reward.length_prompt_location == "system_prompt":
-                messages = [
-                    [
-                        {"role": "system", "content": length_prompt},
-                        {"role": "user", "content": item["prompt"]},
-                        {"role": "assistant", "content": "<think>\n"},
+            if config.len_reward:
+                if config.len_reward.length_prompt_location == "system_prompt":
+                    messages = [
+                        [
+                            {"role": "system", "content": length_prompt},
+                            {"role": "user", "content": item["prompt"]},
+                            {"role": "assistant", "content": "<think>\n"},
+                        ]
+                        for item, length_prompt in zip(batch, length_prompt_additions)
                     ]
-                    for item, length_prompt in zip(batch, length_prompt_additions)
-                ]
+                else:
+                    messages = [
+                        [{"role": "user", "content": item["prompt"] + length_prompt}, {"role": "assistant", "content": "<think>\n"}]
+                        for item, length_prompt in zip(batch, length_prompt_additions)
+                    ]
             else:
                 messages = [
-                    [{"role": "user", "content": item["prompt"] + length_prompt}, {"role": "assistant", "content": "<think>\n"}]
+                    [{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}]
                     for item, length_prompt in zip(batch, length_prompt_additions)
                 ]
-        else:
-            messages = [
-                [{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}]
-                for item, length_prompt in zip(batch, length_prompt_additions)
-            ]
 
-        if tokenizer.chat_template:
-            prompts = tokenizer.apply_chat_template(messages, tokenize=False, continue_final_message=True)
-            if config.model_name != "Qwen/QwQ-32B":
-                for i, p in enumerate(prompts):
-                    prompts[i] = p.replace("<｜begin▁of▁sentence｜>", "")
-        else:
-            prompts = fake_chat_template(messages)
+            if tokenizer.chat_template:
+                prompts = tokenizer.apply_chat_template(messages, tokenize=False, continue_final_message=True)
+                if config.model_name != "Qwen/QwQ-32B":
+                    for i, p in enumerate(prompts):
+                        prompts[i] = p.replace("<｜begin▁of▁sentence｜>", "")
+            else:
+                prompts = fake_chat_template(messages)
 
-        start_time = time.time()
-        request_outputs = llm.generate(prompts, sampling_params, use_tqdm=False)
-        end_time = time.time()
+            start_time = time.time()
+            request_outputs = llm.generate(prompts, sampling_params, use_tqdm=False)
+            end_time = time.time()
 
-        # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
-        request_outputs = [req for req in request_outputs if len(req.outputs[0].token_ids) > 0]
-        if len(request_outputs) != len(prompts):
-            logger.warning(f"{len(prompts) - len(request_outputs)} prompts were filtered out because they were too long")
+            # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
+            request_outputs = [req for req in request_outputs if len(req.outputs[0].token_ids) > 0]
+            if len(request_outputs) != len(prompts):
+                logger.warning(f"{len(prompts) - len(request_outputs)} prompts were filtered out because they were too long")
 
-        # This generates proofs for the remaining sequences that haven't reached max_len.
-        # We call here to give time for the proofs to be generated non-blocking in the background.
-        toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
+            # This generates proofs for the remaining sequences that haven't reached max_len.
+            # We call here to give time for the proofs to be generated non-blocking in the background.
+            toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
 
-        # Calculate batch problems, samples and tokens
-        batch_problems = len(batch)
-        batch_samples = sum(len(req.outputs) for req in request_outputs)
-        batch_input_tokens = sum(len(req.prompt_token_ids) for req in request_outputs)
-        batch_output_tokens = sum(sum(len(output.token_ids) for output in req.outputs) for req in request_outputs)
-        batch_tokens = batch_input_tokens + batch_output_tokens
-        # Calculate overall problems, samples and tokens
-        total_tokens += batch_tokens
-        total_problems += batch_problems
-        total_samples += batch_samples
-        logger.info(f"Generated {batch_samples} samples for {batch_problems} problems for step {real_step} in {end_time - start_time:.2f}s")
+            # Calculate batch problems, samples and tokens
+            batch_problems = len(batch)
+            batch_samples = sum(len(req.outputs) for req in request_outputs)
+            batch_input_tokens = sum(len(req.prompt_token_ids) for req in request_outputs)
+            batch_output_tokens = sum(sum(len(output.token_ids) for output in req.outputs) for req in request_outputs)
+            batch_tokens = batch_input_tokens + batch_output_tokens
+            # Calculate overall problems, samples and tokens
+            total_tokens += batch_tokens
+            total_problems += batch_problems
+            total_samples += batch_samples
+            logger.info(
+                f"Generated {batch_samples} samples for {batch_problems} problems for step {real_step} in {end_time - start_time:.2f}s"
+            )
 
-        # Compute batch throughput and average sequence length
-        batch_throughput = batch_tokens / (end_time - start_time)
-        avg_sequence_length = batch_tokens / num_batch_samples
-        logger.info(
-            f"Batch throughput: {batch_throughput:.2f} tok/sec ({batch_tokens} tokens in {end_time - start_time:.2f}s, avg seq len: {avg_sequence_length:.1f})"
-        )
+            # Compute batch throughput and average sequence length
+            batch_throughput = batch_tokens / (end_time - start_time)
+            avg_sequence_length = batch_tokens / num_batch_samples
+            logger.info(
+                f"Batch throughput: {batch_throughput:.2f} tok/sec ({batch_tokens} tokens in {end_time - start_time:.2f}s, avg seq len: {avg_sequence_length:.1f})"
+            )
 
-        # Compute proofs
-        # Note (Jack): Currently, vllm guarantees that seq ids are in the same order as prompts passed to generate.
-        # Generate always adds requests to the engine in the order of the prompts.
-        # And returns them in the sequence they were added.
-        toploc_cache.wait_for_proofs()
-        proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
-        toploc_cache.reset_cache()
+            # Compute proofs
+            # Note (Jack): Currently, vllm guarantees that seq ids are in the same order as prompts passed to generate.
+            # Generate always adds requests to the engine in the order of the prompts.
+            # And returns them in the sequence they were added.
+            toploc_cache.wait_for_proofs()
+            proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
+            toploc_cache.reset_cache()
 
-        # Compute rewards and advantages
-        start = time.time()
-        request_rewards = compute_rewards(request_outputs, verification_infos, task_types, config.len_reward)
-        logger.info(f"Computed rewards and advantages in {time.time() - start:.2f}s")
+            # Compute rewards and advantages
+            start = time.time()
+            request_rewards = compute_rewards(request_outputs, verification_infos, task_types, config.len_reward)
+            logger.info(f"Computed rewards and advantages in {time.time() - start:.2f}s")
 
-        table = get_parquet_table(
-            request_outputs,
-            request_rewards,
-            proofs,
-            ckpt_step,
-            target_lengths,
-        )
+            table = get_parquet_table(
+                request_outputs,
+                request_rewards,
+                proofs,
+                ckpt_step,
+                target_lengths,
+            )
 
-        step_path = Path(config.output_path) / f"step_{real_step}"
-        os.makedirs(step_path, exist_ok=True)
-        pq_save_path = f"{step_path}/{uuid.uuid4()}.parquet"
-        pq.write_table(table, pq_save_path)
-        logger.info(f"Saved batch outputs to {pq_save_path}")
+            step_path = Path(config.output_path) / f"step_{real_step}"
+            os.makedirs(step_path, exist_ok=True)
+            pq_save_path = f"{step_path}/{uuid.uuid4()}.parquet"
+            pq.write_table(table, pq_save_path)
+            logger.info(f"Saved batch outputs to {pq_save_path}")
 
-        file_sha = sha256sum(pq_save_path)
-        prime_metric.log_prime({"file_sha": file_sha, "file_name": pq_save_path})
+            file_sha = sha256sum(pq_save_path)
+            prime_metric.log_prime({"file_sha": file_sha, "file_name": pq_save_path})
 
-        metric = {"dashbord-progress/total": total_problems, f"dashbord-progress/{config.dataset}": total_tokens}
-        prime_metric.log_prime(metric)
+            metric = {"dashbord-progress/total": total_problems, f"dashbord-progress/{config.dataset}": total_tokens}
+            prime_metric.log_prime(metric)
 
-        real_step += 1
+            real_step += 1
 
-        if config.total_step is not None and real_step > config.total_step:
-            logger.info(f"Reached total step {config.total_step}, stopping inference")
-            break
+            if config.total_step is not None and real_step > config.total_step:
+                logger.info(f"Reached total step {config.total_step}, stopping inference")
+                continue_loop_dataset = False
+                break
 
     logger.info(f"Inference finished! Generated {total_samples} samples for {total_problems} problems")
 
