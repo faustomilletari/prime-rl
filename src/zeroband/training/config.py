@@ -1,8 +1,10 @@
 from typing import Literal
-from pydantic_config import BaseConfig
+
 from pydantic import model_validator
-from zeroband.utils.models import ModelName, AttnImpl
+from pydantic_config import BaseConfig
+
 from zeroband.training.data import CollateMode, DataConfig
+from zeroband.utils.models import AttnImpl
 
 
 class AdamConfig(BaseConfig):
@@ -42,6 +44,7 @@ class CkptConfig(BaseConfig):
     resume: str | None = None
 
     rollout_path: str | None = None  # if rollout path is set we saved at each step
+    clean_rollout_path: bool = False  # if true, the rollout path will be cleaned up before running the training
 
     @model_validator(mode="after")
     def check_path_and_interval(self):
@@ -51,12 +54,13 @@ class CkptConfig(BaseConfig):
 
 
 class Config(BaseConfig):
-    model_name: ModelName
+    model_name: str
 
     ckpt: CkptConfig = CkptConfig()
 
     project: str = "prime_simple"
     wandb: bool = True
+    wandb_run_name: str | None = None
 
     data: DataConfig = DataConfig()
     optim: OptimConfig = OptimConfig()
@@ -78,7 +82,7 @@ class Config(BaseConfig):
     kl_coef: float | None = None
 
     start_step: int = 0
-    start_total_problems: int | None = None
+    start_total_samples: int | None = None
     start_rollout_step: int | None = None
 
     @model_validator(mode="after")

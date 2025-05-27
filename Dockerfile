@@ -56,10 +56,10 @@ COPY ./src/ ./src/
 RUN uv sync && uv sync --extra fa
 
 # Runtime stage
-FROM python:3.10-slim
+FROM python:3.11-slim
 WORKDIR /root/prime-rl
 
-RUN apt-get update && apt-get install -y --no-install-recommends --force-yes build-essential wget
+RUN apt-get update && apt-get install -y --no-install-recommends --force-yes build-essential wget clang
 
 # Copy virtual environment
 COPY --from=builder /root/prime-rl/.venv /root/prime-rl/.venv
@@ -77,5 +77,4 @@ ENV PATH="/root/prime-rl/.venv/bin:$PATH"
 COPY --from=builder /root/prime-rl/src ./src
 COPY ./configs/ ./configs/
 
-ENTRYPOINT ["python", "src/zeroband/inference.py"]
-CMD ["@", "configs/inference/Qwen1.5B/multistep.toml", "--output_path", "/share"]
+ENTRYPOINT ["python", "src/zeroband/infer.py"]

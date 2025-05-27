@@ -1,12 +1,11 @@
+import multiprocessing as mp
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
+
 from google.cloud import storage
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import wait
 
 from zeroband.utils.logger import get_logger
-import multiprocessing as mp
-
 
 STABLE_FILE = "stable"
 
@@ -16,7 +15,7 @@ class GCPPrefetcher:
     This class is in charge of downloading the parquet files from GCS to a local directory (in shared memory).
     It meant to be used with the ParquetDataset class. The Dataset is not aware of the prefetcher, it just sees the local directory.
 
-    Under the hood, the prefecther should only be instantiate on rank 0 and then spawed as a subprocess. It periodically checks for new files in GCS and download them using a thread pool
+    Under the hood, the prefecther should only be instantiate on rank 0 and then spawned as a subprocess. It periodically checks for new files in GCS and download them using a thread pool
     to the local directory in shared memory.
 
     Args:

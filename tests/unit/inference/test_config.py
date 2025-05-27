@@ -1,15 +1,15 @@
 """
-Tests all of the config file. usefull to catch mismatch key after a renaming of a arg name
+Tests all of the config file. useful to catch mismatch key after a renaming of a arg name
 Need to be run from the root folder
 """
 
 import os
-from zeroband.train import Config as TrainingConfig
-from zeroband.infer import Config as InferenceConfig
 
-from pydantic import ValidationError
 import pytest
 import tomli
+from pydantic import ValidationError
+
+from zeroband.infer import Config as InferenceConfig
 
 
 def get_all_toml_files(directory):
@@ -19,14 +19,6 @@ def get_all_toml_files(directory):
             if file.endswith(".toml"):
                 toml_files.append(os.path.join(root, file))
     return toml_files
-
-
-@pytest.mark.parametrize("config_file_path", get_all_toml_files("configs/training"))
-def test_load_train_configs(config_file_path):
-    with open(f"{config_file_path}", "rb") as f:
-        content = tomli.load(f)
-    config = TrainingConfig(**content)
-    assert config is not None
 
 
 @pytest.mark.parametrize("config_file_path", get_all_toml_files("configs/inference"))

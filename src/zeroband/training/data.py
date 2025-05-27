@@ -1,23 +1,19 @@
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Any, Generator, Literal, TypeAlias, TypedDict
 
-from pydantic_config import BaseConfig
-
-
-import torch
-from torch.utils.data import IterableDataset, DataLoader
-import torch.distributed as dist
-
-from jaxtyping import Float, Int
-
-from pyarrow import dataset as ds
 import pyarrow.parquet as pq
+import torch
+import torch.distributed as dist
+from jaxtyping import Float, Int
+from pyarrow import dataset as ds
+from pydantic_config import BaseConfig
+from torch.utils.data import DataLoader, IterableDataset
 
-from zeroband.utils.logger import get_logger
-from zeroband.training.data_prefetch import GCPPrefetcher, STABLE_FILE
-from zeroband.utils.world_info import get_world_info
 from zeroband.training import envs
+from zeroband.training.data_prefetch import STABLE_FILE, GCPPrefetcher
+from zeroband.training.world_info import get_world_info
+from zeroband.utils.logger import get_logger
 from zeroband.utils.parquet import pa_schema
 
 
@@ -209,7 +205,7 @@ class ParquetDataset(IterableDataset):
 
         self._world_info = get_world_info()
 
-        self._step_count = step_count_init - 1  # we immediatly bump the step count by one later
+        self._step_count = step_count_init - 1  # we immediately bump the step count by one later
         self._timeout = timeout
 
         self._ignore_zero_advantages = ignore_zero_advantages
@@ -543,7 +539,7 @@ def pack_datatset_outputs_balancing(
     batch_optim: list[DatasetOutput], max_seq_len: int, micro_bs: int
 ) -> list[tuple[list[DatasetOutput], int]]:
     """
-    This function will pack by batch of balanced seq lenght and will padd up to the max seq len per batch.
+    This function will pack by batch of balanced seq length and will pad up to the max seq len per batch.
     Will create differentiely shaped batch per microbatch (and will break any compile step) but will reduce batch size
     """
 

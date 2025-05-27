@@ -1,15 +1,15 @@
-import time
 import pickle
-from typing import Tuple
+import time
 from functools import partial
+from typing import Tuple
 
 import torch
 import torch.nn as nn
-from vllm.model_executor.layers.sampler import SamplerOutput
+from prime_iroh import Node
 from pydantic_config import BaseConfig
 from vllm import LLM
+from vllm.model_executor.layers.sampler import SamplerOutput
 
-from prime_iroh import Node
 from zeroband.utils.logger import get_logger
 
 # Global logger
@@ -37,6 +37,7 @@ def setup_pipeline(llm: LLM, rank: int, world_size: int, iroh_seed: int | None =
         iroh_seed: The seed for the PRIME-IROH node (optional, will lead to deterministic connection strings)
         iroh_peer_id: The peer ID for the PRIME-IROH node (optional)
     """
+    logger.info(f"Setting up pipeline parallelism (pp.rank={rank}, pp.world_size={world_size})")
     node = setup_comm(world_size=world_size, iroh_seed=iroh_seed, iroh_peer_id=iroh_peer_id)
     setup_hooks(rank=rank, world_size=world_size, llm=llm, node=node)
 
@@ -55,6 +56,7 @@ def setup_comm(world_size: int, iroh_seed: int | None, iroh_peer_id: str | None)
 
     # Setup node (with or without seed)
     if iroh_seed is not None:
+        logger.debug(f"Using IROH seed: {iroh_seed}")
         # If seed is provided, create a new node with the seed
         node = Node.with_seed(num_streams=1, seed=iroh_seed)
     else:
@@ -132,7 +134,7 @@ def setup_hooks(rank: int, world_size: int, llm: LLM, node: Node) -> None:
         logger.debug("Registered post-hook send_intermediate_states on last layer")
 
         # Receive and relay outputs from last stage (post-hook)
-        sampler.register_forward_hook(partial(recv_output, relay=relay))
+        sampler.register_forward_hook(partial(recv_output, node=node, relay=relay))
         logger.debug("Registered post-hook recv_output on sampler")
 
 

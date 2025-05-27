@@ -1,6 +1,8 @@
 from typing import Dict
 
-from zeroband.utils import envs
+import torch
+
+import zeroband.training.envs as envs
 
 
 class WorldInfo:
@@ -17,13 +19,13 @@ class WorldInfo:
         self, rank: int | None = None, world_size: int | None = None, local_rank: int | None = None, local_world_size: int | None = None
     ):
         """
-        Initialize the WorldInfo object either manually or by parsing enviornment variables.
+        Initialize the WorldInfo object either manually or by parsing environment variables.
         """
         self.rank = rank or envs.RANK
         self.world_size = world_size or envs.WORLD_SIZE
         self.local_rank = local_rank or envs.LOCAL_RANK
         self.local_world_size = local_world_size or envs.LOCAL_WORLD_SIZE
-        self.gpu_ids = envs.CUDA_VISIBLE_DEVICES
+        self.gpu_ids = envs.CUDA_VISIBLE_DEVICES or list(range(torch.cuda.device_count()))
         self._check_world_info()
         self.num_gpus = len(self.gpu_ids)
         self.num_nodes = self.world_size // self.local_world_size

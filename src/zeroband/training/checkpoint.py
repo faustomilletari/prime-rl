@@ -1,22 +1,24 @@
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import threading
 import time
+from dataclasses import dataclass
+from pathlib import Path
+
 import torch
 from safetensors.torch import save_file
-from torch.distributed.tensor import DTensor
 from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
+from torch.distributed.tensor import DTensor
+
+from zeroband.training.world_info import get_world_info
 from zeroband.utils.logger import get_logger
 from zeroband.utils.models import ModelType
-from zeroband.utils.world_info import get_world_info
 
 
 @dataclass
 class TrainingProgress:
     total_tokens: int
     step: int
-    total_problems: int
+    total_samples: int
 
 
 def _local_file_path(path: Path, local_rank: int) -> Path:
@@ -84,7 +86,7 @@ def load_checkpoint_fsdp_state(
 
     training_progress.total_tokens = state["training_progress"].total_tokens
     training_progress.step = state["training_progress"].step
-    training_progress.total_problems = state["training_progress"].total_problems
+    training_progress.total_samples = state["training_progress"].total_samples
 
     scheduler.load_state_dict(state["scheduler"])
 
@@ -116,7 +118,7 @@ def save_ckpt_for_rollout(model: ModelType, path: Path, dtype: torch.dtype = tor
         if isinstance(value, DTensor):
             value: DTensor = value.to(dtype)
             # only gather after the downcast to dtype as it will be faster
-            value = value.full_tensor()  # idealy would only be gathered on rank 0
+            value = value.full_tensor()  # ideally would only be gathered on rank 0
 
         if world_info.rank == 0:
             key: set[str] = get_fqns(model, key)

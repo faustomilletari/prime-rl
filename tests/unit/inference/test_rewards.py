@@ -33,8 +33,10 @@ def precomputed_rewards(path):
 #         f,
 #     )
 # ```
-@pytest.mark.parametrize("path", ["tests/units/rewards.pkl"])
-def test_compute_rewards(precomputed_rewards):
+def test_compute_rewards():
+    # Load precomputed rewards
+    with open("tests/unit/inference/rewards.pkl", "rb") as f:
+        precomputed_rewards = pickle.load(f)
     # Get inputs and outputs
     request_outputs = precomputed_rewards["request_outputs"]
     verification_infos = precomputed_rewards["verification_infos"]

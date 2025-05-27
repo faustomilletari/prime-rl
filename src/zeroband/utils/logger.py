@@ -1,9 +1,9 @@
 import logging
-from logging import Logger, Formatter
+from logging import Formatter, Logger
 from typing import Literal
 
+from zeroband.training.world_info import WorldInfo, get_world_info
 from zeroband.utils import envs
-from zeroband.utils.world_info import get_world_info, WorldInfo
 
 
 class PrimeFormatter(Formatter):

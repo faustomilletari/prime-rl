@@ -1,19 +1,24 @@
-from itertools import chain
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
-from zeroband.utils.logger import get_logger
 import socket
 import time
+from itertools import chain
+from typing import Any
+
+import pandas as pd
 import torch
+import torch.distributed as dist
+import wandb
+from torch.distributed._composable.fsdp import FSDPModule
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper
+from torch.distributed.tensor import DTensor
 from transformers import (
     LlamaConfig,
     LlamaForCausalLM,
+    PreTrainedTokenizer,
 )
-from torch.distributed.tensor import DTensor
 
+from zeroband.training.world_info import get_world_info
+from zeroband.utils.logger import get_logger
 from zeroband.utils.models import ModelType
-from zeroband.utils.world_info import get_world_info
-import torch.distributed as dist
-from torch.distributed._composable.fsdp import FSDPModule
 
 
 def apply_ac_ckpt(model: ModelType, num: int):
@@ -227,3 +232,114 @@ def reshard_module(model: torch.nn.Module):
     for module in model.modules():
         if isinstance(module, FSDPModule):
             module.reshard()
+
+
+def log_to_wandb(
+    metrics_dict: dict[str, Any],
+    tokenizer: PreTrainedTokenizer | None = None,
+    batch: dict[str, torch.Tensor] | None = None,
+    step: int | None = None,
+) -> None:
+    """Log our metrics to wandb, grouped by type."""
+    # Initialize dictionary
+    wandb_metrics = {}
+
+    categories = {
+        "train/": ["step", "rollout_step", "inner_lr", "total_tokens", "total_samples"],
+        "losses/": ["Loss", "pg_loss", "entropy_loss", "kl", "grad_norm", "clip_ratio"],
+        "rewards/": ["sample_reward", "task_reward", "batch_reward", "batch_task_reward"],
+        "lengths/": [
+            "seq_lens",
+            "batch_seq_lens",
+            "target_lengths",
+            "batch_target_lengths",
+            "padding_proportion",
+            "length_penalties",
+            "batch_length_penalties",
+        ],
+        "perf/": [
+            "tokens_per_second",
+            "tokens_per_second_per_gpu",
+            "mfu",
+            "time_rollout_step",
+            "time_logprob",
+            "time_data_loading",
+            "time_packing",
+        ],
+    }
+
+    # Add metrics to respective groups
+    for prefix, keys in categories.items():
+        for k in keys:
+            if k in metrics_dict and metrics_dict[k] is not None:
+                wandb_metrics[f"{prefix}{k}"] = metrics_dict[k]
+
+    # Log everything
+    wandb.log(wandb_metrics, step=metrics_dict.get("step", step))
+
+
+def log_prompt_response_samples(
+    tokenizer: PreTrainedTokenizer, batch: dict[str, torch.Tensor], step: int, sample_history: dict | None = None
+) -> dict:
+    """Log samples using wandb.Table with accumulated history.
+    Only logs every 5 steps to minimize overhead.
+
+    Args:
+        tokenizer: The tokenizer to decode tokens
+        batch: The current batch of data
+        step: The current training step
+        sample_history: Optional dict to store sample history between calls
+    """
+    if sample_history is None:
+        sample_history = {
+            "step": [],
+            "prompt": [],
+            "completion": [],
+            "rewards": [] if "rewards" in batch else None,
+            "task_rewards": [] if "task_rewards" in batch else None,
+            "last_logged_step": -5,  # Initialize to trigger first logging
+        }
+
+    try:
+        batch_size = batch["input_ids"].size(0)
+        for i in range(batch_size):
+            # Find completion start from the loss mask
+            tokens = batch["input_ids"][i].cpu().tolist()
+            mask = batch["loss_mask"][i].cpu().tolist()
+
+            try:
+                response_start = mask.index(1)
+            except ValueError:
+                response_start = len(tokens) // 3
+
+            prompt = tokenizer.decode(tokens[:response_start], skip_special_tokens=True)
+            completion = tokenizer.decode(tokens[response_start:], skip_special_tokens=True)
+
+            sample_history["step"].append(str(step))
+            sample_history["prompt"].append(prompt)
+            sample_history["completion"].append(completion)
+
+            if "rewards" in batch and sample_history["rewards"] is not None:
+                sample_history["rewards"].append(float(batch["rewards"][i].item()))
+            if "task_rewards" in batch and sample_history["task_rewards"] is not None:
+                sample_history["task_rewards"].append(float(batch["task_rewards"][i].item()))
+
+        if step >= sample_history["last_logged_step"] + 5:
+            # Create table data dictionary (we are forced to remake it each time)
+            table_data = {"step": sample_history["step"], "prompt": sample_history["prompt"], "completion": sample_history["completion"]}
+
+            if sample_history["rewards"] is not None:
+                table_data["reward"] = sample_history["rewards"]
+            if sample_history["task_rewards"] is not None:
+                table_data["task_reward"] = sample_history["task_rewards"]
+
+            df = pd.DataFrame(table_data)
+            table = wandb.Table(dataframe=df)
+            wandb.log({"completions": table}, step=step)
+            sample_history["last_logged_step"] = step
+
+        return sample_history
+
+    except Exception as e:
+        print(f"Error logging table: {e}")
+        return sample_history

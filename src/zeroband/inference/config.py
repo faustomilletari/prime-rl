@@ -1,11 +1,10 @@
 from typing import Literal
-from pydantic_config import BaseConfig
-from pydantic import model_validator
 
+from pydantic import model_validator
+from pydantic_config import BaseConfig
 
 from zeroband.inference.pipeline import PipelineConfig
 from zeroband.inference.rewards import RewardsConfig
-from zeroband.utils.models import ModelName
 
 
 class SamplingParamConfig(BaseConfig):
@@ -25,11 +24,14 @@ class DifficultyFilteringConfig(BaseConfig):
 
 
 class Config(BaseConfig):
-    model_name: ModelName
+    model_name: str
     dataset: str
     batch_size: int = 32
     max_samples: int | None = None
+
     output_path: str = "outputs"
+    clean_output_path: bool = False  # if true, the output path will be cleaned up before running the inference
+
     total_step: int | None = None
     rollout_path: str | None = None
     step_endpoint: str | None = None
@@ -61,6 +63,8 @@ class Config(BaseConfig):
 
     rewards: RewardsConfig = RewardsConfig()
     difficulty_filtering: DifficultyFilteringConfig | None = None
+
+    max_prompt_len: int | None = None
 
     @model_validator(mode="after")
     def disable_toploc_for_fp32(self):
