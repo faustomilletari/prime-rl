@@ -35,6 +35,9 @@ class PrimeMetric:
         self.period = period
         self.has_gpu = False
         self._thread = None
+        default = "/tmp/com.prime.miner/metrics.sock" if platform.system() == "Darwin" else "/var/run/com.prime.miner/metrics.sock"
+        self.socket_path = os.getenv("PRIME_TASK_BRIDGE_SOCKET", default=default)
+
 
         if self.disable:
             return
@@ -47,9 +50,6 @@ class PrimeMetric:
             self.has_gpu = True
         except pynvml.NVMLError:
             pass
-
-        default = "/tmp/com.prime.miner/metrics.sock" if platform.system() == "Darwin" else "/var/run/com.prime.miner/metrics.sock"
-        self.socket_path = os.getenv("PRIME_TASK_BRIDGE_SOCKET", default=default)
 
         logger.info(f"Initialized PrimeMetrics (period={self.period}, has_gpu={self.has_gpu})")
 
