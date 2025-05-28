@@ -119,7 +119,7 @@ class SocketMonitor(Monitor):
                     msg_buffer = []
                     for key, value in metrics.items():
                         msg_buffer.append(json.dumps({"label": key, "value": value, "task_id": task_id}))
-                    sock.sendall("".join(msg_buffer).encode())
+                    sock.sendall("\n".join(msg_buffer).encode())
                     
                 logger.debug(f"Logged successfully to {self.socket_path}")
             except Exception as e:

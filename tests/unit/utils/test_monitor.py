@@ -108,6 +108,10 @@ def test_socket_monitor(mock_socket):
     # Create socket output
     output = SocketMonitor(SocketMonitorConfig(enable=True, path="/test/socket.sock"))
 
+    # Set task ID in environment
+    test_task_id = "test-task-123"
+    os.environ["PRIME_TASK_ID"] = test_task_id
+
     # Test logging metrics
     test_metrics = {"step": 1, "loss": 3.14}
     output.log(test_metrics)
@@ -117,7 +121,14 @@ def test_socket_monitor(mock_socket):
 
     # Get the data that was sent
     sent_data = mock_socket.sendall.call_args[0][0].decode("utf-8")
-    assert sent_data.strip() == json.dumps(test_metrics)
+    # Verify each metric is sent as a separate JSON object with task_id
+    expected_data = "\n".join(
+        [
+            json.dumps({"label": "step", "value": 1, "task_id": test_task_id}),
+            json.dumps({"label": "loss", "value": 3.14, "task_id": test_task_id}),
+        ]
+    )
+    assert sent_data.strip() == expected_data
 
 
 @pytest.fixture
