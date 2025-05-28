@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import socket
 import threading
 import time
@@ -106,10 +107,20 @@ class SocketMonitor(Monitor):
 
     def log(self, metrics: dict[str, Any]) -> None:
         with self.lock:
+            task_id = os.getenv("PRIME_TASK_ID", None)
+            if task_id is None:
+                logger.warning("No task ID found, skipping logging")
+                return
+
             try:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                     sock.connect(self.socket_path)
-                    sock.sendall(self._serialize_metrics(metrics).encode())
+                    
+                    msg_buffer = []
+                    for key, value in metrics.items():
+                        msg_buffer.append(json.dumps({"label": key, "value": value, "task_id": task_id}))
+                    sock.sendall("".join(msg_buffer).encode())
+                    
                 logger.debug(f"Logged successfully to {self.socket_path}")
             except Exception as e:
                 logger.error(f"Failed to log metrics to {self.socket_path}: {e}")
