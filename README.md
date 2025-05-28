@@ -29,7 +29,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env
 ```
 
-3. Set up the environment (will default to Python 3.10)
+3. Set up the environment (will default to Python 3.11)
 
 ```bash
 uv sync && uv sync --extra fa
