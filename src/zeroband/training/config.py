@@ -18,7 +18,7 @@ class AdamConfig(BaseConfig):
 
 class OptimConfig(BaseConfig):
     optim: AdamConfig = AdamConfig()
-    sched_type: Literal["cosine", "linear", "wsd-sqrt"] = "cosine"
+    sched_type: Literal["cosine", "linear", "wsd-sqrt"] = "linear"
     warmup_steps: int = 1000
     stable_steps: int = 80_000
     total_steps: int = 88_000
