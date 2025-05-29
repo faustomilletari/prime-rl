@@ -37,6 +37,9 @@ def extract_last_json(completion: str) -> dict | None:
     if json_str is None:
         return None
     try:
-        return json.loads(json_str)
+        loaded_json = json.loads(json_str)
+        if type(loaded_json) == dict:
+            return loaded_json
+        return None
     except json.JSONDecodeError:
         return None
