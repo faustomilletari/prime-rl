@@ -1,0 +1,17 @@
+model_name = "open-r1/OpenR1-Distill-7B"
+batch_size = 11
+dp = 6
+rollout_path = "outputs"
+output_path = "data_rollout"
+max_model_len = 18000
+dataset = "justus27/deepscaler-difficult-genesys-2"
+async_level = 1
+
+[sampling]
+n = 32
+temperature = 0.8
+
+[difficulty_filtering]
+solve_rate_field = "solve_rate_7b"
+min_solve_rate = 0.05
+max_solve_rate = 0.45

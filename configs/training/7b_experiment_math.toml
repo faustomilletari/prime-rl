@@ -1,0 +1,24 @@
+model_name = "open-r1/OpenR1-Distill-7B"
+project = "rl-Qwen7B"
+
+[train]
+micro_bs = 1
+reshard_after_forward = true
+
+[optim]
+batch_size = 512
+warmup_steps = 1
+total_steps = 100000000000000
+step_per_rollout = 4
+
+[optim.optim]
+lr = 1e-6
+
+
+
+[data]
+path = "data_rollout"
+seq_length = 18000
+
+[ckpt]
+rollout_path = "outputs"
