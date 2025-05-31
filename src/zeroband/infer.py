@@ -94,6 +94,7 @@ def inference(config: Config):
 
     # Load  dataset
     dataset = load_dataset(config.dataset, split="train")
+    dataset = dataset.filter(lambda d: d["task_type"] == "prime_rl_code")
     logger.info(f"Loaded dataset {config.dataset} with {len(dataset):,} problems")
 
     # Optionally shuffle dataset
