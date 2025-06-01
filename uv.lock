@@ -2233,6 +2233,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b5/69/831ed22b38ff9b4b64b66569f0e5b7b97cf3638346eb95a2147fdb49ad5f/pydantic-2.11.5-py3-none-any.whl", hash = "sha256:f9c26ba06f9747749ca1e5c94d6a85cb84254577553c8785576fd38fa64dc0f7", size = 444229, upload-time = "2025-05-22T21:18:06.329Z" },
 ]
 
+[package.optional-dependencies]
+email = [
+    { name = "email-validator" },
+]
+
 [[package]]
 name = "pydantic-config"
 version = "0.2.0"
@@ -3450,6 +3455,7 @@ dependencies = [
     { name = "numpy" },
     { name = "prime-iroh" },
     { name = "pyarrow" },
+    { name = "pydantic", extra = ["email"] },
     { name = "pydantic-config" },
     { name = "pyext" },
     { name = "pylatexenc" },
@@ -3498,6 +3504,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "prime-iroh", specifier = ">=0.3.0" },
     { name = "pyarrow" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.11.5" },
     { name = "pydantic-config", git = "https://github.com/samsja/pydantic_config.git?rev=b7becc3" },
     { name = "pyext", git = "https://github.com/justusmattern27/PyExt.git" },
     { name = "pylatexenc", specifier = ">=2.10" },
