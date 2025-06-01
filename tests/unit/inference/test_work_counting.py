@@ -33,3 +33,16 @@ def test_get_inference_input_output_flops_qwen3(model_name_or_path: str, active_
     config = AutoConfig.from_pretrained(model_name_or_path)
     input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 0)
     assert abs(input_flops - 2 * active_params) / active_params < 0.05
+
+
+@pytest.mark.parametrize(
+    "model_name_or_path, active_params",
+    [
+        ("Qwen/Qwen3-30B-A3B", 3e9),
+        ("Qwen/Qwen3-235B-A22B", 22e9),
+    ],
+)
+def test_get_inference_input_output_flops_qwen3_moe(model_name_or_path: str, active_params: int):
+    config = AutoConfig.from_pretrained(model_name_or_path)
+    input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 0)
+    assert abs(input_flops - 2 * active_params) / active_params < 0.05

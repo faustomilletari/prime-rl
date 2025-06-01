@@ -1,10 +1,11 @@
 from transformers.models.deepseek_v3.configuration_deepseek_v3 import DeepseekV3Config
 from transformers.models.qwen3.configuration_qwen3 import Qwen3Config
+from transformers.models.qwen3_moe.configuration_qwen3_moe import Qwen3MoeConfig
 
 # Note: Only matmuls are counted
 
 
-def get_inference_input_output_flops_qwen3(config: Qwen3Config, input_tokens: int, output_tokens: int) -> tuple[int, int]:
+def get_inference_input_output_flops_qwen3(config: Qwen3Config | Qwen3MoeConfig, input_tokens: int, output_tokens: int) -> tuple[int, int]:
     """Get input and output flops for Qwen3 inference"""
     vocab_size = config.vocab_size
     hidden_size = config.hidden_size
@@ -20,8 +21,12 @@ def get_inference_input_output_flops_qwen3(config: Qwen3Config, input_tokens: in
     k_flops = 2 * num_hidden_layers * hidden_size * num_key_value_heads * head_dim
     v_flops = 2 * num_hidden_layers * hidden_size * num_key_value_heads * head_dim
     o_flops = 2 * num_hidden_layers * hidden_size * num_attention_heads * head_dim
+
     ## MLP
-    mlp_flops = 2 * num_hidden_layers * 3 * intermediate_size * hidden_size
+    if isinstance(config, Qwen3MoeConfig):
+        mlp_flops = 2 * num_hidden_layers * 3 * config.num_experts_per_tok * config.moe_intermediate_size * hidden_size
+    else:
+        mlp_flops = 2 * num_hidden_layers * 3 * intermediate_size * hidden_size
     ## LM Head
     lm_head_flops = 2 * vocab_size * hidden_size
     ## Total
@@ -30,8 +35,11 @@ def get_inference_input_output_flops_qwen3(config: Qwen3Config, input_tokens: in
 
     # SDPA
     ## 4lhqt from mm
-    input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * ((input_tokens + 1) * input_tokens // 2)
-    output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * ((output_tokens + input_tokens + 1) * output_tokens // 2)
+    ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
+    input_ctx_sum = (input_tokens + 1) * input_tokens // 2
+    output_ctx_sum = (output_tokens + input_tokens + 1) * output_tokens // 2
+    input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
+    output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
     return input_linear_flops + input_sdpa, output_linear_flops + output_sdpa
 
@@ -80,7 +88,10 @@ def get_inference_input_output_flops_deepseek_v3(config: DeepseekV3Config, input
 
     # SDPA
     ## 4lhqt from mm
-    input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * ((input_tokens + 1) * input_tokens // 2)
-    output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * ((output_tokens + input_tokens + 1) * output_tokens // 2)
+    ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
+    input_ctx_sum = (input_tokens + 1) * input_tokens // 2
+    output_ctx_sum = (output_tokens + input_tokens + 1) * output_tokens // 2
+    input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
+    output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
     return input_linear_flops + input_sdpa, output_linear_flops + output_sdpa
