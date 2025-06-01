@@ -1,7 +1,7 @@
-import argparse, json, importlib.util, inspect, sys
-from pydantic import BaseModel, ValidationError
-import re
 from types import ModuleType
+
+from pydantic import BaseModel
+
 from zeroband.inference.genesys.format_utils import extract_last_json
 
 
@@ -26,6 +26,7 @@ def _load_model_from_code(code_str: str, model_name: str) -> type[BaseModel]:
     cls.model_json_schema()
     return cls
 
+
 def validate_pydantic_json(completion: str, verification_info: dict) -> tuple[bool, str]:
     payload = extract_last_json(completion)
     if payload is None:
@@ -36,13 +37,12 @@ def validate_pydantic_json(completion: str, verification_info: dict) -> tuple[bo
             verification_info["pydantic_config"],
             verification_info["model_name"],
         )
-    except Exception as e:
+    except Exception:
         return 0
-    
 
     try:
         Model.model_validate(payload)
-    except Exception as e:
+    except Exception:
         return 0
 
     return 1
