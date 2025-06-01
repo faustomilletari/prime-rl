@@ -8,7 +8,16 @@ from transformers.models.qwen3_moe.configuration_qwen3_moe import Qwen3MoeConfig
 def get_inference_input_output_flops_qwen3(
     config: Qwen3Config | Qwen3MoeConfig, num_input_tokens: int, num_output_tokens: int
 ) -> tuple[int, int]:
-    """Get input and output flops for Qwen3 inference"""
+    """Get input and output flops for Qwen3 inference
+
+    Args:
+        config: Qwen3Config or Qwen3MoeConfig
+        num_input_tokens: Number of input tokens
+        num_output_tokens: Number of output tokens
+
+    Returns:
+        tuple[int, int]: Input and output flops
+    """
     vocab_size = config.vocab_size
     hidden_size = config.hidden_size
     intermediate_size = config.intermediate_size
@@ -49,7 +58,16 @@ def get_inference_input_output_flops_qwen3(
 def get_inference_input_output_flops_deepseek_v3(
     config: DeepseekV3Config, num_input_tokens: int, num_output_tokens: int
 ) -> tuple[int, int]:
-    """Get input and output flops for Deepseek V3 inference"""
+    """Get input and output flops for Deepseek V3 inference
+
+    Args:
+        config: DeepseekV3Config
+        num_input_tokens: Number of input tokens
+        num_output_tokens: Number of output tokens
+
+    Returns:
+        tuple[int, int]: Input and output flops
+    """
     vocab_size = config.vocab_size
     hidden_size = config.hidden_size
     head_dim = config.qk_head_dim  # Nope + Rope included
