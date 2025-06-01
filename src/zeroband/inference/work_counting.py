@@ -140,7 +140,11 @@ def _get_num_params(model_name_or_path: str) -> int:
     torch.set_default_device("meta")
     model = AutoModelForCausalLM.from_config(config)
     torch.set_default_device(default_device)
-    return sum(p.numel() for p in model.parameters())
+    if not config.tie_word_embeddings and hasattr(config, "hidden_size") and hasattr(config, "vocab_size"):
+        offset = config.vocab_size * config.hidden_size
+    else:
+        offset = 0
+    return sum(p.numel() for p in model.parameters()) - offset
 
 
 def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: int, num_output_tokens: int) -> tuple[int, int]:
@@ -155,4 +159,4 @@ def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: 
             UserWarning,
         )
         num_params = _get_num_params(model_name_or_path)
-        return num_params * num_input_tokens, num_params * num_output_tokens
+        return 2 * num_params * num_input_tokens, 2 * num_params * num_output_tokens

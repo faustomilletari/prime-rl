@@ -1,7 +1,6 @@
 import pytest
-from transformers import AutoConfig
 
-from zeroband.inference.work_counting import get_inference_input_output_flops_deepseek_v3, get_inference_input_output_flops_qwen3
+from zeroband.inference.work_counting import get_inference_input_output_flops
 
 
 @pytest.mark.parametrize(
@@ -11,10 +10,8 @@ from zeroband.inference.work_counting import get_inference_input_output_flops_de
     ],
 )
 def test_get_inference_input_output_flops_deepseek_v3(model_name_or_path: str, active_params: int):
-    config = AutoConfig.from_pretrained(model_name_or_path)
-
     # 1 input token, 0 output tokens should be almost equal to 2 * active params
-    input_flops, output_flops = get_inference_input_output_flops_deepseek_v3(config, 1, 1)
+    input_flops, output_flops = get_inference_input_output_flops(model_name_or_path, 1, 1)
     assert abs(input_flops - 2 * active_params) / active_params < 0.05
     assert output_flops > input_flops
 
@@ -33,7 +30,19 @@ def test_get_inference_input_output_flops_deepseek_v3(model_name_or_path: str, a
     ],
 )
 def test_get_inference_input_output_flops_qwen3(model_name_or_path: str, active_params: int):
-    config = AutoConfig.from_pretrained(model_name_or_path)
-    input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 1)
+    input_flops, output_flops = get_inference_input_output_flops(model_name_or_path, 1, 1)
     assert abs(input_flops - 2 * active_params) / active_params < 0.05
     assert output_flops > input_flops
+
+
+@pytest.mark.parametrize(
+    "model_name_or_path, active_params",
+    [
+        ("meta-llama/Llama-3.1-8B-Instruct", 7.5e9),  # Decoupled embs of ~5e8 params
+        ("Qwen/Qwen2.5-0.5B", 0.5e9),  # Tied embs
+    ],
+)
+def test_get_inference_input_output_flops_fallback(model_name_or_path: str, active_params: int):
+    input_flops, output_flops = get_inference_input_output_flops(model_name_or_path, 1, 1)
+    assert abs(input_flops - 2 * active_params) / active_params < 0.05
+    assert output_flops == input_flops
