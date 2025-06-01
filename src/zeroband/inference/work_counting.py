@@ -5,7 +5,9 @@ from transformers.models.qwen3_moe.configuration_qwen3_moe import Qwen3MoeConfig
 # Note: Only matmuls are counted
 
 
-def get_inference_input_output_flops_qwen3(config: Qwen3Config | Qwen3MoeConfig, input_tokens: int, output_tokens: int) -> tuple[int, int]:
+def get_inference_input_output_flops_qwen3(
+    config: Qwen3Config | Qwen3MoeConfig, num_input_tokens: int, num_output_tokens: int
+) -> tuple[int, int]:
     """Get input and output flops for Qwen3 inference"""
     vocab_size = config.vocab_size
     hidden_size = config.hidden_size
@@ -30,21 +32,23 @@ def get_inference_input_output_flops_qwen3(config: Qwen3Config | Qwen3MoeConfig,
     ## LM Head
     lm_head_flops = 2 * vocab_size * hidden_size
     ## Total
-    input_linear_flops = (q_flops + k_flops + v_flops + o_flops + mlp_flops + lm_head_flops) * input_tokens
-    output_linear_flops = (q_flops + k_flops + v_flops + o_flops + mlp_flops + lm_head_flops) * output_tokens
+    input_linear_flops = (q_flops + k_flops + v_flops + o_flops + mlp_flops + lm_head_flops) * num_input_tokens
+    output_linear_flops = (q_flops + k_flops + v_flops + o_flops + mlp_flops + lm_head_flops) * num_output_tokens
 
     # SDPA
     ## 4lhqt from mm
     ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
-    input_ctx_sum = (input_tokens + 1) * input_tokens // 2
-    output_ctx_sum = (output_tokens + input_tokens + 1) * output_tokens // 2
+    input_ctx_sum = (num_input_tokens + 1) * num_input_tokens // 2
+    output_ctx_sum = (num_output_tokens + num_input_tokens + 1) * num_output_tokens // 2
     input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
     output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
     return input_linear_flops + input_sdpa, output_linear_flops + output_sdpa
 
 
-def get_inference_input_output_flops_deepseek_v3(config: DeepseekV3Config, input_tokens: int, output_tokens: int) -> tuple[int, int]:
+def get_inference_input_output_flops_deepseek_v3(
+    config: DeepseekV3Config, num_input_tokens: int, num_output_tokens: int
+) -> tuple[int, int]:
     """Get input and output flops for Deepseek V3 inference"""
     vocab_size = config.vocab_size
     hidden_size = config.hidden_size
@@ -83,14 +87,14 @@ def get_inference_input_output_flops_deepseek_v3(config: DeepseekV3Config, input
     ## LM Head
     lm_head_flops = 2 * vocab_size * hidden_size
     ## Total
-    input_linear_flops = (q_flops + kv_flops + o_flops + dense_mlp_flops + sparse_mlp_flops + lm_head_flops) * input_tokens
-    output_linear_flops = (q_flops + kv_flops + o_flops + dense_mlp_flops + sparse_mlp_flops + lm_head_flops) * output_tokens
+    input_linear_flops = (q_flops + kv_flops + o_flops + dense_mlp_flops + sparse_mlp_flops + lm_head_flops) * num_input_tokens
+    output_linear_flops = (q_flops + kv_flops + o_flops + dense_mlp_flops + sparse_mlp_flops + lm_head_flops) * num_output_tokens
 
     # SDPA
     ## 4lhqt from mm
     ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
-    input_ctx_sum = (input_tokens + 1) * input_tokens // 2
-    output_ctx_sum = (output_tokens + input_tokens + 1) * output_tokens // 2
+    input_ctx_sum = (num_input_tokens + 1) * num_input_tokens // 2
+    output_ctx_sum = (num_output_tokens + num_input_tokens + 1) * num_output_tokens // 2
     input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
     output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
