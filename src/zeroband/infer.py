@@ -33,6 +33,7 @@ from zeroband.inference.utils import (
     generate_target_length_prompts,
     reload_model_weights,
     compute_max_batch_size,
+    get_inference_input_output_flops,
 )
 from zeroband.training.mp import EnvWrapper
 from zeroband.utils.logger import get_logger
@@ -324,7 +325,20 @@ def inference(config: Config):
 
         # Log file metadata
         sha256 = sha256sum(save_path)
-        monitor.log({"output/save_path": save_path.as_posix(), "output/sha256": sha256, "output/output_flops": 0})
+        flop_counts = [
+            get_inference_input_output_flops(
+                config.model_name, len(req.prompt_token_ids), sum(len(output.token_ids) for output in req.outputs)
+            )
+            for req in request_outputs
+        ]
+        monitor.log(
+            {
+                "output/save_path": save_path.as_posix(),
+                "output/sha256": sha256,
+                "output/output_flops": sum(output_flops for _, output_flops in flop_counts),
+                "output/input_flops": sum(input_flops for input_flops, _ in flop_counts),
+            }
+        )
 
         real_step += 1
 
