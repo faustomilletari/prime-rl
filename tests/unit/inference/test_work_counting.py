@@ -38,7 +38,7 @@ def test_get_inference_input_output_flops_qwen3(model_name_or_path: str, active_
 @pytest.mark.parametrize(
     "model_name_or_path, active_params",
     [
-        ("meta-llama/Llama-3.1-8B-Instruct", 7.5e9),  # Decoupled embs of ~5e8 params
+        ("PrimeIntellect/INTELLECT-1", 9.5e9),  # Decoupled embs of ~5e8 params
         ("Qwen/Qwen2.5-0.5B", 0.5e9),  # Tied embs
     ],
 )
