@@ -14,8 +14,9 @@ def test_get_inference_input_output_flops_deepseek_v3(model_name_or_path: str, a
     config = AutoConfig.from_pretrained(model_name_or_path)
 
     # 1 input token, 0 output tokens should be almost equal to 2 * active params
-    input_flops, output_flops = get_inference_input_output_flops_deepseek_v3(config, 1, 0)
+    input_flops, output_flops = get_inference_input_output_flops_deepseek_v3(config, 1, 1)
     assert abs(input_flops - 2 * active_params) / active_params < 0.05
+    assert output_flops > input_flops
 
 
 @pytest.mark.parametrize(
@@ -27,22 +28,12 @@ def test_get_inference_input_output_flops_deepseek_v3(model_name_or_path: str, a
         ("Qwen/Qwen3-8B", 7.6e9),  # This is only 8B because it has untied embs somehow
         ("Qwen/Qwen3-14B", 14e9),
         ("Qwen/Qwen3-32B", 32e9),
-    ],
-)
-def test_get_inference_input_output_flops_qwen3(model_name_or_path: str, active_params: int):
-    config = AutoConfig.from_pretrained(model_name_or_path)
-    input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 0)
-    assert abs(input_flops - 2 * active_params) / active_params < 0.05
-
-
-@pytest.mark.parametrize(
-    "model_name_or_path, active_params",
-    [
         ("Qwen/Qwen3-30B-A3B", 3e9),
         ("Qwen/Qwen3-235B-A22B", 22e9),
     ],
 )
-def test_get_inference_input_output_flops_qwen3_moe(model_name_or_path: str, active_params: int):
+def test_get_inference_input_output_flops_qwen3(model_name_or_path: str, active_params: int):
     config = AutoConfig.from_pretrained(model_name_or_path)
-    input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 0)
+    input_flops, output_flops = get_inference_input_output_flops_qwen3(config, 1, 1)
     assert abs(input_flops - 2 * active_params) / active_params < 0.05
+    assert output_flops > input_flops
