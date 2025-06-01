@@ -39,7 +39,7 @@ def get_inference_input_output_flops_qwen3(
     ## 4lhqt from mm
     ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
     input_ctx_sum = (num_input_tokens + 1) * num_input_tokens // 2
-    output_ctx_sum = (num_output_tokens + num_input_tokens + 1) * num_output_tokens // 2
+    output_ctx_sum = (num_output_tokens + num_input_tokens + num_input_tokens + 1) * num_output_tokens // 2
     input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
     output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
@@ -94,7 +94,7 @@ def get_inference_input_output_flops_deepseek_v3(
     ## 4lhqt from mm
     ## Each subsequent token sees 1 more ctx so the total is the sum of an arithmetic series
     input_ctx_sum = (num_input_tokens + 1) * num_input_tokens // 2
-    output_ctx_sum = (num_output_tokens + num_input_tokens + 1) * num_output_tokens // 2
+    output_ctx_sum = (num_output_tokens + num_input_tokens + num_input_tokens + 1) * num_output_tokens // 2
     input_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * input_ctx_sum
     output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
