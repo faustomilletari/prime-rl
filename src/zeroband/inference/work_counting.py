@@ -1,8 +1,18 @@
+from functools import lru_cache
+
+import torch
+from transformers import AutoConfig, AutoModelForCausalLM
+from transformers.configuration_utils import PretrainedConfig
 from transformers.models.deepseek_v3.configuration_deepseek_v3 import DeepseekV3Config
 from transformers.models.qwen3.configuration_qwen3 import Qwen3Config
 from transformers.models.qwen3_moe.configuration_qwen3_moe import Qwen3MoeConfig
 
 # Note: Only matmuls are counted
+
+
+@lru_cache()
+def _get_config(model_name_or_path: str) -> PretrainedConfig:
+    return AutoConfig.from_pretrained(model_name_or_path)
 
 
 def get_inference_input_output_flops_qwen3(
@@ -117,3 +127,27 @@ def get_inference_input_output_flops_deepseek_v3(
     output_sdpa = 4 * num_hidden_layers * head_dim * num_attention_heads * output_ctx_sum
 
     return input_linear_flops + input_sdpa, output_linear_flops + output_sdpa
+
+
+@lru_cache()
+def _get_num_params(model_name_or_path: str) -> int:
+    # This import is needed because it uses Tensor.item() which will error if default device is meta
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS  # noqa: F401
+
+    config = _get_config(model_name_or_path)
+    default_device = torch.get_default_device()
+    torch.set_default_device("meta")
+    model = AutoModelForCausalLM.from_config(config)
+    torch.set_default_device(default_device)
+    return sum(p.numel() for p in model.parameters())
+
+
+def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: int, num_output_tokens: int) -> tuple[int, int]:
+    config = _get_config(model_name_or_path)
+    if isinstance(config, Qwen3Config) or isinstance(config, Qwen3MoeConfig):
+        return get_inference_input_output_flops_qwen3(config, num_input_tokens, num_output_tokens)
+    elif isinstance(config, DeepseekV3Config):
+        return get_inference_input_output_flops_deepseek_v3(config, num_input_tokens, num_output_tokens)
+    else:
+        num_params = _get_num_params(model_name_or_path)
+        return num_params * num_input_tokens, num_params * num_output_tokens
