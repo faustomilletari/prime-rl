@@ -56,7 +56,13 @@ select = ["F", "I"]
 ignore = ["F722", "F821"]
 
 [tool.uv]
-dev-dependencies = ["ruff>=0.5.0", "pre-commit>=3.0.0", "pytest>=7.0.0", "faker"]
+dev-dependencies = [
+    "ruff>=0.5.0",
+    "pre-commit>=3.0.0",
+    "pytest>=7.0.0",
+    "faker",
+    "ipykernel>=6.29.5",
+]
 no-build-isolation-package = ["flash-attn"]
 
 [tool.pytest.ini_options]
