@@ -35,6 +35,13 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.
 # ENV PATH="/root/.cargo/bin:${PATH}"
 # RUN echo "export PATH=\"/opt/conda/bin:/root/.cargo/bin:\$PATH\"" >> /root/.bashrc
 
+# 1. Create the non-root account (UID 1000 / GID 1000)  ────────────────
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd --gid $GROUP_ID appuser  && \
+    useradd  --uid $USER_ID --gid appuser --create-home --shell /bin/bash appuser
+
+
 # Download the latest installer
 ADD https://astral.sh/uv/install.sh /uv-installer.sh
 
@@ -45,7 +52,7 @@ RUN sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin/:$PATH"
 
 # Install Python dependencies (The gradual copies help with caching)
-WORKDIR /root/prime-rl
+WORKDIR  /opt/prime-rl
 
 COPY ./pyproject.toml ./pyproject.toml
 COPY ./uv.lock ./uv.lock
@@ -57,14 +64,7 @@ RUN uv sync && uv sync --extra fa
 
 # Runtime stage
 FROM python:3.11-slim
-# 1. Create the non-root account (UID 1000 / GID 1000)  ────────────────
-ARG USER_ID=1000
-ARG GROUP_ID=1000
-RUN groupadd --gid $GROUP_ID appuser  && \
-    useradd  --uid $USER_ID --gid appuser --create-home --shell /bin/bash appuser && \
-    mkdir -p /opt/prime-rl/.venv/bin && \
-    chown -R appuser:appuser /opt/prime-rl
-   
+
 # 2. Put your code under /opt not /root, then hand ownership to appuser ─
 WORKDIR /opt/prime-rl
 
@@ -73,17 +73,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential wget clang && \
     rm -rf /var/lib/apt/lists/*
 
+# Create non-root user in runtime stage
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd --gid $GROUP_ID appuser && \
+    useradd --uid $USER_ID --gid appuser --create-home --shell /bin/bash appuser
+
 # Copy the virtual-env and fix permissions
-COPY --from=builder /root/prime-rl/.venv /opt/prime-rl/.venv
-RUN chmod -R 755 /opt/prime-rl/.venv && \
-    ln -sf /usr/local/bin/python /opt/prime-rl/.venv/bin/python
+COPY --from=builder /opt/prime-rl/.venv /opt/prime-rl/.venv
+# RUN chmod -R 755 /opt/prime-rl/.venv && \
+#     ln -sf /usr/local/bin/python /opt/prime-rl/.venv/bin/python
 
 # Copy sources and configs
-COPY --from=builder /root/prime-rl/src ./src
+COPY --from=builder /opt/prime-rl/src ./src
 COPY ./configs ./configs
 
-# 3. Adjust permissions so the new user can read/write everything ───────
-RUN chown -R appuser:appuser /opt/prime-rl
 
 # 4. Activate the venv + switch user before ENTRYPOINT ──────────────────
 ENV PATH="/opt/prime-rl/.venv/bin:${PATH}"
