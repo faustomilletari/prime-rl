@@ -32,14 +32,10 @@ def validate_pydantic_json(completion: str, verification_info: dict) -> tuple[bo
     if payload is None:
         return 0
 
-    try:
-        Model = _load_model_from_code(
-            verification_info["pydantic_config"],
-            verification_info["model_name"],
-        )
-    except Exception:
-        return 0
-
+    Model = _load_model_from_code(
+        verification_info["pydantic_config"],
+        verification_info["model_name"],
+    )
     try:
         Model.model_validate(payload)
     except Exception:
