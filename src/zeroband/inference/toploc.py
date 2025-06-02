@@ -185,7 +185,7 @@ def toploc_cache_hook(_, inputs: tuple, toploc_cache: TopLocCache):
 
 
 def setup_toploc_cache(
-    llm: LLM, pipeline_config: PipelineConfig | None = None, disable: bool = False, **toploc_kwargs
+    llm: LLM, pipeline_config: PipelineConfig, disable: bool = False, **toploc_kwargs
 ) -> tuple[TopLocCache, RemovableHandle | None]:
     """Initializes the TOPLOC cache and register a hook to dynamically populate the cache during inference"""
     # Initialize the cache
@@ -197,7 +197,7 @@ def setup_toploc_cache(
     if not disable:
         handle = logits_processor.register_forward_pre_hook(partial(toploc_cache_hook, toploc_cache=toploc_cache))
 
-    if pipeline_config is not None and pipeline_config.pipeline_enabled and pipeline_config.rank < pipeline_config.world_size - 1:
+    if pipeline_config.pipeline_enabled and pipeline_config.rank < pipeline_config.world_size - 1:
         llm.llm_engine.model_executor.driver_worker.model_runner.model.model.norm = ArgsIdentity()
 
     return toploc_cache, handle
