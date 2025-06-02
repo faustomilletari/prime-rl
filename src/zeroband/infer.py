@@ -332,11 +332,10 @@ def inference(config: Config):
         # Log file metadata
         sha256 = sha256sum(save_path)
         flop_counts = [
-            get_inference_input_output_flops(
-                config.model_name, len(req.prompt_token_ids), sum(len(output.token_ids) for output in req.outputs)
-            )
-            for req in request_outputs
+            get_inference_input_output_flops(config.model_name, len(input_tokens), len(output_tokens))
+            for input_tokens, output_tokens in zip(table.column("input_tokens").to_pylist(), table.column("output_tokens").to_pylist())
         ]
+
         monitor.log(
             {
                 "output/save_path": save_path.as_posix(),
