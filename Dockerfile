@@ -35,7 +35,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.
 # ENV PATH="/root/.cargo/bin:${PATH}"
 # RUN echo "export PATH=\"/opt/conda/bin:/root/.cargo/bin:\$PATH\"" >> /root/.bashrc
 
-# 1. Create the non-root account (UID 1000 / GID 1000)  ────────────────
+# Create the non-root account (UID 1000 / GID 1000)  ────────────────
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 RUN groupadd --gid $GROUP_ID appuser  && \
@@ -89,7 +89,6 @@ COPY --from=builder /appuser/prime-rl/src ./src
 COPY ./configs ./configs
 
 
-# 4. Activate the venv + switch user before ENTRYPOINT ──────────────────
 ENV PATH="/appuser/prime-rl/.venv/bin:${PATH}"
 
 USER appuser         
