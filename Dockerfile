@@ -57,24 +57,37 @@ RUN uv sync && uv sync --extra fa
 
 # Runtime stage
 FROM python:3.11-slim
-WORKDIR /root/prime-rl
+# 1. Create the non-root account (UID 1000 / GID 1000)  ────────────────
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd --gid $GROUP_ID appuser  && \
+    useradd  --uid $USER_ID --gid appuser --create-home --shell /bin/bash appuser && \
+    mkdir -p /opt/prime-rl/.venv/bin && \
+    chown -R appuser:appuser /opt/prime-rl
+   
+# 2. Put your code under /opt not /root, then hand ownership to appuser ─
+WORKDIR /opt/prime-rl
 
-RUN apt-get update && apt-get install -y --no-install-recommends --force-yes build-essential wget clang
+# still need a compiler for wheels that ship only as source
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential wget clang && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment
-COPY --from=builder /root/prime-rl/.venv /root/prime-rl/.venv
-RUN rm /root/prime-rl/.venv/bin/python
-RUN ln -s /usr/local/bin/python /root/prime-rl/.venv/bin/python
-ENV PATH="/root/prime-rl/.venv/bin:$PATH"
+# Copy the virtual-env and fix permissions
+COPY --from=builder /root/prime-rl/.venv /opt/prime-rl/.venv
+RUN chmod -R 755 /opt/prime-rl/.venv && \
+    ln -sf /usr/local/bin/python /opt/prime-rl/.venv/bin/python
 
-# Note(Jack): Nothing should need to compile so we don't need these
-# COPY --from=builder /usr/local/cuda-12.4 /usr/local/cuda
-# ENV LD_LIBRARY_PATH=/usr/local/cuda-12.4/lib64:$LD_LIBRARY_PATH
-# ENV CUDA_HOME=/usr/local/cuda-12.4
-# ENV PATH="/usr/local/cuda-12.4/bin:$PATH"
-
-# Copy application files
+# Copy sources and configs
 COPY --from=builder /root/prime-rl/src ./src
-COPY ./configs/ ./configs/
+COPY ./configs ./configs
+
+# 3. Adjust permissions so the new user can read/write everything ───────
+RUN chown -R appuser:appuser /opt/prime-rl
+
+# 4. Activate the venv + switch user before ENTRYPOINT ──────────────────
+ENV PATH="/opt/prime-rl/.venv/bin:${PATH}"
+
+USER appuser         
 
 ENTRYPOINT ["python", "src/zeroband/infer.py"]
