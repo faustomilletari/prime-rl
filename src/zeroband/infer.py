@@ -306,6 +306,13 @@ def inference(config: Config):
         request_rewards = compute_vllm_rewards(request_outputs, verification_infos, task_types, config.rewards)
         logger.info(f"Computed rewards and advantages in {time.time() - start:.2f}s")
 
+        total_rewards = sum(sum(r.reward for r in req.rewards) for req in request_rewards)
+        total_completions = sum(len(req.rewards) for req in request_rewards)
+        avg_reward_to_log = total_rewards / total_completions
+
+        monitor.log({"avg_reward": avg_reward_to_log})
+        logger.info(f"Average reward of the batch: {avg_reward_to_log}")
+
         # Get parquet table
         table = get_parquet_table(
             request_outputs,
