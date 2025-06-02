@@ -52,7 +52,7 @@ RUN sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin/:$PATH"
 
 # Install Python dependencies (The gradual copies help with caching)
-WORKDIR  /opt/prime-rl
+WORKDIR /appuser/prime-rl
 
 COPY ./pyproject.toml ./pyproject.toml
 COPY ./uv.lock ./uv.lock
@@ -65,8 +65,8 @@ RUN uv sync && uv sync --extra fa
 # Runtime stage
 FROM python:3.11-slim
 
-# 2. Put your code under /opt not /root, then hand ownership to appuser ─
-WORKDIR /opt/prime-rl
+# 2. Put your code under /appuser not /opt, then hand ownership to appuser ─
+WORKDIR /appuser/prime-rl
 
 # still need a compiler for wheels that ship only as source
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -80,17 +80,17 @@ RUN groupadd --gid $GROUP_ID appuser && \
     useradd --uid $USER_ID --gid appuser --create-home --shell /bin/bash appuser
 
 # Copy the virtual-env and fix permissions
-COPY --from=builder /opt/prime-rl/.venv /opt/prime-rl/.venv
-# RUN chmod -R 755 /opt/prime-rl/.venv && \
-#     ln -sf /usr/local/bin/python /opt/prime-rl/.venv/bin/python
+COPY --from=builder /appuser/prime-rl/.venv /appuser/prime-rl/.venv
+RUN ln -sf /usr/local/bin/python /appuser/prime-rl/.venv/bin/python && \
+    chown -R appuser:appuser /appuser
 
 # Copy sources and configs
-COPY --from=builder /opt/prime-rl/src ./src
+COPY --from=builder /appuser/prime-rl/src ./src
 COPY ./configs ./configs
 
 
 # 4. Activate the venv + switch user before ENTRYPOINT ──────────────────
-ENV PATH="/opt/prime-rl/.venv/bin:${PATH}"
+ENV PATH="/appuser/prime-rl/.venv/bin:${PATH}"
 
 USER appuser         
 
