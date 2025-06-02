@@ -34,6 +34,11 @@ class PipelineConfig(BaseConfig):
     # How many times to retry connection to peer (each retry takes ~30s)
     connection_num_retries: int = 10  # Each retry takes ~30s, so 10 retries is ~300s (5min)
 
+    @property
+    def pipeline_enabled(self) -> bool:
+        """Returns True if pipeline parallelism is enabled (world_size > 1)."""
+        return self.world_size > 1
+
 
 def serialize_tensors(tensor_dict: dict[str, torch.Tensor]) -> bytes:
     """Safely serializes a dictionary of tensors to bytes."""
@@ -69,7 +74,7 @@ def setup_comm(config: PipelineConfig) -> Node | None:
     Returns:
         The node if world_size > 1, otherwise None
     """
-    if config.world_size == 1:
+    if not config.pipeline_enabled:
         return None
 
     # Setup node (with or without seed)
@@ -108,7 +113,7 @@ def patch_model_load(config: PipelineConfig) -> None:
     from vllm.model_executor.models.utils import LayerFn, PPMissingLayer, maybe_offload_to_cpu
 
     # Skip patching if world_size == 1
-    if config.world_size == 1:
+    if not config.pipeline_enabled:
         return
 
     def _patched_make_layers(num_hidden_layers: int, layer_fn: LayerFn, prefix: str) -> Tuple[int, int, torch.nn.ModuleList]:
@@ -159,8 +164,8 @@ def setup_hooks(
         llm: The LLM model shard instance
         node: The node class instances for communication (None if world_size == 1)
     """
-    if config.world_size == 1:
-        assert node is None, "Node should be None if world_size == 1"
+    if not config.pipeline_enabled:
+        assert node is None, "Node should be None if pipeline is disabled"
         return
 
     # Model runner owns sampler, model owns layers
@@ -304,8 +309,8 @@ def all_reduce(node: Node, tensor: torch.Tensor, config: PipelineConfig, op: cal
         The reduced tensor after applying the operation across all nodes in the ring
     """
     # No communication needed for single node
-    if config.world_size == 1:
-        logger.debug("No communication needed to all-reduce tensor with world_size=1")
+    if not config.pipeline_enabled:
+        logger.debug("No communication needed to all-reduce tensor with pipeline disabled")
         return tensor
 
     result_tensor = tensor.clone()
