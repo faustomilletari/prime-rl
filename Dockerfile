@@ -1,3 +1,5 @@
+#inspired from https://github.com/astral-sh/uv-docker-example/blob/main/multistage.Dockerfile
+
 # Build stage
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel AS builder
 LABEL maintainer="prime intellect"
