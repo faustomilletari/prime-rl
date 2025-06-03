@@ -82,6 +82,7 @@ def inference(config: Config):
         download_dir=config.download_dir,
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
     )
+    llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     tokenizer = llm.get_tokenizer()
 
     # Adjust sampling params based on config
@@ -141,7 +142,6 @@ def inference(config: Config):
         )
 
     # Setup TOPLOC
-    llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     hidden_size = llm.llm_engine.model_executor.driver_worker.model_runner.model.config.hidden_size
     toploc_cache, _ = setup_toploc_cache(
         llm,
@@ -222,7 +222,6 @@ def inference(config: Config):
             generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
             indices = generator.integers(0, len(dataset), problems_per_batch)
             sampling_params.seed = int(generator.integers(2**32))
-            print(sampling_params.seed, type(sampling_params.seed))
         else:
             # Use modulo to cycle through the dataset instead of terminating
             indices = [(dataset_offset + j) % len(dataset) for j in range(problems_per_batch)]
