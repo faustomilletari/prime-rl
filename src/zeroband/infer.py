@@ -3,7 +3,6 @@ import multiprocessing as mp
 import os
 import shutil
 import time
-import uuid
 from pathlib import Path
 
 # Import environment before any other imports
@@ -26,6 +25,7 @@ from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
 from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.toploc import setup_toploc_cache
+from zeroband.inference.toploc2 import Toploc2Sampler
 from zeroband.utils.monitor import setup_monitor
 from zeroband.inference.utils import (
     filter_data_by_prompt_length,
@@ -141,6 +141,7 @@ def inference(config: Config):
         )
 
     # Setup TOPLOC
+    llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     hidden_size = llm.llm_engine.model_executor.driver_worker.model_runner.model.config.hidden_size
     toploc_cache, _ = setup_toploc_cache(
         llm,
@@ -220,6 +221,8 @@ def inference(config: Config):
             # This would work even if the node restarts and resumes from the current step.
             generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
             indices = generator.integers(0, len(dataset), problems_per_batch)
+            sampling_params.seed = int(generator.integers(2**32))
+            print(sampling_params.seed, type(sampling_params.seed))
         else:
             # Use modulo to cycle through the dataset instead of terminating
             indices = [(dataset_offset + j) % len(dataset) for j in range(problems_per_batch)]
@@ -327,9 +330,14 @@ def inference(config: Config):
         )
 
         # Save outputs to parquet file
-        step_path = Path(config.output_path) / f"step_{real_step}"
-        step_path.mkdir(parents=True, exist_ok=True)
-        save_path = step_path / f"{uuid.uuid4()}.parquet"
+        # step_path = Path(config.output_path) / f"step_{real_step}"
+        # step_path.mkdir(parents=True, exist_ok=True)
+        # save_path = step_path / f"{uuid.uuid4()}.parquet"
+        Path(config.output_path).mkdir(parents=True, exist_ok=True)
+        save_path = (
+            Path(config.output_path)
+            / f"{config.sampling.n}-{envs.PRIME_GROUP_ID}-{config.pp.world_size}-{real_step}-{config.pp.rank}.parquet"
+        )
         pq.write_table(table, save_path)
         logger.info(f"Saved batch outputs to {save_path}")
 
