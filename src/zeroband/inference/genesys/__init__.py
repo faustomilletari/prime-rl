@@ -9,6 +9,8 @@ from zeroband.inference.genesys.pydantic_json_adherance import validate_pydantic
 from zeroband.inference.genesys.reasoning_gym import verify_reasoning_gym
 from zeroband.inference.genesys.reverse_text import reverse_text
 from zeroband.inference.genesys.unscramble_sentence import compute_reward as compute_unscramble_reward
+from zeroband.inference.genesys.formatask import compute_reward as compute_formatask_reward
+
 
 TaskType = Literal[
     "verifiable_math",
@@ -20,6 +22,7 @@ TaskType = Literal[
     "ascii_tree_formatting",
     "pydantic_adherance",
     "complex_json_output",
+    "formatask",
 ]
 
 
@@ -40,4 +43,6 @@ _REWARD_FUNCTIONS: dict[TaskType, Callable] = {
     "ascii_tree_formatting": compute_ascii_tree_reward,
     "pydantic_adherance": validate_pydantic_json,
     "complex_json_output": verify_complex_json_formatting,
+    "formatask": compute_formatask_reward,
+
 }
