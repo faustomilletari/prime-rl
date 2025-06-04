@@ -93,6 +93,7 @@ class Config(BaseConfig):
     normalize_batch_to_token_count: bool = False
     
     use_infer_model_logprobs: bool = False  # if true, the logprobs will be computed using the same model that was used for inference
+    use_vllm_logprobs: bool = False  # if true, use the logprobs from vllm stored in parquet files instead of computing them
 
     grpo_loss_type: Literal["default", "ratio", "kl_cov"] = "default"
 
@@ -109,4 +110,10 @@ class Config(BaseConfig):
     def check_ckpt_interval(self):
         if self.ckpt.interval is not None:
             assert self.ckpt.interval % self.optim.step_per_rollout == 0, "ckpt.interval must be divisible by train.step_per_rollout"
+        return self
+
+    @model_validator(mode="after")
+    def check_logprobs_flags(self):
+        if self.use_vllm_logprobs and self.use_infer_model_logprobs:
+            raise ValueError("Cannot use both use_vllm_logprobs and use_infer_model_logprobs at the same time")
         return self
