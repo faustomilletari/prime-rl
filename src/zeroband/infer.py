@@ -209,7 +209,8 @@ def inference(config: Config):
             generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
             indices = generator.integers(0, len(dataset), problems_per_batch)
         else:
-            indices = list(range(i, min(i + problems_per_batch, len(dataset))))
+            # Use modulo to cycle through the dataset instead of terminating
+            indices = [(i + j) % len(dataset) for j in range(problems_per_batch)]
 
         logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
         problems = dataset.select(indices)
