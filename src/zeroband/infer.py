@@ -76,7 +76,12 @@ def inference(config: Config):
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
     )
     tokenizer = llm.get_tokenizer()
-    sampling_params = SamplingParams(**config.sampling.model_dump())
+
+    # Adjust sampling params based on config
+    sampling_config = config.sampling.model_dump()
+    if not config.enable_logprobs:
+        sampling_config["logprobs"] = None
+    sampling_params = SamplingParams(**sampling_config)
 
     # Setup pipeline parallel communication
     node = setup_comm(config.pp)
@@ -308,6 +313,7 @@ def inference(config: Config):
             ckpt_step,
             target_lengths,
             problems,
+            enable_logprobs=config.sampling.logprobs is not None,
         )
 
         # Save outputs to parquet file
