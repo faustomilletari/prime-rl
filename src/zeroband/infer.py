@@ -164,7 +164,8 @@ def inference(config: Config):
         f"Problems per batch: {batch_size} // {config.sampling.n} = {problems_per_batch} (missing: {batch_size % config.sampling.n})"
     )
 
-    for i in range(0, config.max_samples or len(dataset), batch_size):
+    i = 0
+    while True:
         if config.step_endpoint is not None:
             # We get the step from the endpoint at the start of each batch to know what to work on
             try:
@@ -336,6 +337,8 @@ def inference(config: Config):
         if config.total_step is not None and real_step > config.total_step:
             logger.info(f"Reached total step {config.total_step}, stopping inference")
             break
+
+        i += batch_size
 
     logger.info(f"Inference finished! Generated {total_samples} samples for {total_problems} problems")
 

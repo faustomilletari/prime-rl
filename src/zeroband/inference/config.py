@@ -32,8 +32,6 @@ class Config(BaseConfig):
     # The maximum number of of sequences to decode in parallel (if None, will be computed automatically)
     batch_size: int | Literal["auto"] = "auto"
 
-    max_samples: int | None = None
-
     # The step to start from (if None, will start from 0)
     start_step: int | None = None
 
