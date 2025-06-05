@@ -314,7 +314,8 @@ class ParquetDataset(IterableDataset):
                                 input_logprobs = torch.tensor(batch_data["input_logprobs"][i].as_py())
                                 output_logprobs = torch.tensor(batch_data["output_logprobs"][i].as_py())
                                 # Concatenate and remove the first token (BOS)
-                                logprobs = torch.cat([input_logprobs, output_logprobs], dim=0)[1:]
+                                logprobs = torch.cat([input_logprobs, output_logprobs], dim=0)
+                                assert logprobs.shape == ids.shape, f"logprobs: {logprobs.shape} should be the same as ids: {ids.shape}"
 
                             data = {
                                 "input_ids": ids,
@@ -453,7 +454,8 @@ def collate_fn(samples: list[DatasetOutput], max_seq_len: int, pad_token_id: int
     # Concatenate logprobs if available
     concat_logprobs = None
     if has_logprobs:
-        concat_logprobs = torch.cat(logprobs, dim=0)[: max_seq_len - 1].unsqueeze(0)
+        # we remove the first logprob because it corresponds to the bos token
+        concat_logprobs = torch.cat(logprobs, dim=0)[1:max_seq_len].unsqueeze(0)
 
     return {
         # token level
