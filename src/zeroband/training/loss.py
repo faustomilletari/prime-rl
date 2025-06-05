@@ -33,7 +33,6 @@ def grpo_loss(
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
     advantages = advantages[:, 1:]
-    # original_logprobs = original_logprobs[:, 1:] # no need to do it now
     loss_mask = loss_mask[:, 1:]
 
     # from the logits we drop the last logits because it corresponds to the next token that will be sample but is not here yet
@@ -72,7 +71,6 @@ def grpo_loss_ratio(
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
     advantages = advantages[:, 1:]
-    # original_logprobs = original_logprobs[:, 1:] # no need to do it now
     loss_mask = loss_mask[:, 1:]
 
     # from the logits we drop the last logits because it corresponds to the next token that will be sample but is not here yet
@@ -108,7 +106,6 @@ def grpo_loss_kl_cov(
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
     advantages = advantages[:, 1:]
-    # original_logprobs = original_logprobs[:, 1:] # no need to do it now
     loss_mask = loss_mask[:, 1:]
 
     # from the logits we drop the last logits because it corresponds to the next token that will be sample but is not here yet
