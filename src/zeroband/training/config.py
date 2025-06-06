@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import model_validator
 from pydantic_config import BaseConfig
@@ -54,6 +54,32 @@ class CkptConfig(BaseConfig):
         return self
 
 
+class KlCovConfig(BaseConfig):
+    type: Literal["kl_cov"] = "kl_cov"
+    kl_coef: float = 1.0
+    k_percent: float = 0.2
+
+
+class ClippingConfig(BaseConfig):
+    type: Literal["clip"] = "clip"
+    epsilon_low: float = 0.2
+    epsilon_high: float = 0.2
+    clamp_log_prob_coef: float = 4.0
+
+
+class RatioConfig(BaseConfig):
+    type: Literal["ratio"] = "ratio"
+
+
+LossTypeConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
+
+
+class GRPOLossConfig(BaseConfig):
+    loss: LossTypeConfig = ClippingConfig()
+    kl_coef: float | None = None
+    entropy_loss_coeff: float = 0.001
+
+
 class Config(BaseConfig):
     model_name: str
 
@@ -73,16 +99,9 @@ class Config(BaseConfig):
 
     temperature: float = 0.6  # todo remove this and add this to the data
 
-    grpo_epsilon_low: float = 0.2
-    grpo_epsilon_high: float = 0.2
-    entropy_loss_coeff: float = 0.001
-    clamp_log_prob_coef: float = 4.0
-
     async_level: int = 2  # the amount of rollout checkpoints to keep
 
     collate_mode: CollateMode = "padding"
-
-    kl_coef: float | None = None
 
     start_step: int = 0
     start_total_samples: int | None = None
@@ -95,10 +114,7 @@ class Config(BaseConfig):
     use_infer_model_logprobs: bool = False  # if true, the logprobs will be computed using the same model that was used for inference
     use_vllm_logprobs: bool = False  # if true, use the logprobs from vllm stored in parquet files instead of computing them
 
-    grpo_loss_type: Literal["default", "ratio", "kl_cov"] = "default"
-
-    k_percent: float = 0.2
-    kl_coef_cov: float = 1.0
+    grpo: GRPOLossConfig = GRPOLossConfig()
 
     @model_validator(mode="after")
     def check_liger(self):
