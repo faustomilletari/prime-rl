@@ -10,14 +10,13 @@ reshard_after_forward = true
 ac_ckpt = true
 
 [data]
-seq_length = 8192
+seq_length = 16384
 path = "data_rollout"
 
 [optim]
-warmup_steps = 1
-batch_size = 2048
-total_steps = 10000000000000000000
+batch_size = 1024
 step_per_rollout = 1
+total_steps = 10000000000000000000
 
 [grpo]
 entropy_loss_coeff = 0
