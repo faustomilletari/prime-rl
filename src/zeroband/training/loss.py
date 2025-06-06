@@ -4,10 +4,53 @@ from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
+from zeroband.training.config import ClippingConfig, KlCovConfig, LossTypeConfig, RatioConfig
 
-# beartype here just make sure we have the correct shape
+
 @jaxtyped(typechecker=typechecker)
 def grpo_loss(
+    logits: Float[Tensor, "batch seq vocab"],
+    input_ids: Int[Tensor, "batch seq"],
+    advantages: Float[Tensor, "batch seq"],
+    original_logprobs: Float[Tensor, "batch seq_minus_1"],
+    loss_mask: Int[Tensor, "batch seq"],
+    temperature: float,
+    max_tokens: int,
+    grpo_loss_config: LossTypeConfig,
+) -> tuple[Tensor, Tensor | None]:
+    if isinstance(grpo_loss_config, ClippingConfig):
+        return grpo_loss_clip(
+            logits,
+            input_ids,
+            advantages,
+            original_logprobs,
+            loss_mask,
+            temperature,
+            grpo_loss_config.epsilon_low,
+            grpo_loss_config.epsilon_high,
+            grpo_loss_config.clamp_log_prob_coef,
+            max_tokens,
+        )
+    elif isinstance(grpo_loss_config, RatioConfig):
+        return grpo_loss_ratio(logits, input_ids, advantages, original_logprobs, loss_mask, temperature, max_tokens)
+    elif isinstance(grpo_loss_config, KlCovConfig):
+        return grpo_loss_kl_cov(
+            logits,
+            input_ids,
+            advantages,
+            original_logprobs,
+            loss_mask,
+            temperature,
+            max_tokens,
+            grpo_loss_config.kl_coef,
+            grpo_loss_config.k_percent,
+        )
+    else:
+        raise ValueError(f"Invalid grpo_loss_type: {grpo_loss_config.type}")
+
+
+@jaxtyped(typechecker=typechecker)
+def grpo_loss_clip(
     logits: Float[Tensor, "batch seq vocab"],
     input_ids: Int[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],

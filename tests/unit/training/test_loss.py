@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from zeroband.training.loss import entropy_loss, grpo_loss, grpo_loss_kl_cov, grpo_loss_ratio, kl_penalty
+from zeroband.training.loss import entropy_loss, grpo_loss_clip, grpo_loss_kl_cov, grpo_loss_ratio, kl_penalty
 
 pytestmark = [pytest.mark.gpu]
 
@@ -14,7 +14,7 @@ def test_grpo_loss(dtype):
     loss_mask = torch.ones(10, 10).int().cuda()
     input_ids = torch.randint(0, 10, (10, 10)).cuda()
 
-    loss, clip_ratio = grpo_loss(
+    loss, clip_ratio = grpo_loss_clip(
         logits,
         input_ids,
         advantages,
@@ -106,7 +106,7 @@ def test_grpo_loss_padding(dtype):
         reward = sum_rewards / token_count
         reward_list.append(reward)
 
-        loss, _ = grpo_loss(
+        loss, _ = grpo_loss_clip(
             pad_logits,
             pad_input_ids,
             pad_advantages,

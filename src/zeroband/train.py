@@ -21,7 +21,7 @@ from zeroband.training import envs
 from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_state, save_checkpoint_fsdp_state, save_ckpt_for_rollout
 from zeroband.training.config import Config
 from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
-from zeroband.training.loss import entropy_loss, grpo_loss, grpo_loss_kl_cov, grpo_loss_ratio, kl_penalty, selective_log_softmax
+from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.lr_scheduler import get_scheduler
 from zeroband.training.utils import (
     MetricsAverager,
@@ -131,7 +131,7 @@ def train(config: Config):
 
     apply_fsdp(model, config.train.reshard_after_forward)
 
-    if config.kl_coef is not None:
+    if config.grpo.kl_coef is not None:
         model_reference, _ = get_model_and_tokenizer(config.model_name, config.train.attn_impl)
         apply_fsdp(model_reference, config.train.reshard_after_forward)
 
@@ -166,7 +166,7 @@ def train(config: Config):
     if config.train.torch_compile:
         model = torch.compile(model) if not TYPE_CHECKING else model
 
-        if config.kl_coef is not None:
+        if config.grpo.kl_coef is not None:
             model_reference = torch.compile(model_reference) if not TYPE_CHECKING else model_reference
 
         if config.use_infer_model_logprobs and not config.use_vllm_logprobs:
@@ -174,7 +174,7 @@ def train(config: Config):
 
     tensor_offloaded_repository: dict[int, OffloadedTensor] = {}
 
-    if config.kl_coef is not None:
+    if config.grpo.kl_coef is not None:
         logger.info(f"memory before model reference offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
         tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
         logger.info(f"memory after model reference offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
@@ -220,7 +220,7 @@ def train(config: Config):
 
         # here we want to pre-compute the logprobs with the model before update
         with torch.no_grad():
-            if config.kl_coef is not None:
+            if config.grpo.kl_coef is not None:
                 wake_up_model_from_cpu(model_reference, tensor_offloaded_repository[0])
                 # del tensor_offloaded_repository[0]
 
@@ -269,7 +269,7 @@ def train(config: Config):
                     else:
                         logger.debug(f"Using vllm logprobs from dataset for grad_acc_step {grad_acc_step}")
 
-                    if config.kl_coef is not None:
+                    if config.grpo.kl_coef is not None:
                         logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
                         input_ids = batch["input_ids"].to("cuda")
                         per_token_logps_reference = get_logprobs(model_reference, input_ids, batch["position_ids"], config.temperature)
@@ -277,7 +277,7 @@ def train(config: Config):
 
                 data.append(batch_packed)
 
-            if config.kl_coef is not None:
+            if config.grpo.kl_coef is not None:
                 # if we don't manually reshard the the embed and lm head will conflict with the offloading because they will stay unshard until backward which we never call
                 reshard_module(model_reference)
                 tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
@@ -373,51 +373,25 @@ def train(config: Config):
                 original_logprobs = batch["logprobs"].to("cuda")
 
                 # Loss
-                if config.grpo_loss_type == "default":
-                    pg_loss, clip_ratio = grpo_loss(
-                        logits,
-                        input_ids,
-                        advantages,
-                        original_logprobs,
-                        loss_mask,
-                        config.temperature,
-                        config.grpo_epsilon_low,
-                        config.grpo_epsilon_high,
-                        config.clamp_log_prob_coef,
-                        max_tokens,
-                    )
-                elif config.grpo_loss_type == "ratio":
-                    pg_loss, clip_ratio = grpo_loss_ratio(
-                        logits,
-                        input_ids,
-                        advantages,
-                        original_logprobs,
-                        loss_mask,
-                        config.temperature,
-                        max_tokens,
-                    )
-                elif config.grpo_loss_type == "kl_cov":
-                    pg_loss, clip_ratio = grpo_loss_kl_cov(
-                        logits,
-                        input_ids,
-                        advantages,
-                        original_logprobs,
-                        loss_mask,
-                        config.temperature,
-                        max_tokens,
-                        config.kl_coef_cov,
-                        config.k_percent,
-                    )
-                else:
-                    raise ValueError(f"Invalid grpo_loss_type: {config.grpo_loss_type}")
+
+                pg_loss, clip_ratio = grpo_loss(
+                    logits,
+                    input_ids,
+                    advantages,
+                    original_logprobs,
+                    loss_mask,
+                    config.temperature,
+                    max_tokens,
+                    config.grpo.loss,
+                )
 
                 entropy = entropy_loss(logits, loss_mask, config.temperature, max_tokens)
 
-                loss = pg_loss - config.entropy_loss_coeff * entropy
+                loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
 
-                if config.kl_coef is not None:
+                if config.grpo.kl_coef is not None:
                     kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
-                    kl_scaled = kl * config.kl_coef
+                    kl_scaled = kl * config.grpo.kl_coef
                     metric_averager.update("kl", kl_scaled)
                     loss = loss + kl_scaled
 
