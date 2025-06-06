@@ -3,10 +3,14 @@ dataset = "PrimeIntellect/INTELLECT-2-only-math"
 
 batch_size = 352
 dp = 4
-max_model_len = 8192
+max_model_len = 16384
 clean_output_path = true
 rollout_path = "outputs"
 output_path = "data_rollout"
+
+[sampling]
+temperature = 1.0
+n = 16
 
 [difficulty_filtering]
 solve_rate_field = "solve_rate_qwen_r1_distill_7b"
