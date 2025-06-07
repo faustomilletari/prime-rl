@@ -36,6 +36,7 @@ dependencies = [
     "reasoning-gym @ git+https://github.com/open-thought/reasoning-gym.git",
     "tomli>=2.2.1",
     "prime_code_sandbox @ git+https://github.com/PrimeIntellect-ai/code-sandbox.git",
+    "pydantic[email]>=2.11.5",
 ] 
 
 [project.optional-dependencies]

@@ -27,12 +27,12 @@ from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.toploc import setup_toploc_cache
 from zeroband.utils.monitor import setup_monitor
 from zeroband.inference.utils import (
-    fake_chat_template,
     filter_data_by_prompt_length,
-    generate_target_length_prompts,
     reload_model_weights,
     compute_max_batch_size,
     get_inference_input_output_flops,
+    generate_target_lengths,
+    format_prompts,
 )
 from zeroband.training.mp import EnvWrapper
 from zeroband.utils.logger import get_logger
@@ -78,9 +78,11 @@ def inference(config: Config):
     tokenizer = llm.get_tokenizer()
     sampling_params = SamplingParams(**config.sampling.model_dump())
 
-    # Setup and pipeline parallel hooks
-    node = setup_comm(config=config.pp)
-    setup_hooks(config=config.pp, llm=llm, node=node)
+    # Setup pipeline parallel communication
+    node = setup_comm(config.pp)
+
+    # Setup pipeline parallel hooks
+    setup_hooks(llm, config.pp, node)
 
     # Compute the maximum batch size
     batch_size = config.batch_size
@@ -132,6 +134,7 @@ def inference(config: Config):
     hidden_size = llm.llm_engine.model_executor.driver_worker.model_runner.model.config.hidden_size
     toploc_cache, _ = setup_toploc_cache(
         llm,
+        pipeline_config=config.pp,
         disable=not config.toploc,
         max_seqs=batch_size,
         hidden_size=hidden_size,
@@ -162,7 +165,8 @@ def inference(config: Config):
         f"Problems per batch: {batch_size} // {config.sampling.n} = {problems_per_batch} (missing: {batch_size % config.sampling.n})"
     )
 
-    for i in range(0, config.max_samples or len(dataset), batch_size):
+    dataset_offset = 0
+    while True:
         if config.step_endpoint is not None:
             # We get the step from the endpoint at the start of each batch to know what to work on
             try:
@@ -207,49 +211,26 @@ def inference(config: Config):
             generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
             indices = generator.integers(0, len(dataset), problems_per_batch)
         else:
-            indices = list(range(i, min(i + problems_per_batch, len(dataset))))
+            # Use modulo to cycle through the dataset instead of terminating
+            indices = [(dataset_offset + j) % len(dataset) for j in range(problems_per_batch)]
 
         logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
         problems = dataset.select(indices)
 
-        messages = [[{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}] for item in problems]
-
-        # Assume verification_info is stored as a JSON string in the dataset.
         verification_infos = [json.loads(item["verification_info"]) for item in problems]
         task_types = [item["task_type"] for item in problems]
+        prompts = [item["prompt"] for item in problems]
 
-        len_reward = config.rewards.len_reward
-        length_prompt_additions, target_lengths = generate_target_length_prompts(len_reward, len(problems))
+        target_lengths = generate_target_lengths(config.rewards.len_reward, len(prompts))
         for target_length, verification_info in zip(target_lengths, verification_infos):
             verification_info["target_length"] = target_length
-        if len_reward:
-            if len_reward.length_prompt_location == "system_prompt":
-                messages = [
-                    [
-                        {"role": "system", "content": length_prompt},
-                        {"role": "user", "content": item["prompt"]},
-                        {"role": "assistant", "content": "<think>\n"},
-                    ]
-                    for item, length_prompt in zip(problems, length_prompt_additions)
-                ]
-            else:
-                messages = [
-                    [{"role": "user", "content": item["prompt"] + length_prompt}, {"role": "assistant", "content": "<think>\n"}]
-                    for item, length_prompt in zip(problems, length_prompt_additions)
-                ]
-        else:
-            messages = [[{"role": "user", "content": item["prompt"]}, {"role": "assistant", "content": "<think>\n"}] for item in problems]
 
-        if tokenizer.chat_template:
-            prompts = tokenizer.apply_chat_template(messages, tokenize=False, continue_final_message=True)
-            if config.model_name != "Qwen/QwQ-32B":
-                for i, p in enumerate(prompts):
-                    prompts[i] = p.replace("<｜begin▁of▁sentence｜>", "")
-        else:
-            prompts = fake_chat_template(messages)
+        formatted_prompts = format_prompts(
+            prompts, target_lengths, config.rewards.len_reward, tokenizer=tokenizer, enable_thinking=config.enable_thinking
+        )
 
         start_time = time.time()
-        request_outputs = llm.generate(prompts, sampling_params, use_tqdm=False)
+        request_outputs = llm.generate(formatted_prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
 
         # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
@@ -314,10 +295,16 @@ def inference(config: Config):
         request_rewards = compute_vllm_rewards(request_outputs, verification_infos, task_types, config.rewards)
         logger.info(f"Computed rewards and advantages in {time.time() - start:.2f}s")
 
+        batch_rewards = sum(sum(r.reward for r in req.rewards) for req in request_rewards) / batch_samples
+
+        monitor.log({"rewards/batch_rewards": batch_rewards})
+        logger.info(f"Average reward of the batch: {batch_rewards}")
+
         # Get parquet table
         table = get_parquet_table(
             request_outputs,
             request_rewards,
+            prompts,
             proofs,
             ckpt_step,
             target_lengths,
@@ -333,11 +320,10 @@ def inference(config: Config):
         # Log file metadata
         sha256 = sha256sum(save_path)
         flop_counts = [
-            get_inference_input_output_flops(
-                config.model_name, len(req.prompt_token_ids), sum(len(output.token_ids) for output in req.outputs)
-            )
-            for req in request_outputs
+            get_inference_input_output_flops(config.model_name, len(input_tokens), len(output_tokens))
+            for input_tokens, output_tokens in zip(table.column("input_tokens").to_pylist(), table.column("output_tokens").to_pylist())
         ]
+
         monitor.log(
             {
                 "output/save_path": save_path.as_posix(),
@@ -352,6 +338,8 @@ def inference(config: Config):
         if config.total_step is not None and real_step > config.total_step:
             logger.info(f"Reached total step {config.total_step}, stopping inference")
             break
+
+        dataset_offset += batch_size
 
     logger.info(f"Inference finished! Generated {total_samples} samples for {total_problems} problems")
 

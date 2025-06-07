@@ -9,6 +9,16 @@ from vllm import LLM
 from vllm.model_executor import SamplingMetadata
 from vllm.model_executor.layers.logits_processor import _prune_hidden_states
 
+from zeroband.inference.pipeline import PipelineConfig
+
+
+class ArgsIdentity(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, *args):
+        return args
+
 
 class TopLocCache:
     """A cache implementation for managing sequence data and generating proofs.
@@ -174,7 +184,9 @@ def toploc_cache_hook(_, inputs: tuple, toploc_cache: TopLocCache):
     toploc_cache.add(seq_ids, hidden_states)
 
 
-def setup_toploc_cache(llm: LLM, disable: bool = False, **toploc_kwargs) -> tuple[TopLocCache, RemovableHandle | None]:
+def setup_toploc_cache(
+    llm: LLM, pipeline_config: PipelineConfig, disable: bool = False, **toploc_kwargs
+) -> tuple[TopLocCache, RemovableHandle | None]:
     """Initializes the TOPLOC cache and register a hook to dynamically populate the cache during inference"""
     # Initialize the cache
     toploc_cache = TopLocCache(disable=disable, **toploc_kwargs)
@@ -184,5 +196,8 @@ def setup_toploc_cache(llm: LLM, disable: bool = False, **toploc_kwargs) -> tupl
     handle: RemovableHandle | None = None
     if not disable:
         handle = logits_processor.register_forward_pre_hook(partial(toploc_cache_hook, toploc_cache=toploc_cache))
+
+    if pipeline_config.is_enabled and pipeline_config.rank < pipeline_config.world_size - 1:
+        llm.llm_engine.model_executor.driver_worker.model_runner.model.model.norm = ArgsIdentity()
 
     return toploc_cache, handle

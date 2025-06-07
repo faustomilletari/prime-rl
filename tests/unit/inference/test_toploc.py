@@ -3,6 +3,7 @@ import torch
 from toploc import verify_proofs_bytes
 from vllm import SamplingParams, TokensPrompt
 
+from zeroband.inference.pipeline import PipelineConfig
 from zeroband.inference.toploc import TopLocCache, setup_toploc_cache
 
 BYTES_PER_PROOF = 258
@@ -93,14 +94,16 @@ def test_toploc_with_hook(llm, max_seqs: int, num_output_tokens: int):
     model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     hidden_size = model.config.hidden_size
     max_len = 32
-    toploc_cache, hook_handle = setup_toploc_cache(llm, max_seqs=max_seqs, hidden_size=hidden_size, max_len=max_len)
+    toploc_cache, hook_handle = setup_toploc_cache(
+        llm, pipeline_config=PipelineConfig(world_size=1), max_seqs=max_seqs, hidden_size=hidden_size, max_len=max_len
+    )
     assert toploc_cache.disable is False
     assert toploc_cache.proofs == {}
 
     # Generate sequences
     prompts = ["My name is"] * max_seqs
     sampling_params = SamplingParams(min_tokens=num_output_tokens, max_tokens=num_output_tokens, seed=69, temperature=0.0)
-    generations = llm.generate(prompts, sampling_params=sampling_params)
+    generations = llm.generate(prompts, sampling_params=sampling_params, use_tqdm=False)
 
     # Generate proofs for all sequences
     toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
@@ -127,7 +130,7 @@ def test_toploc_with_hook(llm, max_seqs: int, num_output_tokens: int):
         output_tokens = list(generation.outputs[0].token_ids)
 
         token_input = TokensPrompt(prompt_token_ids=prompt_tokens + output_tokens)
-        llm.generate(token_input, sampling_params=SamplingParams(max_tokens=1))
+        llm.generate(token_input, sampling_params=SamplingParams(max_tokens=1), use_tqdm=False)
 
         # Only grab non-prompt tokens (exclude BOS)
         decode_activations = torch.concat(full_activations, dim=0)[len(prompt_tokens) :]
