@@ -4,6 +4,8 @@ project = "math-ablation"
 collate_mode = "packing"
 logprob_mode = "infer_model"
 
+normalize_batch_to_token_count = true
+
 [train]
 micro_bs = 2
 reshard_after_forward = true
