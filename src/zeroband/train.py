@@ -23,6 +23,7 @@ from zeroband.training.config import Config
 from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
 from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.lr_scheduler import get_scheduler
+from zeroband.training.optimizer import setup_optimizer
 from zeroband.training.utils import (
     MetricsAverager,
     OffloadedTensor,
@@ -139,12 +140,7 @@ def train(config: Config):
         model_for_logprob_only, _ = get_model_and_tokenizer(config.model_name, config.train.attn_impl)
         apply_fsdp(model_for_logprob_only, config.train.reshard_after_forward)
 
-    optimizer = torch.optim.AdamW(
-        params=model.parameters(),
-        lr=config.optim.optim.lr,
-        weight_decay=config.optim.optim.weight_decay,
-        betas=(config.optim.optim.betas1, config.optim.optim.betas2),
-    )
+    optimizer = setup_optimizer(config.optim.optim, model)
 
     scheduler = get_scheduler(
         sched_type=config.optim.sched_type,

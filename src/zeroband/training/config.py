@@ -11,13 +11,24 @@ from zeroband.utils.monitor import MultiMonitorConfig
 class AdamConfig(BaseConfig):
     type: Literal["adam"] = "adam"
     lr: float = 4e-4
-    weight_decay: float = 0.01
+    wd: float = 0.01
     betas1: float = 0.9
     betas2: float = 0.99
 
 
+class MuonConfig(BaseConfig):
+    type: Literal["muon"] = "muon"
+    lr: float = 2e-2
+    wd: float = 0.01
+    momentum: float = 0.95
+    ns_steps: int = 5
+
+
+OptimizerConfig: TypeAlias = AdamConfig | MuonConfig
+
+
 class OptimConfig(BaseConfig):
-    optim: AdamConfig = AdamConfig()
+    optim: OptimizerConfig = AdamConfig()
     sched_type: Literal["cosine", "linear", "wsd-sqrt"] = "linear"
     warmup_steps: int = 1000
     stable_steps: int = 80_000
