@@ -1,13 +1,11 @@
-import time
 import json
 import random
 from pathlib import Path
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pandas as pd
 
-import random
 random.seed(42)  # For reproducibility
 
 # USAGE:
@@ -159,11 +157,6 @@ def get_unified_schema(verifiable_dir, generated_tests_dir):
     test_files = list(Path(generated_tests_dir).glob("test_cases_*.parquet"))
     test_files += list(Path(generated_tests_dir).glob("train-*.parquet"))
     assert len(test_files) > 0, f"No test files found in {generated_tests_dir}"
-    if test_files:
-        test_file = test_files[0]
-        # Read with pyarrow to get just first few rows
-        test_parquet = pq.ParquetFile(test_file)
-        test_batch = next(test_parquet.iter_batches(batch_size=1))
     
     # Unify all schemas (now they should be compatible)
     unified_schema = pa.unify_schemas(schemas)

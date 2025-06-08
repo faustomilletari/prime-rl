@@ -1,11 +1,11 @@
 from prime_code_sandbox import (
-    make_sandbox_request_batch,
+    CodeRunArgs,
     CodeSandbox,
     SandboxRequest,
-    CodeRunArgs,
-    SandboxResponse,
     SandboxRequestBatch,
+    SandboxResponse,
     SandboxResponseBatch,
+    make_sandbox_request_batch,
 )
 
 
@@ -13,13 +13,12 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
     language = verification_info["language"]
     input_mode = verification_info["input_mode"]
     time_limit = verification_info["time_limit"]
-    memory_limit = verification_info["memory_limit"]
+    #memory_limit = verification_info["memory_limit"] # TODO: Implement memory limit in code sandbox
     tests = verification_info["tests"]
 
     local_sandbox = CodeSandbox()
 
-    # TODO: Implement memory limit in code sandbox
-    assert input_mode == "stdio", "Only 'stdio' input mode is supported in this example."
+    assert input_mode == "stdio", "Only 'stdio' input mode is supported." # TODO: Implement file input mode
 
     def create_request(code: str, test: dict) -> SandboxRequest:
         return SandboxRequest(
@@ -43,7 +42,7 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
         # TODO: Better error handling
         try:
             return response.result.run_result.stdout.strip() == test["output"].strip()
-        except Exception as e:
+        except Exception:
             return False
 
     scores: list[bool] = [
