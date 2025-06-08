@@ -23,7 +23,7 @@ def test_grpo_loss(dtype):
         temperature=0.6,
         epsilon_low=0.2,
         epsilon_high=0.2,
-        clamp_log_prob_coef=10.0,
+        clip_ratio=10.0,
         max_tokens=100,
     )
     assert loss.shape == ()
@@ -48,6 +48,7 @@ def test_grpo_loss_ratio(dtype):
         loss_mask,
         temperature=0.6,
         max_tokens=100,
+        clip_ratio=10.0,
     )
 
 
@@ -115,7 +116,7 @@ def test_grpo_loss_padding(dtype):
             temperature=0.6,
             epsilon_low=0.2,
             epsilon_high=0.2,
-            clamp_log_prob_coef=10.0,
+            clip_ratio=10.0,
             max_tokens=100,
         )
         loss_list.append(loss)

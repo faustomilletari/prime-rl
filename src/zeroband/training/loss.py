@@ -28,11 +28,21 @@ def grpo_loss(
             temperature,
             grpo_loss_config.epsilon_low,
             grpo_loss_config.epsilon_high,
-            grpo_loss_config.clamp_log_prob_coef,
+            grpo_loss_config.clip_ratio,
             max_tokens,
         )
     elif isinstance(grpo_loss_config, RatioConfig):
-        return grpo_loss_ratio(logits, input_ids, advantages, original_logprobs, loss_mask, temperature, max_tokens)
+        return grpo_loss_ratio(
+            logits,
+            input_ids,
+            advantages,
+            original_logprobs,
+            loss_mask,
+            temperature,
+            max_tokens,
+            grpo_loss_config.clip_ratio,
+        )
+
     elif isinstance(grpo_loss_config, KlCovConfig):
         return grpo_loss_kl_cov(
             logits,
@@ -59,7 +69,7 @@ def grpo_loss_clip(
     temperature: float,
     epsilon_low: float,
     epsilon_high: float,
-    clamp_log_prob_coef: float,
+    clip_ratio: float,
     max_tokens: int,
 ) -> tuple[Tensor, Tensor]:
     """
@@ -86,7 +96,7 @@ def grpo_loss_clip(
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
 
-    coef_1 = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clamp_log_prob_coef)
+    coef_1 = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
 
     coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
     per_token_loss1 = -coef_1 * advantages
@@ -110,6 +120,7 @@ def grpo_loss_ratio(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     max_tokens: int,
+    clip_ratio: float,
 ) -> tuple[Tensor, Tensor | None]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
@@ -124,7 +135,7 @@ def grpo_loss_ratio(
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
 
-    ratio = torch.exp(per_token_logps - original_logprobs)
+    ratio = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
 
     per_token_loss = -ratio * advantages
 

@@ -64,11 +64,12 @@ class ClippingConfig(BaseConfig):
     type: Literal["clip"] = "clip"
     epsilon_low: float = 0.2
     epsilon_high: float = 0.2
-    clamp_log_prob_coef: float = 4.0
+    clip_ratio: float = 4.0
 
 
 class RatioConfig(BaseConfig):
     type: Literal["ratio"] = "ratio"
+    clip_ratio: float = 8.0
 
 
 LossTypeConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
