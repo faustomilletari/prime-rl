@@ -30,9 +30,10 @@ def grpo_loss(
             grpo_loss_config.epsilon_high,
             grpo_loss_config.clamp_log_prob_coef,
             max_tokens,
+            grpo_loss_config.highest_entropy_ratio_loss,
         )
     elif isinstance(grpo_loss_config, RatioConfig):
-        return grpo_loss_ratio(logits, input_ids, advantages, original_logprobs, loss_mask, temperature, max_tokens)
+        return grpo_loss_ratio(logits, input_ids, advantages, original_logprobs, loss_mask, temperature, max_tokens, grpo_loss_config.highest_entropy_ratio_loss)
     elif isinstance(grpo_loss_config, KlCovConfig):
         return grpo_loss_kl_cov(
             logits,
@@ -44,6 +45,7 @@ def grpo_loss(
             max_tokens,
             grpo_loss_config.kl_coef,
             grpo_loss_config.k_percent,
+            grpo_loss_config.highest_entropy_ratio_loss
         )
     else:
         raise ValueError(f"Invalid grpo_loss_type: {grpo_loss_config.type}")
@@ -61,6 +63,7 @@ def grpo_loss_clip(
     epsilon_high: float,
     clamp_log_prob_coef: float,
     max_tokens: int,
+    highest_entropy_percentage: float
 ) -> tuple[Tensor, Tensor]:
     """
     DeepSeek Math Loss: https://arxiv.org/abs/2402.03300
@@ -93,10 +96,14 @@ def grpo_loss_clip(
     per_token_loss2 = -coef_2 * advantages
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
-    loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
-
     is_clipped = (per_token_loss1 < per_token_loss2).float()
     clip_ratio = _apply_mask(is_clipped, loss_mask, max_tokens)
+    
+    if highest_entropy_percentage < 1.0:
+        loss_mask = highest_entropy_mask(logits, loss_mask, highest_entropy_percentage)
+    
+    loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
+
     return loss, clip_ratio
 
 
@@ -110,6 +117,7 @@ def grpo_loss_ratio(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     max_tokens: int,
+    highest_entropy_percentage: float
 ) -> tuple[Tensor, Tensor | None]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
@@ -127,6 +135,9 @@ def grpo_loss_ratio(
     ratio = torch.exp(per_token_logps - original_logprobs)
 
     per_token_loss = -ratio * advantages
+    
+    if highest_entropy_percentage < 1.0:
+        loss_mask = highest_entropy_mask(logits, loss_mask, highest_entropy_percentage)
 
     loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
 
@@ -145,6 +156,7 @@ def grpo_loss_kl_cov(
     max_tokens: int,
     kl_coef_cov: float,
     k_percent: float,
+    highest_entropy_percentage: float
 ) -> tuple[Tensor, Tensor | None]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
@@ -190,6 +202,9 @@ def grpo_loss_kl_cov(
             pg_losses[large_cov_idxs // advantages.shape[1], large_cov_idxs % advantages.shape[1]] = pg_losses_kl[
                 large_cov_idxs // advantages.shape[1], large_cov_idxs % advantages.shape[1]
             ]
+            
+    if highest_entropy_percentage < 1.0:
+        loss_mask = highest_entropy_mask(logits, loss_mask, highest_entropy_percentage)
 
     pg_loss = _apply_mask(pg_losses, loss_mask, max_tokens)
 
@@ -284,3 +299,36 @@ def kl_penalty(
 
 def _apply_mask(tensor: torch.Tensor, mask: torch.Tensor, max_tokens: int) -> torch.Tensor:
     return (tensor * mask).sum() / max_tokens
+
+
+@jaxtyped(typechecker=typechecker)
+def highest_entropy_mask(
+    logits: Float[Tensor, "batch seq vocab"],
+    loss_mask: Int[Tensor, "batch seq"],
+    percent: float,
+) -> Tensor:
+    """
+    Returns a mask (batch, seq) where the top `percent` of masked tokens (loss_mask==1)
+    with the highest entropy are 1, others 0.
+    Args:
+        logits: Tensor of shape (batch, seq, vocab)
+        loss_mask: Tensor of shape (batch, seq), 1 for valid tokens, 0 for padding
+        percent: float in (0, 1), e.g., 0.2 for top 20%
+        temperature: float, temperature for softmax (default 1.0)
+    Returns:
+        mask: Tensor of shape (batch, seq), dtype=torch.bool
+    """
+    pd = torch.nn.functional.softmax(logits, dim=-1)
+    entropy = torch.logsumexp(logits, dim=-1) - torch.sum(pd * logits, dim=-1)  # (batch, seq)
+
+    valid_entropy = entropy[loss_mask.bool()]
+    k = int(percent * valid_entropy.numel())
+    if k < 1:
+        k = 1
+    if k == valid_entropy.numel():
+        threshold = valid_entropy.min() - 1  # all True
+    else:
+        threshold = torch.kthvalue(valid_entropy, valid_entropy.numel() - k + 1).values
+
+    mask = (entropy >= threshold) & (loss_mask.bool())
+    return mask

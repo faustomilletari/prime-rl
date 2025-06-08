@@ -54,24 +54,28 @@ class CkptConfig(BaseConfig):
         return self
 
 
-class KlCovConfig(BaseConfig):
+class BaseLossConfig(BaseConfig):
+    highest_entropy_ratio_loss: float = 1.0
+
+
+class KlCovConfig(BaseLossConfig):
     type: Literal["kl_cov"] = "kl_cov"
     kl_coef: float = 1.0
     k_percent: float = 0.2
 
 
-class ClippingConfig(BaseConfig):
+class ClippingConfig(BaseLossConfig):
     type: Literal["clip"] = "clip"
     epsilon_low: float = 0.2
     epsilon_high: float = 0.2
     clamp_log_prob_coef: float = 4.0
 
 
-class RatioConfig(BaseConfig):
+class RatioConfig(BaseLossConfig):
     type: Literal["ratio"] = "ratio"
 
 
-LossTypeConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
+LossTypeConfig: TypeAlias = BaseLossConfig
 
 
 class GRPOLossConfig(BaseConfig):
