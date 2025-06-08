@@ -26,7 +26,7 @@ def setup_optimizer(config: OptimizerConfig, model: ModelType) -> torch.optim.Op
                 rest_params.append(p)
 
         adam_groups = [
-            dict(params=rest_params, lr=5e-6, use_muon=False, betas=(0.8, 0.95), eps=1e-10),
+            dict(params=rest_params, lr=1e-6, use_muon=False, betas=(0.8, 0.95), eps=1e-10),
         ]
 
         # Muon parameter group
