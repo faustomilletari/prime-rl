@@ -1493,14 +1493,14 @@ wheels = [
 
 [[package]]
 name = "muon-fsdp2"
-version = "0.2.0"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/17/aa/3bb3058cfd4b45c0abe87451a3fb9edc155e1c0683dd2a4fbb1ba1e057e4/muon_fsdp2-0.2.0.tar.gz", hash = "sha256:d0cc272cfbd67eb48ceea9333fc442c5b1478f2eec3acb42bd45173918d3c282", size = 5656, upload-time = "2025-06-06T21:57:48.503Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/32/b89f66c3759b3c28be3cd2698b0db661c0af64bac76618f9b0b2f5f85a07/muon_fsdp2-0.2.1.tar.gz", hash = "sha256:6821696462aa828b0db2e26db6891fedcac383b017b774fe429c3d33e5855ea8", size = 10687, upload-time = "2025-06-08T01:45:09.34Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/22/ca/45fb17d55abb90dbf9e206958d10145c85abb8adb7b06470c40e99e38c7b/muon_fsdp2-0.2.0-py3-none-any.whl", hash = "sha256:0b8cfc5ab880cd5e916cba6370e0771c3f33ac6711c5259b4443e7b3846414f8", size = 5745, upload-time = "2025-06-06T21:57:46.9Z" },
+    { url = "https://files.pythonhosted.org/packages/71/5b/626d84091225d15353195d147594d0c40ff611876ee29a81475ca9d98b87/muon_fsdp2-0.2.1-py3-none-any.whl", hash = "sha256:d2d2ff79631023c926f5d69511f2c9136bff97361602110c6c1b5c4cddca6e67", size = 11099, upload-time = "2025-06-08T01:45:08.023Z" },
 ]
 
 [[package]]
@@ -3513,7 +3513,7 @@ requires-dist = [
     { name = "jaxtyping" },
     { name = "liger-kernel" },
     { name = "llmcompressor" },
-    { name = "muon-fsdp2" },
+    { name = "muon-fsdp2", specifier = ">=0.2.1" },
     { name = "ninja" },
     { name = "numpy" },
     { name = "prime-iroh", specifier = ">=0.3.0" },
