@@ -112,7 +112,7 @@ class Config(BaseConfig):
 
     normalize_batch_to_token_count: bool = False
 
-    logprob_mode: Literal["recompute_infer_logprobs", "vllm"] = "recompute_infer_logprobs"
+    recompute_logprobs: bool = False
 
     grpo: GRPOLossConfig = GRPOLossConfig()
 
