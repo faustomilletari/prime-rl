@@ -1,6 +1,6 @@
-from typing import Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias, Union
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_config import BaseConfig
 
 from zeroband.training.data import CollateMode, DataConfig
@@ -75,7 +75,7 @@ class RatioConfig(BaseLossConfig):
     type: Literal["ratio"] = "ratio"
 
 
-LossTypeConfig: TypeAlias = BaseLossConfig
+LossTypeConfig: TypeAlias = Annotated[Union[ClippingConfig, KlCovConfig, RatioConfig], Field(discriminator="type")]
 
 
 class GRPOLossConfig(BaseConfig):
