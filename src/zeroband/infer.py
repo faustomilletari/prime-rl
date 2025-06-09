@@ -80,7 +80,6 @@ def inference(config: Config):
     # Adjust sampling params based on config
     sampling_config = config.sampling.model_dump()
 
-    sampling_config["logprobs"] = 0
     sampling_params = SamplingParams(**sampling_config)
 
     # Setup pipeline parallel communication

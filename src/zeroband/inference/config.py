@@ -16,6 +16,7 @@ class SamplingParamConfig(BaseConfig):
     n: int = 8
     top_k: int = -1
     seed: int | None = None
+    logprobs: int | None = 0  # put to None to disable logprobs calculation
 
 
 class DifficultyFilteringConfig(BaseConfig):
@@ -48,9 +49,6 @@ class Config(BaseConfig):
 
     # Whether to enable thinking for the model. Used by the `format_prompts` function to prepend a thinking prompt
     enable_thinking: bool = True
-
-    # Whether to calculate and save logprobs in the output
-    enable_logprobs: bool = False
 
     enforce_eager: bool = False
     max_model_len: int | None = None
