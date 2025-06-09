@@ -380,7 +380,7 @@ def train(config: Config):
                     loss_mask,
                     config.temperature,
                     max_tokens,
-                    config.grpo.loss,
+                    config.grpo.off_policy,
                 )
 
                 entropy = entropy_loss(logits, loss_mask, config.temperature, max_tokens)

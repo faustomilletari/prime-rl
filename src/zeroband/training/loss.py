@@ -4,7 +4,7 @@ from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
-from zeroband.training.config import ClippingConfig, KlCovConfig, LossTypeConfig, RatioConfig
+from zeroband.training.config import ClippingConfig, GRPOVariantsConfig, KlCovConfig, RatioConfig
 
 
 @jaxtyped(typechecker=typechecker)
@@ -16,7 +16,7 @@ def grpo_loss(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     max_tokens: int,
-    grpo_loss_config: LossTypeConfig,
+    grpo_loss_config: GRPOVariantsConfig,
 ) -> tuple[Tensor, Tensor | None]:
     if isinstance(grpo_loss_config, ClippingConfig):
         return grpo_loss_clip(

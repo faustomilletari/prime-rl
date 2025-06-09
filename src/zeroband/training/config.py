@@ -72,11 +72,11 @@ class RatioConfig(BaseConfig):
     clip_ratio: float = 8.0
 
 
-LossTypeConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
+GRPOVariantsConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
 
 
 class GRPOLossConfig(BaseConfig):
-    loss: LossTypeConfig = ClippingConfig()
+    off_policy: GRPOVariantsConfig = ClippingConfig()
     kl_coef: float | None = None
     entropy_loss_coeff: float = 0.001
 
