@@ -8,7 +8,18 @@ from zeroband.utils.parquet import pa_schema
 
 
 def extract_logprobs(sample_logprobs: SampleLogprobs | None) -> list[float] | None:
-    """Extract logprobs from vllm output. Returns None if logprobs are not available."""
+    """Extract logprobs from vllm output at the sequence level.
+
+    Takes logprobs for an entire sequence and extracts only the top logprob for each token.
+
+    Args:
+        sample_logprobs: Logprobs for the entire sequence from vllm. Each element is a dict
+                        mapping token_id to logprob info, with only the top token per position.
+
+    Returns:
+        List of floats representing the top logprob for each token in the sequence,
+        or None if logprobs are not available.
+    """
     if sample_logprobs is None:
         return None
 
