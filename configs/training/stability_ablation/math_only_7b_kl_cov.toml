@@ -23,7 +23,7 @@ step_per_rollout = 1
 [grpo]
 entropy_loss_coeff = 0
 
-[grpo.loss]
+[grpo.off_policy]
 type = "kl_cov"
 
 [optim.optim]
