@@ -18,7 +18,7 @@ import torch.distributed as dist
 from datasets import load_dataset
 from pydantic_config import parse_argv
 from toploc.utils import sha256sum
-from vllm import LLM, SamplingParams
+from vllm import LLM, SamplingParams, TokensPrompt
 
 from zeroband.inference.config import Config
 from zeroband.inference.parquet import get_parquet_table
@@ -228,12 +228,16 @@ def inference(config: Config):
         for target_length, verification_info in zip(target_lengths, verification_infos):
             verification_info["target_length"] = target_length
 
-        formatted_prompts = format_prompts(
-            prompts, target_lengths, config.rewards.len_reward, tokenizer=tokenizer, enable_thinking=config.enable_thinking
+        # Get tokenized prompts as BatchEncoding
+        tokenized_prompts = format_prompts(
+            prompts, target_lengths, config.rewards.len_reward, tokenizer=tokenizer, enable_thinking=config.enable_thinking, tokenize=True
         )
 
+        # Convert BatchEncoding to TokensPrompt objects
+        token_prompts = [TokensPrompt(prompt_token_ids=input_ids) for input_ids in tokenized_prompts]
+
         start_time = time.time()
-        request_outputs = llm.generate(formatted_prompts, sampling_params, use_tqdm=False)
+        request_outputs = llm.generate(token_prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
 
         # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
