@@ -7,7 +7,7 @@ logprob_mode = "infer_model"
 normalize_batch_to_token_count = true
 
 [train]
-micro_bs = 2
+micro_bs = 1
 reshard_after_forward = true
 ac_ckpt = true
 
