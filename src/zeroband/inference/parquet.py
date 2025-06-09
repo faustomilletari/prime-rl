@@ -51,7 +51,7 @@ def get_parquet_table(
 
             # Extract logprobs if enabled and available
             output_logprobs = extract_logprobs(output.logprobs) if enable_logprobs else None
-            # For input logprobs, we typically don't have them from vllm, so set to None or zeros
+            # For input logprobs, we don't need them for training as the input logprobs are masked, so set to None or zeros
             input_logprobs = [0.0] * len(request_output.prompt_token_ids) if output_logprobs is not None else None
 
             records.append(
