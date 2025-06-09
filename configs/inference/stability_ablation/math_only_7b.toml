@@ -1,7 +1,7 @@
 model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
 dataset = "PrimeIntellect/INTELLECT-2-only-math"
 
-batch_size = 352
+batch_size = 172
 dp = 6
 max_model_len = 16384
 clean_output_path = true
