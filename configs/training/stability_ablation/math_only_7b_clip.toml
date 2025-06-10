@@ -7,16 +7,16 @@ recompute_logprobs = true
 normalize_batch_to_token_count = true
 
 [train]
-micro_bs = 1
+micro_bs = 2 # 1 for h100
 reshard_after_forward = true
 ac_ckpt = true
 
 [data]
-seq_length = 16384
+seq_length = 8192
 path = "data_rollout"
 
 [optim]
-batch_size = 1024
+batch_size = 2048
 total_steps = 10000000000000000000
 step_per_rollout = 1
 
