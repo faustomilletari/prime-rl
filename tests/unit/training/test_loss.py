@@ -25,6 +25,7 @@ def test_grpo_loss(dtype):
         epsilon_high=0.2,
         clip_ratio=10.0,
         max_tokens=100,
+        highest_entropy_percentage=1.0,
     )
     assert loss.shape == ()
     assert loss.item() is not None
@@ -49,6 +50,7 @@ def test_grpo_loss_ratio(dtype):
         temperature=0.6,
         max_tokens=100,
         clip_ratio=10.0,
+        highest_entropy_percentage=1.0,
     )
 
 
@@ -69,6 +71,7 @@ def test_grpo_loss_kl_cov_loss():
         kl_coef_cov=1.0,
         k_percent=0.2,
         max_tokens=100,
+        highest_entropy_percentage=1.0,
     )
 
 
