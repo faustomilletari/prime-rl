@@ -194,7 +194,7 @@ def _compute_request_rewards(
         advantage_array = reward_array - reward_array.mean()
 
     elif config.advantage_estimation_method == "grpo":
-        advantage_array = reward_array - reward_array.mean()
+        advantage_array = reward_array - reward_array.mean() / (reward_array.std(ddof=1) + 1e-6)
 
     else:
         raise ValueError(f"{config.advantage_estimation_method} is not supported for advantage estimation")
