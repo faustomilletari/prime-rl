@@ -37,6 +37,7 @@ class LenRewardsConfig(BaseConfig):
 
 class RewardsConfig(BaseConfig):
     len_reward: LenRewardsConfig | None = None
+    advantage_estimation_method: Literal["grpo", "dr_grpo"] = "dr_grpo"  # can also add stuff like opo here
 
 
 class ModelCompletion(BaseModel):
@@ -188,7 +189,16 @@ def _compute_request_rewards(
 
     # Compute advantage (normalized rewards)
     reward_array = np.array([reward.reward for reward in completion_rewards], dtype=np.float32)
-    advantage_array = (reward_array - reward_array.mean()) / (reward_array.std(ddof=1) + 1e-6)
+
+    if config.advantage_estimation_method == "dr_grpo":
+        advantage_array = reward_array - reward_array.mean()
+
+    elif config.advantage_estimation_method == "grpo":
+        advantage_array = reward_array - reward_array.mean()
+
+    else:
+        raise ValueError(f"{config.advantage_estimation_method} is not supported for advantage estimation")
+
     for completion_reward, advantage in zip(completion_rewards, advantage_array):
         completion_reward.advantage = float(advantage)
 
