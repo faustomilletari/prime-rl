@@ -37,7 +37,7 @@ class LenRewardsConfig(BaseConfig):
 
 class RewardsConfig(BaseConfig):
     len_reward: LenRewardsConfig | None = None
-    advantage_estimation_method: Literal["grpo", "dr_grpo"] = "dr_grpo"  # can also add stuff like opo here
+    advantage_estimation_method: Literal["grpo", "dr_grpo"] = "grpo"  # can also add stuff like opo here
 
 
 class ModelCompletion(BaseModel):
