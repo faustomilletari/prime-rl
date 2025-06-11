@@ -1,5 +1,4 @@
 import pyarrow as pa
-from datasets import Dataset
 from vllm import RequestOutput
 from vllm.sequence import SampleLogprobs
 
@@ -40,43 +39,42 @@ def get_parquet_table(
     prompts: list[str],
     proofs: list[bytes],
     step: int,
-    problems: Dataset,
-    enable_logprobs: bool,
+    # problems: Dataset,
+    # enable_logprobs: bool,
 ) -> pa.Table:
     # Iterator over proofs
     proof_iter = iter(proofs)
 
     # Create flattened list of records for PyArrow table
     records = []
-    for request_output, request_rewards, prompt, target_length, problem in zip(
+    for request_output, request_rewards, prompt in zip(
         request_outputs,
         request_rewards,
         prompts,
-        target_lengths,
-        problems,
+        # problems,
     ):
         assert request_output.request_id == request_rewards.request_id
         for output, reward in zip(request_output.outputs, request_rewards.rewards):
             assert output.index == reward.completion_id
 
             # Extract logprobs if enabled and available
-            output_logprobs = extract_logprobs(output.logprobs) if enable_logprobs else None
+            # output_logprobs = extract_logprobs(output.logprobs) if enable_logprobs else None
             # For input logprobs, we don't need them for training as the input logprobs are masked, so set to None or zeros
-            input_logprobs = [0.0] * len(request_output.prompt_token_ids) if output_logprobs is not None else None
+            # input_logprobs = [0.0] * len(request_output.prompt_token_ids) if output_logprobs is not None else None
 
             records.append(
                 {
-                    "problem_id": str(problem.get("problem_id", request_output.request_id)),
+                    # "problem_id": str(problem.get("problem_id", request_output.request_id)),
                     "input_tokens": request_output.prompt_token_ids,
                     "output_tokens": output.token_ids,
-                    "input_logprobs": input_logprobs,
-                    "output_logprobs": output_logprobs,
+                    # "input_logprobs": input_logprobs,
+                    # "output_logprobs": output_logprobs,
                     "prompt": prompt,
                     "completion": output.text,
                     "advantages": reward.advantage,
                     "rewards": reward.reward,
                     "task_rewards": reward.task_reward,
-                    "length_penalties": reward.length_penalty,
+                    # "length_penalties": reward.length_penalty,
                     "proofs": next(proof_iter) if len(output.token_ids) > 1 else b"",
                     "step": step,
                     "task_type": request_rewards.task_type,

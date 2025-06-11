@@ -14,13 +14,12 @@ import pyarrow.parquet as pq
 import requests
 import torch
 import torch.distributed as dist
-import verifiers as vf
-from datasets import load_dataset
 from pydantic_config import parse_argv
 from toploc.utils import sha256sum
 from vllm import LLM
 from openai import OpenAI
 
+from zeroband.environments.registry import get_environment
 from zeroband.inference.config import Config
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
@@ -122,47 +121,7 @@ def inference(config: Config):
         raise ValueError(f"Sampling.n ({config.sampling.n}) must be less than or equal to batch_size ({batch_size})")
 
     # Initialize environment
-    train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
-        lambda x: {"question": x["text"], "answer": x["text"][::-1]}
-    )
-    parser = vf.XMLParser(["think", "answer"], answer_field="answer")
-    system_prompt = f"""Reverse the given text.
-
-    Respond in the following format:
-    {parser.get_format_str()}"""
-
-    def lcs_reward_func(completion, answer, **kwargs) -> float:
-        """
-        LCS ratio of the reversed prompt and the parsed completion.
-        """
-
-        def lcs_ratio(x: str, y: str) -> float:
-            """
-            Return the longest common subsequence ratio of x and y.
-            """
-            from difflib import SequenceMatcher
-
-            return SequenceMatcher(None, x, y).ratio()
-
-        response = parser.parse_answer(completion) or ""
-        return lcs_ratio(response, answer)
-
-    rubric = vf.Rubric(
-        funcs=[
-            lcs_reward_func,
-            parser.get_format_reward_func(),
-        ],
-        weights=[1.0, 0.2],
-    )
-
-    env = vf.SingleTurnEnv(
-        dataset=train_dataset,
-        system_prompt=system_prompt,
-        parser=parser,
-        rubric=rubric,
-        client=openai_client,
-        model=config.model_name,
-    )
+    env = get_environment(config.env_id, config.env_args)
 
     # Load dataset
     dataset = env.get_dataset()

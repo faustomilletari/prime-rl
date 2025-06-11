@@ -1,4 +1,4 @@
-model_name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
+model_name = "willcb/Qwen3-1.7B"
 project = "vf-test"
 
 [train]

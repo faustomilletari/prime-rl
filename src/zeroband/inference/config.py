@@ -29,6 +29,10 @@ class Config(BaseConfig):
     model_name: str
     dataset: str = "PrimeIntellect/INTELLECT-2-RL-Dataset"
 
+    # Environment
+    env_id: str = "default"
+    env_args: dict = {}
+
     # The maximum number of of sequences to decode in parallel (if None, will be computed automatically)
     batch_size: int | Literal["auto"] = "auto"
 
