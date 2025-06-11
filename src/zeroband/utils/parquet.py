@@ -17,6 +17,6 @@ pa_schema = pa.schema(
         ("step", pa.int32()),
         ("target_lengths", pa.int32()),
         ("task_type", pa.string()),
-        ("seed", pa.int32()),  # Optional - can be null
+        ("seed", pa.int64()),  # Optional - can be null
     ]
 )
