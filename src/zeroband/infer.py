@@ -319,6 +319,11 @@ def inference(config: Config):
         monitor.log({"rewards/batch_rewards": batch_rewards})
         logger.info(f"Average reward of the batch: {batch_rewards}")
 
+        if sampling_params.seed is not None:
+            sampling_seeds = [sampling_params.seed + i for i in range(sampling_params.n)] * problems_per_batch
+        else:
+            sampling_seeds = [None] * batch_samples
+
         # Get parquet table
         table = get_parquet_table(
             request_outputs,
@@ -329,6 +334,7 @@ def inference(config: Config):
             target_lengths,
             problems,
             enable_logprobs=config.sampling.logprobs is not None,
+            seeds=sampling_seeds,
         )
 
         # Save outputs to parquet file

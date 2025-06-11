@@ -43,6 +43,7 @@ def get_parquet_table(
     target_lengths: list[int],
     problems: Dataset,
     enable_logprobs: bool,
+    seeds: list[int],
 ) -> pa.Table:
     # Iterator over proofs
     proof_iter = iter(proofs)
@@ -57,7 +58,7 @@ def get_parquet_table(
         problems,
     ):
         assert request_output.request_id == request_rewards.request_id
-        for output, reward in zip(request_output.outputs, request_rewards.rewards):
+        for output, reward, seed in zip(request_output.outputs, request_rewards.rewards, seeds):
             assert output.index == reward.completion_id
 
             # Extract logprobs if enabled and available
@@ -82,6 +83,7 @@ def get_parquet_table(
                     "step": step,
                     "target_lengths": target_length,
                     "task_type": request_rewards.task_type,
+                    "seed": seed,
                 }
             )
 
