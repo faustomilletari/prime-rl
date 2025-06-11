@@ -277,8 +277,6 @@ def log_to_wandb(
             "target_lengths",
             "batch_target_lengths",
             "padding_proportion",
-            "length_penalties",
-            "batch_length_penalties",
         ],
         "perf/": [
             "tokens_per_second",

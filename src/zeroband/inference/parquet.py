@@ -40,7 +40,6 @@ def get_parquet_table(
     prompts: list[str],
     proofs: list[bytes],
     step: int,
-    target_lengths: list[int],
     problems: Dataset,
     enable_logprobs: bool,
 ) -> pa.Table:
@@ -80,7 +79,6 @@ def get_parquet_table(
                     "length_penalties": reward.length_penalty,
                     "proofs": next(proof_iter) if len(output.token_ids) > 1 else b"",
                     "step": step,
-                    "target_lengths": target_length,
                     "task_type": request_rewards.task_type,
                 }
             )
