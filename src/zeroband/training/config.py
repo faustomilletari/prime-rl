@@ -1,6 +1,6 @@
-from typing import Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias, Union
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_config import BaseConfig
 
 from zeroband.training.data import CollateMode, DataConfig
@@ -54,25 +54,29 @@ class CkptConfig(BaseConfig):
         return self
 
 
-class KlCovConfig(BaseConfig):
+class BaseGRPOVariantConfig(BaseConfig):
+    highest_entropy_ratio_loss: float = 1.0
+
+
+class KlCovConfig(BaseGRPOVariantConfig):
     type: Literal["kl_cov"] = "kl_cov"
     kl_coef: float = 1.0
     k_percent: float = 0.2
 
 
-class ClippingConfig(BaseConfig):
+class ClippingConfig(BaseGRPOVariantConfig):
     type: Literal["clip"] = "clip"
     epsilon_low: float = 0.2
     epsilon_high: float = 0.2
     clip_ratio: float = 4.0
 
 
-class RatioConfig(BaseConfig):
+class RatioConfig(BaseGRPOVariantConfig):
     type: Literal["ratio"] = "ratio"
     clip_ratio: float = 8.0
 
 
-GRPOVariantsConfig: TypeAlias = ClippingConfig | KlCovConfig | RatioConfig
+GRPOVariantsConfig: TypeAlias = Annotated[Union[ClippingConfig, KlCovConfig, RatioConfig], Field(discriminator="type")]
 
 
 class GRPOLossConfig(BaseConfig):
