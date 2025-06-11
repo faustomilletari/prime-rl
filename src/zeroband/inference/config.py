@@ -16,7 +16,7 @@ class SamplingParamConfig(BaseConfig):
     n: int = 8
     top_k: int = -1
     seed: int | None = None
-    logprobs: int | None = None  # put to None to disable logprobs calculation
+    logprobs: int | None = 0  # put to None to disable logprobs calculation
 
 
 class DifficultyFilteringConfig(BaseConfig):
