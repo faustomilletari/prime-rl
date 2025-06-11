@@ -3,7 +3,6 @@ import multiprocessing as mp
 import os
 import shutil
 import time
-import uuid
 from pathlib import Path
 
 # Import environment before any other imports
@@ -84,7 +83,8 @@ def inference(config: Config):
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
         enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
     )
-    llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
+    if config.sampling.logprobs is None and envs.PRIME_GROUP_ID is not None:
+        llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     tokenizer = llm.get_tokenizer()
 
     # Adjust sampling params based on config
@@ -331,9 +331,14 @@ def inference(config: Config):
         )
 
         # Save outputs to parquet file
-        step_path = Path(config.output_path) / f"step_{real_step}"
-        step_path.mkdir(parents=True, exist_ok=True)
-        save_path = step_path / f"{uuid.uuid4()}.parquet"
+        # step_path = Path(config.output_path) / f"step_{real_step}"
+        # step_path.mkdir(parents=True, exist_ok=True)
+        # save_path = step_path / f"{uuid.uuid4()}.parquet"
+        Path(config.output_path).mkdir(parents=True, exist_ok=True)
+        save_path = (
+            Path(config.output_path)
+            / f"{config.sampling.n}-{envs.PRIME_GROUP_ID}-{config.pp.world_size}-{real_step}-{config.pp.rank}.parquet"
+        )
         pq.write_table(table, save_path)
         logger.info(f"Saved batch outputs to {save_path}")
 
