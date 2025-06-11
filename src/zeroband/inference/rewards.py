@@ -37,7 +37,7 @@ class LenRewardsConfig(BaseConfig):
 
 class RewardsConfig(BaseConfig):
     len_reward: LenRewardsConfig | None = None
-    advantage_estimation_method: Literal["grpo", "dr_grpo"] = "grpo"  # can also add stuff like opo here
+    advantage_estimation_method: Literal["grpo", "dr_grpo", "opo"] = "grpo"
 
 
 class ModelCompletion(BaseModel):
@@ -195,6 +195,12 @@ def _compute_request_rewards(
 
     elif config.advantage_estimation_method == "grpo":
         advantage_array = reward_array - reward_array.mean() / (reward_array.std(ddof=1) + 1e-6)
+
+    elif config.advantage_estimation_method == "opo":
+        lengths = np.array([len(r.token_ids) for r in request_output.outputs], dtype=np.float32)
+        weights = lengths / lengths.sum()
+        weighted_mean = (reward_array * weights).sum()
+        advantage_array = reward_array - weighted_mean
 
     else:
         raise ValueError(f"{config.advantage_estimation_method} is not supported for advantage estimation")
