@@ -18,6 +18,13 @@ class SamplingParamConfig(BaseConfig):
     seed: int | None = None
     logprobs: int | None = 0  # put to None to disable logprobs calculation
 
+    @model_validator(mode="after")
+    def convert_negative_logprobs_to_none(self):
+        """Convert negative logprobs values to None to disable logprobs calculation."""
+        if self.logprobs is not None and self.logprobs < 0:
+            self.logprobs = None
+        return self
+
 
 class DifficultyFilteringConfig(BaseConfig):
     solve_rate_field: str = "solve_rate_qwen_r1_distill_7b"
