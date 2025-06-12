@@ -380,7 +380,24 @@ class Config(BaseSettings):
     # The RL configuration. If None, inference will run in a non-RL setting.
     rl: Annotated[RLConfig | None, Field(default=RLConfig())]
 
-    toploc: Annotated[TopLocConfig, Field(default=TopLocConfig())]
+    # The elastic reasoning configuration
+    elastic_reasoning: Annotated[ElasticReasoningConfig, Field(default=ElasticReasoningConfig())]
+
+    toploc: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Whether to produce TOPLOC proofs for the inference outputs.",
+        ),
+    ]
+
+    toploc2: Annotated[
+        bool,
+        Field(
+            default=True,
+            description="Whether to use the TOPLOC2 Sampler",
+        ),
+    ]
 
     max_batch_size: Annotated[
         int | Literal["auto"],
@@ -465,4 +482,11 @@ class Config(BaseSettings):
     def disable_toploc_for_fp32(self):
         if self.model.dtype == "float32":
             self.toploc.enable_toploc1 = False
+        return self
+
+    @model_validator(mode="after")
+    def adjust_token_budget(self):
+        # If elastic reasoning is enabled, we overwrite the maximum tokens to sample to be the sum of the thinking and solution budget
+        if self.elastic_reasoning.enable:
+            self.sampling.max_tokens = self.elastic_reasoning.think_budget + self.elastic_reasoning.solution_budget
         return self
