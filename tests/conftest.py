@@ -107,6 +107,7 @@ def create_dummy_parquet_table(batch_size: int, seq_len: int) -> Table:
         "problem_id": pa.array(["0"] * batch_size, type=pa.string()),
         "input_logprobs": pa.array([[0.1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.float32())),
         "output_logprobs": pa.array([[0.1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.float32())),
+        "seed": pa.array([42] * batch_size, type=pa.int64()),
     }
 
     # Create table directly from dictionary
