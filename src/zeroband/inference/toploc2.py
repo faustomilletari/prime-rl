@@ -17,6 +17,8 @@ from vllm.model_executor.layers.sampler import (
 from vllm.model_executor.layers.utils import apply_penalties
 from vllm.model_executor.sampling_metadata import SamplingMetadata, SamplingTensors
 
+# We have to use smaller sizes in the exponential_ function to prevent different kernels
+# from being used by different GPUs.
 GUMBEL_BATCH_SIZE = 2**16
 
 
