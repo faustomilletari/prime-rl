@@ -3,6 +3,7 @@ dataset = "kalomaze/general-formatask-it1-7k"
 batch_size = 256
 dp = 4
 rollout_path = "outputs"
+clean_output_path = true
 output_path = "data_rollout"
 max_model_len = 2048
 
