@@ -12,10 +12,10 @@ from vllm.model_executor.layers.sampler import (
     _apply_min_tokens_penalty,
     _apply_top_k_top_p,
     _build_sampler_output,
+    get_logprobs,
 )
 from vllm.model_executor.layers.utils import apply_penalties
 from vllm.model_executor.sampling_metadata import SamplingMetadata, SamplingTensors
-from vllm.sequence import Logprob
 
 GUMBEL_BATCH_SIZE = 2**16
 
@@ -120,18 +120,7 @@ class Toploc2Sampler(Sampler):
         if not sampling_metadata.skip_sampler_cpu_output:
             # Pythonize logprobs now (GPU -> CPU); do not defer.
             assert not isinstance(maybe_deferred_sample_results, SampleResultArgsType)
-            prompt_logprobs = [None] * len(sampling_metadata.seq_groups)
-            # TODO: How did the original code know the rank?
-            sample_logprobs = [
-                [
-                    {
-                        sample_result[0][0]: Logprob(logprob=logprobs[i, sample_result[0][0]].item(), rank=1, decoded_token=None),
-                        0: Logprob(logprob=logits[i, sample_result[0][0]].item(), rank=2, decoded_token=None),
-                        1: Logprob(logprob=chosen_noises[0][i].item(), rank=3, decoded_token=None),
-                    }
-                ]
-                for i, sample_result in enumerate(maybe_deferred_sample_results)
-            ]
+            prompt_logprobs, sample_logprobs = get_logprobs(logprobs, sampling_metadata, maybe_deferred_sample_results)
 
         return _build_sampler_output(
             maybe_deferred_sample_results,

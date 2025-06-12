@@ -84,8 +84,7 @@ def inference(config: Config):
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
         enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
     )
-    if config.sampling.logprobs is None and envs.PRIME_GROUP_ID is not None:
-        llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
+    llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     tokenizer = llm.get_tokenizer()
 
     # Adjust sampling params based on config
