@@ -80,6 +80,7 @@ class Config(BaseConfig):
     ckpt_start_path: str | None = None
 
     toploc: bool = False
+    toploc2: bool = True
 
     rewards: RewardsConfig = RewardsConfig()
     difficulty_filtering: DifficultyFilteringConfig | None = None
