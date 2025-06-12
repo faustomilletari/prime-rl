@@ -4,12 +4,12 @@ from zeroband.inference.genesys.ascii_tree_formatting import compute_reward as c
 from zeroband.inference.genesys.code import evaluate_code
 from zeroband.inference.genesys.code_output_prediction import verify_code_output_prediction
 from zeroband.inference.genesys.complex_json_output import verify_complex_json_formatting
+from zeroband.inference.genesys.formatask import compute_reward as compute_formatask_reward
 from zeroband.inference.genesys.math import compute_math_reward
 from zeroband.inference.genesys.pydantic_json_adherance import validate_pydantic_json
 from zeroband.inference.genesys.reasoning_gym import verify_reasoning_gym
 from zeroband.inference.genesys.reverse_text import reverse_text
 from zeroband.inference.genesys.unscramble_sentence import compute_reward as compute_unscramble_reward
-from zeroband.inference.genesys.formatask import compute_reward as compute_formatask_reward
 
 TaskType = Literal[
     "verifiable_math",
