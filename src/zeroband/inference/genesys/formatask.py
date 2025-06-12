@@ -3,102 +3,97 @@ import re
 from typing import Dict
 
 
-def detect_format_type(text: str) -> str:
-    """
-    Detect the formatting type used in the text.
-    Returns the format type or 'none' if no specific format detected.
-    """
-    # Check for various formatting patterns
-    if text.startswith("**") and text.endswith("**") and len(text) > 4:
-        if text.startswith("***") and text.endswith("***"):
-            return "triple_asterisk"
-        return "bold"
-    elif text.startswith("*") and text.endswith("*") and len(text) > 2:
-        return "italic"
-    elif text.isupper() and len(text) > 1:
-        return "uppercase"
-    elif text.startswith("```\n") and text.endswith("\n```"):
-        return "code_block"
-    elif text.startswith('"') and text.endswith('"') and len(text) > 2:
-        return "quotes"
-    elif text.startswith("[") and text.endswith("]") and len(text) > 2:
-        return "brackets"
-    elif text.startswith("(") and text.endswith(")") and len(text) > 2:
-        return "parentheses"
-    elif text.startswith("-") and text.endswith("-") and len(text) > 2:
-        return "dashes"
-    elif text.startswith("<") and text.endswith(">") and len(text) > 2:
-        return "angle_brackets"
+def detect_format_signature(text: str) -> tuple:
+    signature = []
+    current_text = text
 
-    return "none"
+    # Check for markdown emphasis (changed to if statements for layering)
+    if current_text.startswith("***") and current_text.endswith("***") and len(current_text) > 6:
+        signature.append("triple_asterisk")
+        current_text = current_text[3:-3]
+    elif current_text.startswith("**") and current_text.endswith("**") and len(current_text) > 4:
+        signature.append("bold")
+        current_text = current_text[2:-2]
+    elif current_text.startswith("*") and current_text.endswith("*") and len(current_text) > 2:
+        signature.append("italic")
+        current_text = current_text[1:-1]
+
+    # Check for code blocks
+    if current_text.startswith("```\n") and current_text.endswith("\n```"):
+        signature.append("code_block")
+        current_text = current_text[4:-4]
+
+    # Check for wrapper characters (changed to if statements for layering)
+    if current_text.startswith('"') and current_text.endswith('"') and len(current_text) > 2:
+        signature.append("quotes")
+        current_text = current_text[1:-1]
+    elif current_text.startswith("[") and current_text.endswith("]") and len(current_text) > 2:
+        signature.append("brackets")
+        current_text = current_text[1:-1]
+    elif current_text.startswith("(") and current_text.endswith(")") and len(current_text) > 2:
+        signature.append("parentheses")
+        current_text = current_text[1:-1]
+    elif current_text.startswith("-") and current_text.endswith("-") and len(current_text) > 2:
+        signature.append("dashes")
+        current_text = current_text[1:-1]
+    elif current_text.startswith("<") and current_text.endswith(">") and len(current_text) > 2:
+        signature.append("angle_brackets")
+        current_text = current_text[1:-1]
+
+    # Check for uppercase (this can layer with other formats)
+    if current_text.isupper() and len(current_text) > 0:
+        signature.append("uppercase")
+
+    return tuple(signature) if signature else ("none",)
 
 
-def compute_reward(completion: str, verification_info: Dict, tag_name: str = "extracted_formatted"):
-    """
-    Generic difflib-based reward computation for tasks expecting extracted content in XML tags.
-    Uses normalized text comparison to avoid harsh penalties for formatting differences.
-    Only looks for XML tags AFTER </think> if </think> exists.
-    Returns 0 if format specification is not followed exactly.
+def extract_and_score(text: str, tag_name: str, ground_truth: str) -> float:
+    pattern = f"<{tag_name}>(.*?)</{tag_name}>"
+    match = re.search(pattern, text, re.DOTALL)
 
-    Args:
-        completion: The model's completion text
-        verification_info: Dictionary containing ground truth
-        tag_name: XML tag name to extract content from
-
-    Returns:
-        Float reward between 0 and 1
-    """
-    # First, check if </think> exists and skip thinking section if it does
-    search_text = completion
-    think_end = completion.find("</think>")
-    if think_end != -1:
-        # If </think> found, only search AFTER the thinking section
-        search_text = completion[think_end + len("</think>") :]
-
-    # Extract answer from specified tag in the search text
-    tag_pattern = f"<{tag_name}>(.*?)</{tag_name}>"
-    if f"<{tag_name}>" not in search_text:
+    if not match:
         return 0
 
-    answer_match = re.search(tag_pattern, search_text, re.DOTALL)
-    if not answer_match:
-        return 0
+    extracted = match.group(1)
 
-    # Check if there's exactly one XML tag with the right name (for bonus)
-    xml_bonus = 0
-    all_tags = re.findall(f"<{tag_name}>.*?</{tag_name}>", search_text, re.DOTALL)
-    if len(all_tags) == 1:
-        xml_bonus = 0.01
+    # Check format compliance
+    gt_sig = detect_format_signature(ground_truth)
+    ext_sig = detect_format_signature(extracted)
 
-    # Get ground truth
-    ground_truth = verification_info.get("ground_truth")
-    if not ground_truth:
-        return xml_bonus  # Return bonus if no ground truth to compare against
+    # Calculate similarity
+    similarity = difflib.SequenceMatcher(None, extracted, ground_truth).ratio()
 
+    # If format is wrong but content is extractable, give 0.1x reward
+    if gt_sig != ("none",) and gt_sig != ext_sig:
+        return similarity * 0.1
+
+    return similarity
+
+
+def compute_reward(completion: str, verification_info: Dict, tag_name: str = "extracted_formatted") -> float:
     try:
-        # Extract content from both
-        extracted_text = answer_match.group(1)
-        ground_truth_text = ground_truth
+        # Skip thinking section
+        text = completion
+        think_end = completion.find("</think>")
+        if think_end != -1:
+            text = completion[think_end + len("</think>") :]
 
-        # CHECK FORMAT COMPLIANCE FIRST
-        ground_truth_format = detect_format_type(ground_truth_text)
-        extracted_format = detect_format_type(extracted_text)
+        # Check for dual case first
+        if "ground_truth1" in verification_info and "ground_truth2" in verification_info:
+            score1 = extract_and_score(text, "extracted_formatted1", verification_info["ground_truth1"])
+            score2 = extract_and_score(text, "extracted_formatted2", verification_info["ground_truth2"])
 
-        # If ground truth has a specific format, extracted text must match that format
-        if ground_truth_format != "none" and ground_truth_format != extracted_format:
-            return 0  # Format specification not followed - return 0
+            if score1 == 0 or score2 == 0:
+                return 0
 
-        # If format check passes, proceed with difflib comparison
-        # Use difflib on raw text for sequence comparison
-        matcher = difflib.SequenceMatcher(None, extracted_text, ground_truth_text)
+            return (score1 + score2) / 2.0
 
-        # Calculate similarity ratio
-        reward = matcher.ratio()
+        # Single case
+        ground_truth = verification_info.get("ground_truth")
+        if not ground_truth:
+            return 0
 
-        # Add the XML tag bonus
-        reward += xml_bonus
-
-        return min(reward, 1.0)  # Cap at 1.0 to prevent bonus from pushing over 1
+        return extract_and_score(text, tag_name, ground_truth)
 
     except Exception:
-        return xml_bonus  # Return bonus even if comparison fails
+        return 0
