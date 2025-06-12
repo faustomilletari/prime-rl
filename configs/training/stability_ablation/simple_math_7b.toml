@@ -6,6 +6,8 @@ recompute_logprobs = true
 
 normalize_batch_to_token_count = true
 
+temperature = 1.0
+
 [train]
 micro_bs = 2 # 1 for h100
 reshard_after_forward = true
