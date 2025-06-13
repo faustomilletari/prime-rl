@@ -7,9 +7,9 @@ output_path = "data_rollout"
 clean_output_path = true
 max_model_len = 2048
 
-[sampling]
-temperature = 0.6
-n = 8
+# [sampling]
+# temperature = 0.6
+# n = 8
 
-[rewards]
-advantage_estimation_method = "grpo"
+# [rewards]
+# advantage_estimation_method = "grpo"
