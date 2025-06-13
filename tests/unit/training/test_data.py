@@ -126,6 +126,7 @@ def test_packing_vs_padding():
             "length_penalties": torch.ones(1),
             "target_lengths": torch.ones(1),
             "task_type": "test_task",
+            "temperature": torch.ones(1),
         }
 
         batch_rollout.append(data)
