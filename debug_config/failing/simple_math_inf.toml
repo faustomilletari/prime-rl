@@ -12,4 +12,4 @@ temperature = 1.0
 n = 16
 
 [rewards]
-advantage_estimation_method = "dr_grpo"
+advantage_estimation_method = "grpo"
