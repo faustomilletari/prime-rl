@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal, TypeAlias, Union
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_config import BaseConfig
 
 from zeroband.training.data import CollateMode, DataConfig
@@ -54,6 +54,37 @@ class CkptConfig(BaseConfig):
         return self
 
 
+class BaseGRPOVariantConfig(BaseConfig):
+    highest_entropy_ratio_loss: float = 1.0
+
+
+class KlCovConfig(BaseGRPOVariantConfig):
+    type: Literal["kl_cov"] = "kl_cov"
+    kl_coef: float = 1.0
+    k_percent: float = 0.2
+
+
+class ClippingConfig(BaseGRPOVariantConfig):
+    type: Literal["clip"] = "clip"
+    epsilon_low: float = 0.2
+    epsilon_high: float = 0.2
+    clip_ratio: float = 4.0
+
+
+class RatioConfig(BaseGRPOVariantConfig):
+    type: Literal["ratio"] = "ratio"
+    clip_ratio: float = 8.0
+
+
+GRPOVariantsConfig: TypeAlias = Annotated[Union[ClippingConfig, KlCovConfig, RatioConfig], Field(discriminator="type")]
+
+
+class GRPOLossConfig(BaseConfig):
+    off_policy: GRPOVariantsConfig = ClippingConfig()
+    kl_coef: float | None = None
+    entropy_loss_coeff: float = 0.001
+
+
 class Config(BaseConfig):
     model_name: str
 
@@ -73,22 +104,21 @@ class Config(BaseConfig):
 
     temperature: float = 0.6  # todo remove this and add this to the data
 
-    grpo_epsilon_low: float = 0.2
-    grpo_epsilon_high: float = 0.2
-    entropy_loss_coeff: float = 0.001
-    clamp_log_prob_coef: float = 4.0
-
-    max_async_level: int = 2  # the amount of rollout checkpoints to keep
+    async_level: int = 2  # the amount of rollout checkpoints to keep
 
     collate_mode: CollateMode = "padding"
-
-    kl_coef: float | None = None
 
     start_step: int = 0
     start_total_samples: int | None = None
     start_rollout_step: int | None = None
 
     stop_after_steps: int | None = None
+
+    normalize_batch_to_token_count: bool = False
+
+    recompute_logprobs: bool = True
+
+    grpo: GRPOLossConfig = GRPOLossConfig()
 
     @model_validator(mode="after")
     def check_liger(self):

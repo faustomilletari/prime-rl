@@ -3,8 +3,8 @@ import multiprocessing as mp
 import os
 import shutil
 import time
-import uuid
 from pathlib import Path
+import uuid
 
 # Import environment before any other imports
 # ruff: noqa: I001
@@ -18,13 +18,15 @@ import torch.distributed as dist
 from datasets import load_dataset
 from pydantic_config import parse_argv
 from toploc.utils import sha256sum
-from vllm import LLM, SamplingParams
+from vllm import LLM, SamplingParams, TokensPrompt
+from huggingface_hub import snapshot_download
 
 from zeroband.inference.config import Config
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
 from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.toploc import setup_toploc_cache
+from zeroband.inference.toploc2 import Toploc2Sampler
 from zeroband.utils.monitor import setup_monitor
 from zeroband.inference.utils import (
     filter_data_by_prompt_length,
@@ -54,6 +56,12 @@ def inference(config: Config):
         logger.info(f"Cleaning output path {config.output_path}")
         shutil.rmtree(config.output_path, ignore_errors=True)
 
+    # Pre-download the model weights
+    logger.info(f"Downloading model weights for {config.model_name}")
+    start_time = time.time()
+    snapshot_download(config.model_name)
+    logger.info(f"Downloaded model weights in {time.time() - start_time:.2f}s")
+
     # Initialize metrics
     monitor = setup_monitor(config.monitor)
 
@@ -74,9 +82,16 @@ def inference(config: Config):
         disable_async_output_proc=True,  # We have an off by 1 error in toploc without this flag when cuda graph padding is enabled.
         download_dir=config.download_dir,
         dtype="bfloat16" if config.dtype == "bf16" else torch.float32,
+        enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
     )
+    if config.toploc2:
+        llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
     tokenizer = llm.get_tokenizer()
-    sampling_params = SamplingParams(**config.sampling.model_dump())
+
+    # Adjust sampling params based on config
+    sampling_config = config.sampling.model_dump()
+
+    sampling_params = SamplingParams(**sampling_config)
 
     # Setup pipeline parallel communication
     node = setup_comm(config.pp)
@@ -164,7 +179,8 @@ def inference(config: Config):
         f"Problems per batch: {batch_size} // {config.sampling.n} = {problems_per_batch} (missing: {batch_size % config.sampling.n})"
     )
 
-    for i in range(0, config.max_samples or len(dataset), batch_size):
+    dataset_offset = 0
+    while True:
         if config.step_endpoint is not None:
             # We get the step from the endpoint at the start of each batch to know what to work on
             try:
@@ -208,8 +224,10 @@ def inference(config: Config):
             # This would work even if the node restarts and resumes from the current step.
             generator = np.random.default_rng(node_address_int * current_step_batch_counter + real_step)
             indices = generator.integers(0, len(dataset), problems_per_batch)
+            sampling_params.seed = int(generator.integers(2**32))
         else:
-            indices = list(range(i, min(i + problems_per_batch, len(dataset))))
+            # Use modulo to cycle through the dataset instead of terminating
+            indices = [(dataset_offset + j) % len(dataset) for j in range(problems_per_batch)]
 
         logger.debug(f"Sampling batch with indices [{' '.join(map(str, indices[:3]))}...{' '.join(map(str, indices[-3:]))}]")
         problems = dataset.select(indices)
@@ -222,12 +240,16 @@ def inference(config: Config):
         for target_length, verification_info in zip(target_lengths, verification_infos):
             verification_info["target_length"] = target_length
 
-        formatted_prompts = format_prompts(
-            prompts, target_lengths, config.rewards.len_reward, tokenizer=tokenizer, enable_thinking=config.enable_thinking
+        # Get tokenized prompts as BatchEncoding
+        tokenized_prompts = format_prompts(
+            prompts, target_lengths, config.rewards.len_reward, tokenizer=tokenizer, enable_thinking=config.enable_thinking, tokenize=True
         )
 
+        # Convert BatchEncoding to TokensPrompt objects
+        token_prompts = [TokensPrompt(prompt_token_ids=input_ids) for input_ids in tokenized_prompts]
+
         start_time = time.time()
-        request_outputs = llm.generate(formatted_prompts, sampling_params, use_tqdm=False)
+        request_outputs = llm.generate(token_prompts, sampling_params, use_tqdm=False)
         end_time = time.time()
 
         # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
@@ -297,6 +319,11 @@ def inference(config: Config):
         monitor.log({"rewards/batch_rewards": batch_rewards})
         logger.info(f"Average reward of the batch: {batch_rewards}")
 
+        if sampling_params.seed is not None:
+            sampling_seeds = [sampling_params.seed + i for i in range(sampling_params.n)] * problems_per_batch
+        else:
+            sampling_seeds = [None] * batch_samples
+
         # Get parquet table
         table = get_parquet_table(
             request_outputs,
@@ -305,6 +332,9 @@ def inference(config: Config):
             proofs,
             ckpt_step,
             target_lengths,
+            problems,
+            enable_logprobs=config.sampling.logprobs is not None,
+            seeds=sampling_seeds,
         )
 
         # Save outputs to parquet file
@@ -325,8 +355,8 @@ def inference(config: Config):
             {
                 "output/save_path": save_path.as_posix(),
                 "output/sha256": sha256,
-                "output/output_flops": sum(output_flops for _, output_flops in flop_counts),
-                "output/input_flops": sum(input_flops for input_flops, _ in flop_counts),
+                "output/output_flops": sum(output_flops for _, output_flops in flop_counts) // config.pp.world_size,
+                "output/input_flops": sum(input_flops for input_flops, _ in flop_counts) // config.pp.world_size,
             }
         )
 
@@ -335,6 +365,8 @@ def inference(config: Config):
         if config.total_step is not None and real_step > config.total_step:
             logger.info(f"Reached total step {config.total_step}, stopping inference")
             break
+
+        dataset_offset += batch_size
 
     logger.info(f"Inference finished! Generated {total_samples} samples for {total_problems} problems")
 
