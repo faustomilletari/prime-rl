@@ -3,7 +3,7 @@ project = "math-ablation"
 
 collate_mode = "packing"
  
-normalize_batch_to_token_count = true
+normalize_batch_to_token_count = false
 
 [train]
 micro_bs = 4 # 1 for h100
