@@ -8,13 +8,11 @@ clean_output_path = true
 rollout_path = "outputs"
 output_path = "data_rollout"
 
+[sampling]
+temperature = 1.0
+n = 16
+
 [difficulty_filtering]
 solve_rate_field = "solve_rate_qwen_r1_distill_7b"
 min_solve_rate = 0.4
 max_solve_rate = 0.9
-
-
-
-[sampling]
-temperature = 1.0
-n = 16

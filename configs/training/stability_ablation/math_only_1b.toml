@@ -6,11 +6,8 @@ recompute_logprobs = true
 
 normalize_batch_to_token_count = true
 
-temperature = 1.0
-
-
 [train]
-micro_bs = 1 # change to 8 for H200
+micro_bs = 2 # 1 for h100
 reshard_after_forward = true
 
 [data]
@@ -18,11 +15,15 @@ seq_length = 8192
 path = "data_rollout"
 
 [optim]
-warmup_steps = 1
-batch_size = 2048
-total_steps = 10000000000000000000
+batch_size = 1024
 step_per_rollout = 1
+total_steps = 10000000000000000000
 
+[grpo]
+entropy_loss_coeff = 0
+
+[grpo.off_policy]
+type = "ratio"
 
 [optim.optim]
 lr = 1e-6
