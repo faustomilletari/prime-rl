@@ -261,7 +261,7 @@ def train(config: Config):
                         input_ids = batch["input_ids"].to("cuda")
 
                         model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
-                        per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], config.temperature)
+                        per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], batch["temperature"])
 
                         batch["logprobs"] = per_token_logps.to("cpu")
                     else:
@@ -270,7 +270,7 @@ def train(config: Config):
                     if config.grpo.kl_coef is not None:
                         logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
                         input_ids = batch["input_ids"].to("cuda")
-                        per_token_logps_reference = get_logprobs(model_reference, input_ids, batch["position_ids"], config.temperature)
+                        per_token_logps_reference = get_logprobs(model_reference, input_ids, batch["position_ids"], batch["temperature"])
                         batch["ref_logprobs"] = per_token_logps_reference.to("cpu")
 
                 data.append(batch_packed)
@@ -378,12 +378,12 @@ def train(config: Config):
                     advantages,
                     original_logprobs,
                     loss_mask,
-                    config.temperature,
+                    batch["temperature"],
                     max_tokens,
                     config.grpo.off_policy,
                 )
 
-                entropy = entropy_loss(logits, loss_mask, config.temperature, max_tokens)
+                entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
 
                 loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
 

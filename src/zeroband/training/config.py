@@ -102,8 +102,6 @@ class Config(BaseConfig):
 
     gpus_ids: list[int] | None = None
 
-    temperature: float = 0.6  # todo remove this and add this to the data
-
     async_level: int = 2  # the amount of rollout checkpoints to keep
 
     collate_mode: CollateMode = "padding"

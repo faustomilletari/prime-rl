@@ -42,6 +42,7 @@ class DatasetOutput(TypedDict):
     task_rewards: Float[torch.Tensor, "1"]
     length_penalties: Float[torch.Tensor, "1"]
     target_lengths: Int[torch.Tensor, "1"]
+    temperature: float
     task_type: str
 
 
@@ -84,6 +85,7 @@ class FakeTokenizedDataset(IterableDataset):
                 "target_lengths": 0,
                 "task_type": "fake_task",
                 "logprobs": logprobs,
+                "temperature": 1.0,
             }
 
 
@@ -260,6 +262,7 @@ class ParquetDataset(IterableDataset):
                 "length_penalties",
                 "target_lengths",
                 "task_type",
+                "temperature",
             ]
 
             if self._use_vllm_logprobs:
@@ -279,6 +282,7 @@ class ParquetDataset(IterableDataset):
                         "length_penalties": batch["length_penalties"],
                         "target_lengths": batch["target_lengths"],
                         "task_type": batch["task_type"],
+                        "temperature": batch["temperature"],
                     }
 
                     if self._use_vllm_logprobs:
@@ -327,6 +331,7 @@ class ParquetDataset(IterableDataset):
                                 "target_lengths": batch_data["target_lengths"][i].as_py(),
                                 "task_type": batch_data["task_type"][i].as_py(),
                                 "logprobs": logprobs,
+                                "temperature": batch_data["temperature"][i].as_py(),
                             }
 
                         except Exception as e:
@@ -410,6 +415,9 @@ class BatchOutput(TypedDict):
     target_lengths: Int[torch.Tensor, "sample"]
     task_types: list[str]
 
+    # batch level
+    temperature: float
+
 
 ### colate
 
@@ -438,6 +446,9 @@ def collate_fn(samples: list[DatasetOutput], max_seq_len: int, pad_token_id: int
 
     seq_lens = [len(sample["input_ids"]) for sample in samples]
     position_ids = [torch.arange(0, len(sample["input_ids"]), dtype=torch.int32) for sample in samples]
+    temperatures = [sample["temperature"] for sample in samples]
+    assert all(temperature == temperatures[0] for temperature in temperatures), "all temperatures must be the same"
+    temperature = temperatures[0]
 
     if total_len < max_seq_len:
         padding_len = max_seq_len - total_len
@@ -471,6 +482,7 @@ def collate_fn(samples: list[DatasetOutput], max_seq_len: int, pad_token_id: int
         "length_penalties": torch.tensor(length_penalties),
         "target_lengths": torch.tensor(target_lengths),
         "task_types": task_types,
+        "temperature": temperature,
     }
 
 
@@ -561,6 +573,10 @@ def merge_batches_padding(batches: list[BatchOutput]) -> BatchOutput:
         # If some batches have logprobs, all should have them
         merged_logprobs = torch.cat([b["logprobs"] for b in batches if b["logprobs"] is not None], dim=0)
 
+    # All batches should have the same temperature
+    temperatures = [b["temperature"] for b in batches]
+    assert all(temp == temperatures[0] for temp in temperatures), "all temperatures must be the same"
+
     return {
         # token level
         "input_ids": torch.cat([b["input_ids"] for b in batches], dim=0),
@@ -575,6 +591,8 @@ def merge_batches_padding(batches: list[BatchOutput]) -> BatchOutput:
         "length_penalties": torch.cat([b["length_penalties"] for b in batches]),
         "target_lengths": torch.cat([b["target_lengths"] for b in batches]),
         "task_types": [task_type for b in batches for task_type in b["task_types"]],
+        # batch level
+        "temperature": temperatures[0],
     }
 
 
