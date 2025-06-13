@@ -9,7 +9,7 @@ max_model_len = 2048
 
 [sampling]
 temperature = 1.0
-n = 16
+n = 8
 
 [rewards]
 advantage_estimation_method = "grpo"
