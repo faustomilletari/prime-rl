@@ -18,5 +18,6 @@ pa_schema = pa.schema(
         ("target_lengths", pa.int32()),
         ("task_type", pa.string()),
         ("seed", pa.int64()),  # Optional - can be null
+        ("temperature", pa.float32()),
     ]
 )

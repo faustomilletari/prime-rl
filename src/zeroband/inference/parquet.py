@@ -44,6 +44,7 @@ def get_parquet_table(
     problems: Dataset,
     enable_logprobs: bool,
     seeds: list[int],
+    temperature: float,
 ) -> pa.Table:
     # Iterator over proofs
     proof_iter = iter(proofs)
@@ -84,6 +85,7 @@ def get_parquet_table(
                     "target_lengths": target_length,
                     "task_type": request_rewards.task_type,
                     "seed": seed,
+                    "temperature": temperature,
                 }
             )
 

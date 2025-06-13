@@ -335,6 +335,7 @@ def inference(config: Config):
             problems,
             enable_logprobs=config.sampling.logprobs is not None,
             seeds=sampling_seeds,
+            temperature=sampling_params.temperature,
         )
 
         # Save outputs to parquet file
