@@ -55,7 +55,7 @@ class CkptConfig(BaseConfig):
 
 
 class BaseGRPOVariantConfig(BaseConfig):
-    highest_entropy_ratio_loss: float = 1.0
+    highest_entropy_ratio_loss: float = 8.0
 
 
 class KlCovConfig(BaseGRPOVariantConfig):
