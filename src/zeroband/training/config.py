@@ -39,7 +39,9 @@ class OptimConfig(BaseConfig):
     @model_validator(mode="after")
     def warn_step_per_rollout(self):
         if self.step_per_rollout > 1:
-            get_logger("TRAIN").info(f"step_per_rollout is set to {self.step_per_rollout}. The recommended value is 1, any other value should be either to run a legacy run or a experiment..")
+            get_logger("TRAIN").info(
+                f"step_per_rollout is set to {self.step_per_rollout}. The recommended value is 1, any other value should be either to run a legacy run or a experiment.."
+            )
         return self
 
 
@@ -112,7 +114,7 @@ class GRPOLossConfig(BaseConfig):
     off_policy: GRPOVariantsConfig = ClippingConfig()
 
     kl_coef: Annotated[float | None, Field(default=None)]
-    entropy_loss_coeff: Annotated[float, Field(default=0.001)]
+    entropy_loss_coeff: Annotated[float, Field(default=0)]
 
 
 class ModelConfig(BaseConfig):

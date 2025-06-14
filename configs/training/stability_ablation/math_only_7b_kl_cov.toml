@@ -18,9 +18,6 @@ path = "rollouts"
 batch_size = 1024
 step_per_rollout = 1
 
-[grpo]
-entropy_loss_coeff = 0
-
 [grpo.off_policy]
 type = "kl_cov"
 
