@@ -203,7 +203,7 @@ class RewardsConfig(BaseConfig):
     """Configures rewards compuation"""
 
     len_reward: Annotated[LenRewardsConfig | None, Field(default=None)]
-    advantage_estimation_method: Annotated[Literal["grpo", "dr_grpo", "opo"], Field(default="grpo")]
+    advantage_estimation_method: Annotated[Literal["grpo", "dr_grpo", "opo"], Field(default="dr_grpo")]
     compute_reward: Annotated[bool, Field(default=True, description="Whether to compute the reward. If not set, will set reward to 0.")]
 
     def __str__(self) -> str:
