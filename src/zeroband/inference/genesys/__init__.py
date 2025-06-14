@@ -13,6 +13,11 @@ from zeroband.inference.genesys.reasoning_gym import verify_reasoning_gym
 from zeroband.inference.genesys.reverse_text import reverse_text
 from zeroband.inference.genesys.unscramble_sentence import compute_reward as compute_unscramble_reward
 
+
+def null_reward(*args, **kwargs):
+    return 0.0
+
+
 TaskType = Literal[
     "verifiable_math",
     "prime_rl_code",
@@ -26,6 +31,7 @@ TaskType = Literal[
     "complex_json_output",
     "formatask",
     "kernelbench",
+    "null_reward",
 ]
 
 
@@ -49,4 +55,5 @@ _REWARD_FUNCTIONS: dict[TaskType, Callable] = {
     "complex_json_output": verify_complex_json_formatting,
     "formatask": compute_formatask_reward,
     "kernelbench": assign_kernel_reward,
+    "null_reward": null_reward,
 }
