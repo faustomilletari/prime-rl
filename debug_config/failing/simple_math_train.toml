@@ -17,6 +17,7 @@ path = "data_rollout"
 batch_size = 512
 step_per_rollout = 1
 total_steps = 10000000000000000000
+warmup_steps = 1
 
 [grpo]
 entropy_loss_coeff = 0
