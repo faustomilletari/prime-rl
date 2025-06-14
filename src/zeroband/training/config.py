@@ -4,6 +4,7 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
 from zeroband.utils.config import BaseConfig, MultiMonitorConfig
+from zeroband.utils.logger import get_logger
 from zeroband.utils.models import AttnImpl
 
 # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
@@ -34,6 +35,12 @@ class OptimConfig(BaseConfig):
     batch_size: Annotated[int, Field(default=512)]
     grad_norm_clip: Annotated[float, Field(default=1.0)]
     step_per_rollout: Annotated[int, Field(default=1)]
+
+    @model_validator(mode="after")
+    def warn_step_per_rollout(self):
+        if self.step_per_rollout > 1:
+            get_logger("TRAIN").info(f"step_per_rollout is set to {self.step_per_rollout}. The recommended value is 1, any other value should be either to run a legacy run or a experiment..")
+        return self
 
 
 class TrainConfig(BaseConfig):
