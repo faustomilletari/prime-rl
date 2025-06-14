@@ -341,6 +341,7 @@ class RLConfig(BaseConfig):
         int,
         Field(
             default=2,
+            ge=0,
             description="Maximum number of steps that inference can be ahead of training.",
         ),
     ]
