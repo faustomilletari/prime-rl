@@ -183,7 +183,7 @@ class Config(BaseSettings):
 
     stop_after_steps: Annotated[int | None, Field(default=None)]
 
-    normalize_batch_to_token_count: Annotated[bool, Field(default=False)]
+    normalize_batch_to_token_count: Annotated[bool, Field(default=True)]
 
     recompute_logprobs: Annotated[bool, Field(default=True)]
 
