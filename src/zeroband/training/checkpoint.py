@@ -36,7 +36,6 @@ def save_checkpoint_fsdp_state(
     model: ModelType,
     optimizers: list[torch.optim.Optimizer],
     training_progress: TrainingProgress,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
     path_root: str | Path,
 ):
     """
@@ -54,7 +53,6 @@ def save_checkpoint_fsdp_state(
         state["model"] = model.state_dict()
         state["optimizers"] = [optimizer.state_dict() for optimizer in optimizers]
         state["training_progress"] = training_progress
-        state["scheduler"] = scheduler.state_dict()
 
         torch.save(state, f)
 
@@ -63,7 +61,6 @@ def load_checkpoint_fsdp_state(
     model: ModelType,
     optimizers: list[torch.optim.Optimizer],
     training_progress: TrainingProgress,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
     path: str | Path,
 ):
     """
@@ -88,8 +85,6 @@ def load_checkpoint_fsdp_state(
     training_progress.total_tokens = state["training_progress"].total_tokens
     training_progress.step = state["training_progress"].step
     training_progress.total_samples = state["training_progress"].total_samples
-
-    scheduler.load_state_dict(state["scheduler"])
 
 
 async_ckpt_job = None

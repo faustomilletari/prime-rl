@@ -31,10 +31,6 @@ class OptimConfig(BaseConfig):
     # The optimizer configuration
     optim: AdamConfig = AdamConfig()
 
-    sched_type: Annotated[Literal["cosine", "linear", "wsd-sqrt"], Field(default="linear")]
-    warmup_steps: Annotated[int, Field(default=1000)]
-    stable_steps: Annotated[int, Field(default=80_000)]
-    total_steps: Annotated[int, Field(default=88_000)]
     batch_size: Annotated[int, Field(default=512)]
     grad_norm_clip: Annotated[float, Field(default=1.0)]
     step_per_rollout: Annotated[int, Field(default=1)]

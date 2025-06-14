@@ -10,8 +10,6 @@ reshard_after_forward = true
 
 [optim]
 batch_size = 64
-warmup_steps = 1
-total_steps = 100000000000000
 step_per_rollout = 2
 
 [optim.optim]

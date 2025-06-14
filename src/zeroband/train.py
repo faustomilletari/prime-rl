@@ -23,7 +23,6 @@ from zeroband.training.config import Config as TrainingConfig
 from zeroband.training.config import set_toml_paths
 from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
 from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
-from zeroband.training.lr_scheduler import get_scheduler
 from zeroband.training.utils import (
     MetricsAverager,
     OffloadedTensor,
@@ -148,14 +147,6 @@ def train(config: TrainingConfig):
         betas=(config.optim.optim.betas1, config.optim.optim.betas2),
     )
 
-    scheduler = get_scheduler(
-        sched_type=config.optim.sched_type,
-        optimizer=optimizer,
-        num_warmup_steps=config.optim.warmup_steps,
-        num_stable_steps=config.optim.stable_steps,
-        num_training_steps=config.optim.total_steps,
-    )
-
     total_samples = config.start_total_samples if config.start_total_samples is not None else 0
     training_progress = TrainingProgress(total_tokens=0, step=config.start_step, total_samples=total_samples)
 
@@ -189,7 +180,7 @@ def train(config: TrainingConfig):
 
     if config.ckpt.resume:
         logger.info(f"loading checkpoint from {config.ckpt.resume}")
-        load_checkpoint_fsdp_state(model, [optimizer], training_progress, scheduler, config.ckpt.resume)
+        load_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.resume)
 
     if training_progress.step % config.optim.step_per_rollout != 0:
         logger.warning(
@@ -423,7 +414,6 @@ def train(config: TrainingConfig):
             logger.debug(f"loss: {loss_batch.item()}, grad_norm: {grad_norm.item()}")
 
             optimizer.step()
-            scheduler.step()
             optimizer.zero_grad()
 
             logger.debug("optimizer step")
@@ -519,7 +509,7 @@ def train(config: TrainingConfig):
                 logger.info(
                     f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
                 )
-                save_checkpoint_fsdp_state(model, [optimizer], training_progress, scheduler, config.ckpt.path)
+                save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
 
         if config.recompute_logprobs:
             reshard_module(model_for_logprob_only)
@@ -538,9 +528,7 @@ def train(config: TrainingConfig):
             }
             log_to_wandb(new_metrics)
 
-        if training_progress.step >= config.optim.total_steps or (
-            config.stop_after_steps is not None and training_progress.step >= config.stop_after_steps
-        ):
+        if config.stop_after_steps is not None and training_progress.step >= config.stop_after_steps:
             break
 
     if prefetcher is not None:
