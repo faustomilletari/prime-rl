@@ -204,6 +204,7 @@ class RewardsConfig(BaseConfig):
 
     len_reward: Annotated[LenRewardsConfig | None, Field(default=None)]
     advantage_estimation_method: Annotated[Literal["grpo", "dr_grpo", "opo"], Field(default="grpo")]
+    compute_reward: Annotated[bool, Field(default=True, description="Whether to compute the reward. If not set, will set reward to 0.")]
 
     def __str__(self) -> str:
         len_reward_str = "disabled" if self.len_reward is None else self.len_reward

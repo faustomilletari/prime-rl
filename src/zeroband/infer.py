@@ -92,8 +92,8 @@ def inference(config: InferenceConfig):
     start_time = time.time()
     dataset = load_dataset(config.data.name, split=config.data.split)
 
-    if config.rl is None:
-        logger.info("No RL config set, assuming synthetic data generation and setting task_type to null_reward")
+    if not config.rewards.compute_reward:
+        logger.info("Reward computation is disabled, setting task_type to null_reward")
         dataset = dataset.map(lambda x: {"task_type": "null_reward"})
 
     logger.info(f"Initialized dataset with {len(dataset):,} problems in {time.time() - start_time:.2f}s")
