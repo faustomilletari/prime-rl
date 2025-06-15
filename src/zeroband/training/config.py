@@ -136,7 +136,7 @@ class Config(BaseSettings):
         list[str] | None,
         Field(
             default=None,
-            description="List of extra TOML files to load. If provided, will override all other config files. This field will be read during cli parsing before this config is instantiated.",
+            description="List of extra TOML files to load. If provided, will override all other config files. Note: This field is only read from within configuration files - setting --toml-files from CLI has no effect.",
         ),
     ]
 
