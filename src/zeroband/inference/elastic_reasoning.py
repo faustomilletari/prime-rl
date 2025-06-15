@@ -37,7 +37,8 @@ def swap_think_token(
                 max_output_tokens = min(sampling_config.max_tokens or math.inf, max_model_len - len(seq_data.prompt_token_ids))
                 num_output_tokens = len(seq_data.output_token_ids) + 1  # Increment by 1 because the current token is not yet in the output
                 num_think_tokens = max_output_tokens - sampling_config.max_solution_tokens
-                if num_output_tokens == num_think_tokens:
+                has_stopped_thinking = stop_think_token_id in seq_data.output_token_ids
+                if num_output_tokens == num_think_tokens and not has_stopped_thinking:
                     get_logger("INFER").debug(
                         f"Thinking budget reached for sequence {seq_id} after {num_think_tokens} tokens. Replacing sampled token {seq_output.output_token} with {stop_think_token_id}"
                     )
