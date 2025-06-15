@@ -74,7 +74,11 @@ class MultiMonitorConfig(BaseConfig):
 
 def look_for_inheritance_in_toml(path: str) -> list[str]:
     """
-    Look for inheritance in a toml file. Return a list of extra toml files to load.
+    Recursively look for inheritance in a toml file. Return a list of all toml files to load.
+
+    Example:
+        If config.toml has `toml_files = ["base.toml"]` and base.toml has
+        `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
     """
     path = Path(path)
     return_data = [str(path)]
