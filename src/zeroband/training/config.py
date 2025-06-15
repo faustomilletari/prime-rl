@@ -132,6 +132,14 @@ class DataConfig(BaseConfig):
 class Config(BaseSettings):
     """Configures training"""
 
+    toml_files: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description="List of extra TOML files to load. If provided, will override all other config files. This field will be read during cli parsing before this config is instantiated.",
+        ),
+    ]
+
     # The model configuration
     model: ModelConfig = ModelConfig()
 

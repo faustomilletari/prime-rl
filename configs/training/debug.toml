@@ -1,4 +1,4 @@
-# @ base.toml
+toml_files = ["base.toml"]
 
 wandb = false
 collate_mode = "padding"

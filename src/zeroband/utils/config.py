@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 
+import tomli
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -76,23 +77,23 @@ def look_for_inheritance_in_toml(path: str) -> list[str]:
     Look for inheritance in a toml file. Return a list of extra toml files to load.
     """
     path = Path(path)
+    return_data = [str(path)]
     try:
-        with open(path, "r") as f:
-            toml_str = f.readlines()
+        with open(path, "rb") as f:
+            data = tomli.load(f)
 
-        first_line = toml_str[0]
-        if first_line.startswith("# @"):
-            base_path = first_line.replace("# @", "").strip()
+        if "toml_files" in data:
+            maybe_new_files = [path.parent / file for file in data["toml_files"]]
 
-            maybe_new_path = path.parent / base_path
-            if base_path.endswith(".toml") and maybe_new_path.exists():
-                return [str(path)] + look_for_inheritance_in_toml(str(maybe_new_path))
-            else:
-                return [str(path)]
+            files = [file for file in maybe_new_files if str(file).endswith(".toml") and file.exists()]
+            # todo which should probably look for infinite inheritance loops here
+            for file in files:
+                return_data.extend(look_for_inheritance_in_toml(str(file)))
+
     except Exception as e:
         print(f"Error reading {path}: {e}")
 
-    return [str(path)]
+    return return_data
 
 
 # Extract config file paths from CLI to pass to pydantic-settings as toml source
