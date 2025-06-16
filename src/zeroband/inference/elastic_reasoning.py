@@ -6,6 +6,7 @@ from vllm import LLM
 from vllm.model_executor.layers.sampler import SamplerOutput, SamplingMetadata
 
 from zeroband.inference.config import SamplingConfig
+from zeroband.inference.mask import get_mask_cache
 from zeroband.utils.logger import get_logger
 
 
@@ -22,6 +23,7 @@ def swap_think_token(
         kwargs: The named arguments to the module
         outputs: The outputs of the module
         config: The sampling configuration.
+        max_model_len: The maximum length of the model.
         stop_think_token_id: The token ID of the `</think>` token.
 
     Returns:
@@ -44,6 +46,7 @@ def swap_think_token(
                     )
                     seq_output.logprobs = {stop_think_token_id: seq_output.logprobs[seq_output.output_token]}
                     seq_output.output_token = stop_think_token_id
+                    get_mask_cache().mask_token(seq_id, num_output_tokens - 1)
 
     return sampling_output
 

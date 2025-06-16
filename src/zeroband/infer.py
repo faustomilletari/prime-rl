@@ -24,6 +24,7 @@ from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
 from zeroband.inference.rewards import compute_vllm_rewards
+from zeroband.inference.mask import get_mask_cache
 from zeroband.inference.toploc import setup_toploc_cache
 from zeroband.inference.toploc2 import Toploc2Sampler
 from zeroband.inference.elastic_reasoning import setup_elastic_reasoning
@@ -368,10 +369,17 @@ def inference(config: InferenceConfig):
         else:
             sampling_seeds = [None] * batch_samples
 
+        # Get the masked out tokens for this batch
+        output_masks = get_mask_cache().construct_masks(request_outputs)
+        num_masked_tokens = sum(len(mask) - sum(mask) for mask in output_masks)
+        if num_masked_tokens > 0:
+            logger.info(f"Masked out {num_masked_tokens} tokens")
+
         # Get parquet table
         table = get_parquet_table(
             request_outputs,
             request_rewards,
+            output_masks,
             prompts,
             proofs,
             ckpt_step,
