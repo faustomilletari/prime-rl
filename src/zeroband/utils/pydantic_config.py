@@ -17,7 +17,7 @@ class BaseSettings(PydanticBaseSettings):
     """
 
     # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
-    _GLOBAL_TOML_FILES: ClassVar[list[str]] = []
+    _TOML_FILES: ClassVar[list[str]] = []
 
     toml_files: Annotated[
         list[str] | None,
@@ -28,12 +28,12 @@ class BaseSettings(PydanticBaseSettings):
     ]
 
     @classmethod
-    def set_global_toml_files(cls, toml_files: list[str]) -> None:
+    def set_TOML_FILES(cls, toml_files: list[str]) -> None:
         """
         Set the global TOML files to be used for this config.
         These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
         """
-        cls._GLOBAL_TOML_FILES = toml_files
+        cls._TOML_FILES = toml_files
 
     @classmethod
     def settings_customise_sources(
@@ -47,7 +47,7 @@ class BaseSettings(PydanticBaseSettings):
         # This is a hacky way to dynamically load TOML file paths from CLI
         # https://github.com/pydantic/pydantic-settings/issues/259
         return (
-            TomlConfigSettingsSource(settings_cls, toml_file=cls._GLOBAL_TOML_FILES),
+            TomlConfigSettingsSource(settings_cls, toml_file=cls._TOML_FILES),
             init_settings,
             env_settings,
             dotenv_settings,

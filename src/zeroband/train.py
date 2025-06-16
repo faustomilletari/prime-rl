@@ -540,7 +540,7 @@ def train(config: TrainingConfig):
 if __name__ == "__main__":
     # Extract toml file paths from CLI arguments
     toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    TrainingConfig.set_global_toml_files(toml_paths)
+    TrainingConfig.set_TOML_FILES(toml_paths)
 
     config = TrainingConfig(_cli_parse_args=to_kebab_case(cli_args))
     train(config)

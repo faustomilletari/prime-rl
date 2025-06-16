@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
     # Extract toml file paths from CLI arguments
     toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    InferenceConfig.set_global_toml_files(toml_paths)
+    InferenceConfig.set_TOML_FILES(toml_paths)
 
     config = InferenceConfig(_cli_parse_args=to_kebab_case(cli_args))
 
