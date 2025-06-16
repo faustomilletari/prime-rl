@@ -171,8 +171,6 @@ class Config(BaseSettings):
 
     gpus_ids: Annotated[list[int] | None, Field(default=None)]
 
-    temperature: Annotated[float, Field(default=0.6, ge=0)]
-
     async_level: Annotated[int, Field(default=2, ge=1)]
 
     collate_mode: Annotated[CollateMode, Field(default="padding")]
