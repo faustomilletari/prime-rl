@@ -503,10 +503,3 @@ class Config(BaseSettings):
         if self.model.dtype == "float32":
             self.toploc.enable_toploc1 = False
         return self
-
-    @model_validator(mode="after")
-    def adjust_token_budget(self):
-        # If elastic reasoning is enabled, we overwrite the maximum tokens to sample to be the sum of the thinking and solution budget
-        if self.elastic_reasoning.enable:
-            self.sampling.max_tokens = self.elastic_reasoning.think_budget + self.elastic_reasoning.solution_budget
-        return self
