@@ -136,7 +136,7 @@ def extract_toml_paths(args: list[str]) -> tuple[list[str], list[str]]:
 
     if recurence and cli_toml_file_count > 1:
         warnings.warn(
-            "Inheritance via toml and two or more toml files are provided via CLI. This should be avoied and might lead to undefined behavior."
+            f"{len(toml_paths)} TOML files are added via CLI ({', '.join(toml_paths)}) and at least one of them links to another file. This is not supported yet. Please either compose multiple config files via directly CLI or specify a single file linking to multiple other files"
         )
 
     return toml_paths, remaining_args
