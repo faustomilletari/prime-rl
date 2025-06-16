@@ -20,7 +20,6 @@ from torch.distributed._composable.fsdp import MixedPrecisionPolicy, fully_shard
 from zeroband.training import envs
 from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_state, save_checkpoint_fsdp_state, save_ckpt_for_rollout
 from zeroband.training.config import Config as TrainingConfig
-from zeroband.training.config import set_toml_paths
 from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
 from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.utils import (
@@ -541,7 +540,7 @@ def train(config: TrainingConfig):
 if __name__ == "__main__":
     # Extract toml file paths from CLI arguments
     toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    set_toml_paths(toml_paths)
+    TrainingConfig.set_global_toml_files(toml_paths)
 
     config = TrainingConfig(_cli_parse_args=to_kebab_case(cli_args))
     train(config)

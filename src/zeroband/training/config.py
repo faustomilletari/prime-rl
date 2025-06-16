@@ -1,18 +1,10 @@
-from typing import Annotated, Literal, TypeAlias, Union
+from typing import Annotated, ClassVar, Literal, TypeAlias, Union
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
 from zeroband.utils.config import BaseConfig, MultiMonitorConfig
 from zeroband.utils.models import AttnImpl
-
-# These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
-TOML_PATHS: list[str] = []
-
-
-def set_toml_paths(toml_paths: list[str]) -> None:
-    global TOML_PATHS
-    TOML_PATHS = toml_paths
 
 
 class AdamConfig(BaseConfig):
@@ -132,6 +124,9 @@ class DataConfig(BaseConfig):
 class Config(BaseSettings):
     """Configures training"""
 
+    # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+    _GLOBAL_TOML_FILES: ClassVar[list[str]] = []
+
     toml_files: Annotated[
         list[str] | None,
         Field(
@@ -223,11 +218,18 @@ class Config(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # This is a hacky way to dynamically load TOML file paths from CLI
         # https://github.com/pydantic/pydantic-settings/issues/259
-        global TOML_PATHS
         return (
-            TomlConfigSettingsSource(settings_cls, toml_file=TOML_PATHS),
+            TomlConfigSettingsSource(settings_cls, toml_file=cls._GLOBAL_TOML_FILES),
             init_settings,
             env_settings,
             dotenv_settings,
             file_secret_settings,
         )
+
+    @classmethod
+    def set_global_toml_files(cls, toml_files: list[str]) -> None:
+        """
+        Set the global TOML files to be used for this config.
+        These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+        """
+        cls._GLOBAL_TOML_FILES = toml_files
