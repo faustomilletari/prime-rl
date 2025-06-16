@@ -1,4 +1,5 @@
 import sys
+import warnings
 from pathlib import Path
 from typing import Annotated, ClassVar, Type, TypeVar
 
@@ -75,13 +76,16 @@ class BaseSettings(PydanticBaseSettings):
     )
 
 
-def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
+def check_path_and_handle_inheritance(path: str, seen_files: list[str]) -> bool:
     """
     Recursively look for inheritance in a toml file. Return a list of all toml files to load.
 
     Example:
         If config.toml has `toml_files = ["base.toml"]` and base.toml has
         `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
+
+    Returns:
+        True if some toml inheritance is detected, False otherwise.
     """
     if path in seen_files:
         return
@@ -96,13 +100,17 @@ def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
     with open(path, "rb") as f:
         data = tomli.load(f)
 
+    recurence = False
     if "toml_files" in data:
         maybe_new_files = [path.parent / file for file in data["toml_files"]]
 
         files = [file for file in maybe_new_files if str(file).endswith(".toml")]
         # todo which should probably look for infinite inheritance loops here
         for file in files:
+            recurence = True
             check_path_and_handle_inheritance(str(file), seen_files)
+
+    return recurence
 
 
 # Extract config file paths from CLI to pass to pydantic-settings as toml source
@@ -110,6 +118,8 @@ def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
 def extract_toml_paths(args: list[str]) -> tuple[list[str], list[str]]:
     toml_paths = []
     remaining_args = args.copy()
+    recurence = False
+    cli_toml_file_count = 0
     for arg, next_arg in zip(args, args[1:] + [""]):
         if arg.startswith("@"):
             toml_path: str
@@ -121,7 +131,13 @@ def extract_toml_paths(args: list[str]) -> tuple[list[str], list[str]]:
                 remaining_args.remove(arg)
                 toml_path = arg.replace("@", "")
 
-            check_path_and_handle_inheritance(toml_path, toml_paths)
+            recurence = recurence or check_path_and_handle_inheritance(toml_path, toml_paths)
+            cli_toml_file_count += 1
+
+    if recurence and cli_toml_file_count > 1:
+        warnings.warn(
+            "Inheritance via toml and two or more toml files are provided via CLI. This should be avoied and might lead to undefined behavior."
+        )
 
     return toml_paths, remaining_args
 
