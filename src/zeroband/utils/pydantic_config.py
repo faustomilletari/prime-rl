@@ -28,7 +28,7 @@ class BaseSettings(PydanticBaseSettings):
     ]
 
     @classmethod
-    def set_TOML_FILES(cls, toml_files: list[str]) -> None:
+    def set_toml_files(cls, toml_files: list[str]) -> None:
         """
         Set the global TOML files to be used for this config.
         These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
