@@ -1,0 +1,129 @@
+from pathlib import Path
+from typing import Annotated, ClassVar
+
+import tomli
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings as PydanticBaseSettings
+from pydantic_settings import PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
+
+
+class BaseConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class BaseSettings(PydanticBaseSettings):
+    """
+    Base settings class for all configs.
+    """
+
+    # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+    _GLOBAL_TOML_FILES: ClassVar[list[str]] = []
+
+    toml_files: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description="List of extra TOML files to load. If provided, will override all other config files. Note: This field is only read from within configuration files - setting --toml-files from CLI has no effect.",
+        ),
+    ]
+
+    @classmethod
+    def set_global_toml_files(cls, toml_files: list[str]) -> None:
+        """
+        Set the global TOML files to be used for this config.
+        These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+        """
+        cls._GLOBAL_TOML_FILES = toml_files
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type["BaseSettings"],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # This is a hacky way to dynamically load TOML file paths from CLI
+        # https://github.com/pydantic/pydantic-settings/issues/259
+        return (
+            TomlConfigSettingsSource(settings_cls, toml_file=cls._GLOBAL_TOML_FILES),
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
+
+    # Pydantic settings configuration
+    model_config = SettingsConfigDict(
+        env_prefix="PRIME_",
+        env_nested_delimiter="__",
+        # By default, we do not parse CLI. To activate, set `_cli_parse_args` to true or a list of arguments at init time.
+        cli_parse_args=False,
+        cli_kebab_case=True,
+        cli_avoid_json=True,
+        cli_implicit_flags=True,
+        cli_use_class_docs_for_groups=True,
+    )
+
+
+def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
+    """
+    Recursively look for inheritance in a toml file. Return a list of all toml files to load.
+
+    Example:
+        If config.toml has `toml_files = ["base.toml"]` and base.toml has
+        `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
+    """
+    if path in seen_files:
+        return
+
+    seen_files.append(path)
+    path = Path(path)
+    try:
+        with open(path, "rb") as f:
+            data = tomli.load(f)
+
+        if "toml_files" in data:
+            maybe_new_files = [path.parent / file for file in data["toml_files"]]
+
+            files = [file for file in maybe_new_files if str(file).endswith(".toml") and file.exists()]
+            # todo which should probably look for infinite inheritance loops here
+            for file in files:
+                check_path_and_handle_inheritance(str(file), seen_files)
+
+    except Exception as e:
+        print(f"Error reading {path}: {e}")
+
+
+# Extract config file paths from CLI to pass to pydantic-settings as toml source
+# This enables the use of `@` to pass config file paths to the CLI
+def extract_toml_paths(args: list[str]) -> tuple[list[str], list[str]]:
+    toml_paths = []
+    remaining_args = args.copy()
+    for arg, next_arg in zip(args, args[1:] + [""]):
+        if arg.startswith("@"):
+            toml_path: str
+            if arg == "@":  # We assume that the next argument is a toml file path
+                toml_path = next_arg
+                remaining_args.remove(arg)
+                remaining_args.remove(next_arg)
+            else:  # We assume that the argument is a toml file path
+                remaining_args.remove(arg)
+                toml_path = arg.replace("@", "")
+
+            check_path_and_handle_inheritance(toml_path, toml_paths)
+
+    return toml_paths, remaining_args
+
+
+def to_kebab_case(args: list[str]) -> list[str]:
+    """
+    Converts CLI argument keys from snake case to kebab case.
+
+    For example, `--max_batch_size 1` will be transformed `--max-batch-size 1`.
+    """
+    for i, arg in enumerate(args):
+        if arg.startswith("--"):
+            args[i] = arg.replace("_", "-")
+    return args

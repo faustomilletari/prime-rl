@@ -21,7 +21,7 @@ from toploc.utils import sha256sum
 from vllm import LLM, SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
-from zeroband.utils.config import extract_toml_paths, to_kebab_case
+from zeroband.utils.pydantic_config import extract_toml_paths, to_kebab_case
 from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks

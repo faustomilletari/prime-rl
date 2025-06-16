@@ -2,8 +2,9 @@ from typing import Annotated, Literal, TypeAlias, Union
 
 from pydantic import Field, model_validator
 
-from zeroband.utils.config import BaseConfig, BaseSettings, MultiMonitorConfig
 from zeroband.utils.models import AttnImpl
+from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
+from zeroband.utils.shared_config import MultiMonitorConfig
 
 
 class AdamConfig(BaseConfig):

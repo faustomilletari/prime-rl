@@ -35,10 +35,10 @@ from zeroband.training.utils import (
     wake_up_model_from_cpu,
 )
 from zeroband.training.world_info import WorldInfo, get_world_info
-from zeroband.utils.config import extract_toml_paths, to_kebab_case
 from zeroband.utils.logger import get_logger
 from zeroband.utils.models import ModelType, get_model_and_tokenizer
 from zeroband.utils.monitor import setup_monitor
+from zeroband.utils.pydantic_config import extract_toml_paths, to_kebab_case
 
 
 def get_local_batch_size(batch_size: int, micro_bs: int, data_workers: int, world_info: WorldInfo) -> int:
