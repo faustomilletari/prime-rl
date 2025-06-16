@@ -4,8 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
+from zeroband.utils.config import MultiMonitorConfig
 from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
-from zeroband.utils.shared_config import MultiMonitorConfig
 
 
 class SamplingConfig(BaseConfig):

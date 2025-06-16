@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from zeroband.inference.config import Config as InferenceConfig
+from zeroband.utils.config import APIMonitorConfig, FileMonitorConfig, SocketMonitorConfig
 from zeroband.utils.monitor import (
     APIMonitor,
     FileMonitor,
     SocketMonitor,
 )
-from zeroband.utils.shared_config import APIMonitorConfig, FileMonitorConfig, SocketMonitorConfig
 
 
 def test_invalid_file_monitor_config():

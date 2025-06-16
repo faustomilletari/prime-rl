@@ -11,8 +11,8 @@ import aiohttp
 import psutil
 import pynvml
 
+from zeroband.utils.config import APIMonitorConfig, BaseConfig, FileMonitorConfig, MultiMonitorConfig, SocketMonitorConfig
 from zeroband.utils.logger import get_logger
-from zeroband.utils.shared_config import APIMonitorConfig, BaseConfig, FileMonitorConfig, MultiMonitorConfig, SocketMonitorConfig
 
 
 class Monitor(ABC):
