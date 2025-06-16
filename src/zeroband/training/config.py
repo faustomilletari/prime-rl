@@ -1,9 +1,8 @@
-from typing import Annotated, ClassVar, Literal, TypeAlias, Union
+from typing import Annotated, Literal, TypeAlias, Union
 
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
-from zeroband.utils.config import BaseConfig, MultiMonitorConfig
+from zeroband.utils.config import BaseConfig, BaseSettings, MultiMonitorConfig
 from zeroband.utils.models import AttnImpl
 
 
@@ -124,17 +123,6 @@ class DataConfig(BaseConfig):
 class Config(BaseSettings):
     """Configures training"""
 
-    # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
-    _GLOBAL_TOML_FILES: ClassVar[list[str]] = []
-
-    toml_files: Annotated[
-        list[str] | None,
-        Field(
-            default=None,
-            description="List of extra TOML files to load. If provided, will override all other config files. Note: This field is only read from within configuration files - setting --toml-files from CLI has no effect.",
-        ),
-    ]
-
     # The model configuration
     model: ModelConfig = ModelConfig()
 
@@ -194,42 +182,3 @@ class Config(BaseSettings):
         if self.ckpt.interval is not None:
             assert self.ckpt.interval % self.optim.step_per_rollout == 0, "ckpt.interval must be divisible by train.step_per_rollout"
         return self
-
-    # Pydantic settings configuration
-    model_config = SettingsConfigDict(
-        env_prefix="PRIME_",
-        env_nested_delimiter="__",
-        # By default, we do not parse CLI. To activate, set `_cli_parse_args` to true or a list of arguments at init time.
-        cli_parse_args=False,
-        cli_kebab_case=True,
-        cli_avoid_json=True,
-        cli_implicit_flags=True,
-        cli_use_class_docs_for_groups=True,
-    )
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # This is a hacky way to dynamically load TOML file paths from CLI
-        # https://github.com/pydantic/pydantic-settings/issues/259
-        return (
-            TomlConfigSettingsSource(settings_cls, toml_file=cls._GLOBAL_TOML_FILES),
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            file_secret_settings,
-        )
-
-    @classmethod
-    def set_global_toml_files(cls, toml_files: list[str]) -> None:
-        """
-        Set the global TOML files to be used for this config.
-        These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
-        """
-        cls._GLOBAL_TOML_FILES = toml_files

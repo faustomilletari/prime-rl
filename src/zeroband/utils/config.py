@@ -1,8 +1,65 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 import tomli
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
+
+
+class BaseSettings(BaseSettings):
+    """
+    Base settings class for all configs.
+    """
+
+    # These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+    _GLOBAL_TOML_FILES: ClassVar[list[str]] = []
+
+    toml_files: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description="List of extra TOML files to load. If provided, will override all other config files. Note: This field is only read from within configuration files - setting --toml-files from CLI has no effect.",
+        ),
+    ]
+
+    @classmethod
+    def set_global_toml_files(cls, toml_files: list[str]) -> None:
+        """
+        Set the global TOML files to be used for this config.
+        These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
+        """
+        cls._GLOBAL_TOML_FILES = toml_files
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # This is a hacky way to dynamically load TOML file paths from CLI
+        # https://github.com/pydantic/pydantic-settings/issues/259
+        return (
+            TomlConfigSettingsSource(settings_cls, toml_file=cls._GLOBAL_TOML_FILES),
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )
+
+    # Pydantic settings configuration
+    model_config = SettingsConfigDict(
+        env_prefix="PRIME_",
+        env_nested_delimiter="__",
+        # By default, we do not parse CLI. To activate, set `_cli_parse_args` to true or a list of arguments at init time.
+        cli_parse_args=False,
+        cli_kebab_case=True,
+        cli_avoid_json=True,
+        cli_implicit_flags=True,
+        cli_use_class_docs_for_groups=True,
+    )
 
 
 class BaseConfig(BaseModel):
