@@ -347,7 +347,7 @@ class Config(BaseSettings):
     monitor: Annotated[MultiMonitorConfig, Field(default=MultiMonitorConfig())]
 
     # The RL configuration. If None, inference will run in a non-RL setting.
-    rl: Annotated[RLConfig | None, Field(default=None)]
+    rl: Annotated[RLConfig | None, Field(default=RLConfig())]
 
     toploc: Annotated[
         bool,

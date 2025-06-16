@@ -96,7 +96,7 @@ class RatioConfig(BaseGRPOVariantConfig):
     clip_ratio: Annotated[float, Field(default=8.0)]
 
 
-GRPOVariantsConfig: TypeAlias = Annotated[Union[ClippingConfig, KlCovConfig, RatioConfig], Field(discriminator="type")]
+GRPOVariantsConfig: TypeAlias = Union[ClippingConfig, KlCovConfig, RatioConfig]
 
 
 class GRPOLossConfig(BaseConfig):
