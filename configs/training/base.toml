@@ -1,5 +1,0 @@
-#this file will be deleted before merging
-toml_files = ["debug.toml"] # just checking that there is no infinite loop
-
-
-stop_after_steps = 1 

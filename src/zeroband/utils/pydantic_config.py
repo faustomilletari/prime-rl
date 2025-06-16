@@ -83,25 +83,27 @@ def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
         If config.toml has `toml_files = ["base.toml"]` and base.toml has
         `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
     """
+    print(f"Checking {path}")
     if path in seen_files:
         return
 
-    seen_files.append(path)
     path = Path(path)
-    try:
-        with open(path, "rb") as f:
-            data = tomli.load(f)
 
-        if "toml_files" in data:
-            maybe_new_files = [path.parent / file for file in data["toml_files"]]
+    if not path.exists():
+        raise FileNotFoundError(f"TOML file {path} does not exist")
 
-            files = [file for file in maybe_new_files if str(file).endswith(".toml") and file.exists()]
-            # todo which should probably look for infinite inheritance loops here
-            for file in files:
-                check_path_and_handle_inheritance(str(file), seen_files)
+    seen_files.append(str(path))
 
-    except Exception as e:
-        print(f"Error reading {path}: {e}")
+    with open(path, "rb") as f:
+        data = tomli.load(f)
+
+    if "toml_files" in data:
+        maybe_new_files = [path.parent / file for file in data["toml_files"]]
+
+        files = [file for file in maybe_new_files if str(file).endswith(".toml")]
+        # todo which should probably look for infinite inheritance loops here
+        for file in files:
+            check_path_and_handle_inheritance(str(file), seen_files)
 
 
 # Extract config file paths from CLI to pass to pydantic-settings as toml source
