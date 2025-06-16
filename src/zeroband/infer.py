@@ -1,4 +1,3 @@
-import sys
 import json
 import multiprocessing as mp
 import os
@@ -21,8 +20,8 @@ from toploc.utils import sha256sum
 from vllm import LLM, SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
-from zeroband.utils.config import extract_toml_paths, to_kebab_case
-from zeroband.inference.config import Config as InferenceConfig, set_toml_paths
+from zeroband.utils.pydantic_config import parse_argv
+from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
 from zeroband.inference.rewards import compute_vllm_rewards
@@ -187,6 +186,16 @@ def inference(config: InferenceConfig):
         llm = reload_model_weights(llm, path_file)
         real_step = ckpt_step
 
+    # Check if we should resume from step_path file
+    if config.step_path is not None and config.step_path.exists():
+        try:
+            saved_step = int(config.step_path.read_text().strip())
+            logger.info(f"Found existing step file at {config.step_path} with step {saved_step}")
+            real_step = saved_step
+            logger.info(f"Resuming from step {real_step} (loaded from {config.step_path})")
+        except (ValueError, IOError) as e:
+            logger.warning(f"Failed to read step from {config.step_path}: {e}")
+
     # This is used by the seeding logic to make sure we dont generate the same samples twice if we do multiple batches for a step
     current_step_batch_counter = 1
     total_problems = 0
@@ -228,6 +237,12 @@ def inference(config: InferenceConfig):
                     logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
                 time.sleep(1)
                 attempt_count += 1
+
+        if config.step_path is not None:
+            if not config.step_path.exists():
+                config.step_path.parent.mkdir(parents=True, exist_ok=True)
+            config.step_path.write_text(str(real_step))
+            logger.info(f"Wrote current inference step ({real_step}) to {config.step_path}")
 
         # Get batch
         if node_address_int is not None:
@@ -425,11 +440,7 @@ if __name__ == "__main__":
     # Set spawn method before any other multiprocessing code
     mp.set_start_method("spawn")
 
-    # Extract toml file paths from CLI arguments
-    toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    set_toml_paths(toml_paths)
-
-    config = InferenceConfig(_cli_parse_args=to_kebab_case(cli_args))
+    config = parse_argv(InferenceConfig)
 
     if config.rl and config.rl.step_endpoint is not None:
         current_step = requests.get(config.rl.step_endpoint).json()
