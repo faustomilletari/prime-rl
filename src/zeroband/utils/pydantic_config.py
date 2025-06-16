@@ -83,7 +83,6 @@ def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
         If config.toml has `toml_files = ["base.toml"]` and base.toml has
         `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
     """
-    print(f"Checking {path}")
     if path in seen_files:
         return
 
