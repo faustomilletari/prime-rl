@@ -1,5 +1,6 @@
+import sys
 from pathlib import Path
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Type, TypeVar
 
 import tomli
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +35,13 @@ class BaseSettings(PydanticBaseSettings):
         These are two somewhat hacky workarounds inspired by https://github.com/pydantic/pydantic-settings/issues/259 to ensure backwards compatibility with our old CLI system `pydantic_config`
         """
         cls._TOML_FILES = toml_files
+
+    @classmethod
+    def clear_toml_files(cls) -> None:
+        """
+        Clear the global TOML files to be used for this config.
+        """
+        cls._TOML_FILES = []
 
     @classmethod
     def settings_customise_sources(
@@ -127,3 +135,28 @@ def to_kebab_case(args: list[str]) -> list[str]:
         if arg.startswith("--"):
             args[i] = arg.replace("_", "-")
     return args
+
+
+T = TypeVar("T", bound=BaseSettings)
+
+
+def parse_argv(config_cls: Type[T]) -> T:
+    """
+    Parse CLI arguments and TOML configuration files into a pydantic settings instance.
+
+    Supports loading TOML files via @ syntax (e.g., @config.toml or @ config.toml).
+    Automatically converts snake_case CLI args to kebab-case for pydantic compatibility.
+    TOML files can inherit from other TOML files via the 'toml_files' field.
+
+    Args:
+        config_cls: A pydantic BaseSettings class to instantiate with parsed configuration.
+
+    Returns:
+        An instance of config_cls populated with values from TOML files and CLI args.
+        CLI args take precedence over TOML file values.
+    """
+    toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
+    config_cls.set_toml_files(toml_paths)
+    config = config_cls(_cli_parse_args=to_kebab_case(cli_args))
+    config_cls.clear_toml_files()
+    return config

@@ -6,9 +6,9 @@ Need to be run from the root folder
 import os
 
 import pytest
-import tomli
 
 from zeroband.training.config import Config as TrainingConfig
+from zeroband.utils.pydantic_config import extract_toml_paths
 
 
 def get_all_toml_files(directory):
@@ -22,7 +22,9 @@ def get_all_toml_files(directory):
 
 @pytest.mark.parametrize("config_file_path", get_all_toml_files("configs/training"))
 def test_load_train_configs(config_file_path):
-    with open(f"{config_file_path}", "rb") as f:
-        content = tomli.load(f)
-    config = TrainingConfig(**content)
+    toml_paths, cli_args = extract_toml_paths(["@ " + config_file_path])
+    print(toml_paths)
+    TrainingConfig.set_toml_files(toml_paths)
+
+    config = TrainingConfig(_cli_parse_args=[])
     assert config is not None

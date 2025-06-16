@@ -1,7 +1,6 @@
 import logging
 import os
 import shutil
-import sys
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -38,7 +37,7 @@ from zeroband.training.world_info import WorldInfo, get_world_info
 from zeroband.utils.logger import get_logger
 from zeroband.utils.models import ModelType, get_model_and_tokenizer
 from zeroband.utils.monitor import setup_monitor
-from zeroband.utils.pydantic_config import extract_toml_paths, to_kebab_case
+from zeroband.utils.pydantic_config import parse_argv
 
 
 def get_local_batch_size(batch_size: int, micro_bs: int, data_workers: int, world_info: WorldInfo) -> int:
@@ -538,9 +537,5 @@ def train(config: TrainingConfig):
 
 
 if __name__ == "__main__":
-    # Extract toml file paths from CLI arguments
-    toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    TrainingConfig.set_toml_files(toml_paths)
-
-    config = TrainingConfig(_cli_parse_args=to_kebab_case(cli_args))
+    config = parse_argv(TrainingConfig)
     train(config)

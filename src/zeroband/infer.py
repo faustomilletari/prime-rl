@@ -1,4 +1,3 @@
-import sys
 import json
 import multiprocessing as mp
 import os
@@ -21,7 +20,7 @@ from toploc.utils import sha256sum
 from vllm import LLM, SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
-from zeroband.utils.pydantic_config import extract_toml_paths, to_kebab_case
+from zeroband.utils.pydantic_config import parse_argv
 from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
@@ -441,11 +440,7 @@ if __name__ == "__main__":
     # Set spawn method before any other multiprocessing code
     mp.set_start_method("spawn")
 
-    # Extract toml file paths from CLI arguments
-    toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
-    InferenceConfig.set_toml_files(toml_paths)
-
-    config = InferenceConfig(_cli_parse_args=to_kebab_case(cli_args))
+    config = parse_argv(InferenceConfig)
 
     if config.rl and config.rl.step_endpoint is not None:
         current_step = requests.get(config.rl.step_endpoint).json()
