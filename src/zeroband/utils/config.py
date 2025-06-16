@@ -3,10 +3,15 @@ from typing import Annotated, ClassVar
 
 import tomli
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
+from pydantic_settings import BaseSettings as PydanticBaseSettings
+from pydantic_settings import PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
 
-class BaseSettings(BaseSettings):
+class BaseConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class BaseSettings(PydanticBaseSettings):
     """
     Base settings class for all configs.
     """
@@ -33,7 +38,7 @@ class BaseSettings(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        settings_cls: type["BaseSettings"],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
@@ -60,10 +65,6 @@ class BaseSettings(BaseSettings):
         cli_implicit_flags=True,
         cli_use_class_docs_for_groups=True,
     )
-
-
-class BaseConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class FileMonitorConfig(BaseConfig):
