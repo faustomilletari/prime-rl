@@ -72,7 +72,7 @@ class MultiMonitorConfig(BaseConfig):
         return f"file={file_str}, socket={socket_str}, api={api_str}, system_log_frequency={self.system_log_frequency}"
 
 
-def look_for_inheritance_in_toml(path: str) -> list[str]:
+def check_path_and_handle_inheritance(path: str, seen_files: list[str]):
     """
     Recursively look for inheritance in a toml file. Return a list of all toml files to load.
 
@@ -80,8 +80,11 @@ def look_for_inheritance_in_toml(path: str) -> list[str]:
         If config.toml has `toml_files = ["base.toml"]` and base.toml has
         `toml_files = ["common.toml"]`, this returns ["config.toml", "base.toml", "common.toml"]
     """
+    if path in seen_files:
+        return
+
+    seen_files.append(path)
     path = Path(path)
-    return_data = [str(path)]
     try:
         with open(path, "rb") as f:
             data = tomli.load(f)
@@ -92,12 +95,10 @@ def look_for_inheritance_in_toml(path: str) -> list[str]:
             files = [file for file in maybe_new_files if str(file).endswith(".toml") and file.exists()]
             # todo which should probably look for infinite inheritance loops here
             for file in files:
-                return_data.extend(look_for_inheritance_in_toml(str(file)))
+                check_path_and_handle_inheritance(str(file), seen_files)
 
     except Exception as e:
         print(f"Error reading {path}: {e}")
-
-    return return_data
 
 
 # Extract config file paths from CLI to pass to pydantic-settings as toml source
@@ -116,7 +117,7 @@ def extract_toml_paths(args: list[str]) -> tuple[list[str], list[str]]:
                 remaining_args.remove(arg)
                 toml_path = arg.replace("@", "")
 
-        toml_paths.extend(look_for_inheritance_in_toml(toml_path))
+            check_path_and_handle_inheritance(toml_path, toml_paths)
 
     return toml_paths, remaining_args
 
