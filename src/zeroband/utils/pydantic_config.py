@@ -15,7 +15,9 @@ class BaseConfig(BaseModel):
     @field_validator("*", mode="before")
     @classmethod
     def empty_str_to_none(cls, v):
-        print(f"HELOOOOOOOOO    v: {v}")
+        """
+        This allow to support setting None via toml files using the string "None"
+        """
         if v == "None":
             return None
         return v
