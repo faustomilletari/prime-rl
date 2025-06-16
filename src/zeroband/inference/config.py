@@ -341,6 +341,14 @@ class RLConfig(BaseConfig):
 class Config(BaseSettings):
     """Configures inference."""
 
+    toml_files: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description="List of extra TOML files to load. If provided, will override all other config files. Note: This field is only read from within configuration files - setting --toml-files from CLI has no effect.",
+        ),
+    ]
+
     # The model configuration
     model: Annotated[ModelConfig, Field(default=ModelConfig())]
 
