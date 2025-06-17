@@ -403,6 +403,9 @@ class Config(BaseSettings):
     # The RL configuration. If None, inference will run in a non-RL setting.
     rl: Annotated[RLConfig | None, Field(default=RLConfig())]
 
+    # The TOPLOC configuration
+    toploc: Annotated[TopLocConfig, Field(default=TopLocConfig())]
+
     max_batch_size: Annotated[
         int | Literal["auto"],
         Field(
