@@ -485,7 +485,7 @@ def train(config: TrainingConfig):
                 rollout_step = training_progress.step // config.optim.step_per_rollout
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
                 previous_ckpt_rollout.append(path)
-                safetensor_path = save_ckpt_for_rollout(model, tokenizer, path)
+                safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
                 if world_info.rank == 0:
                     if envs.SHARDCAST_OUTPUT_DIR is not None:
                         logger.info(f"Broadcasting {safetensor_path}")
