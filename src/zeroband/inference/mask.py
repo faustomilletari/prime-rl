@@ -30,8 +30,6 @@ class MaskCache:
         Returns:
             A list of masks, where each mask is a list of booleans indicating whether each token should be masked out.
         """
-        print(self._mask_cache)
-        print(request_outputs)
         output_masks = []
         for request_output in request_outputs:
             request_id = int(request_output.request_id)
