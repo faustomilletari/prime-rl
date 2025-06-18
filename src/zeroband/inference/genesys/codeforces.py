@@ -33,13 +33,9 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
             raise NotImplementedError(f"input mode doesn't exist: {input_mode}")
 
 
-    requests = SandboxRequestBatch(
-        requests=[create_request(code, test) for test in tests]
-    )
+    requests = SandboxRequestBatch(requests=[create_request(code, test) for test in tests])
 
-    responses: SandboxResponseBatch = make_sandbox_request_batch(
-        sandbox=local_sandbox, request_batch=requests
-    )
+    responses: SandboxResponseBatch = make_sandbox_request_batch(sandbox=local_sandbox, request_batch=requests)
 
     assert len(responses.responses) == len(tests), "Number of responses does not match number of tests."
 
@@ -58,17 +54,15 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
     def score_response(response: SandboxResponse, test: dict) -> bool:
         return extract_response_text(response) == test["output"].strip()
 
-    scores: list[bool] = [
-        score_response(resp, test) for resp, test in zip(responses.responses, tests)
-    ]
+    test_successes: list[bool] = [score_response(resp, test) for resp, test in zip(responses.responses, tests)]
 
-    passed = sum(scores)
+    passed = sum(test_successes)
     total = len(tests)
     score = float(passed) / float(total)
 
     # Print results
     if verbose:
-        for resp, test, correct in zip(responses.responses, tests, scores):
+        for resp, test, correct in zip(responses.responses, tests, test_successes):
             if not correct:
                 print("=" * 80)
                 print(f"Test input:\n{test['input']}")
