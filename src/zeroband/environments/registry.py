@@ -86,13 +86,21 @@ def load_reverse_environment(env_args: dict | None = None) -> Environment:
     return vf_env
 
 
+def load_default_environment(env_args: dict = {}) -> Environment:
+    dataset_name = env_args.get("dataset", "openai/gsm8k")
+    dataset = load_dataset(dataset_name, split="train")
+    vf_env = vf.SingleTurnEnv(dataset=dataset)
+    return vf_env
+
+
 REGISTRY = {
     "gsm8k": load_gsm8k_environment,
     "reverse-text": load_reverse_environment,
+    "default": load_default_environment,
 }
 
 
-def get_environment(env_id: str, env_args: dict | None = None) -> Environment:
+def get_environment(env_id: str, env_args: dict = {}) -> Environment:
     if env_id not in REGISTRY:
         raise ValueError(f"Environment {env_id} not found")
     return REGISTRY[env_id](env_args)
