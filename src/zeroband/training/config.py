@@ -60,6 +60,13 @@ class CkptConfig(BaseConfig):
 
     rollout_path: Annotated[str | None, Field(default=None)]
     clean_rollout_path: Annotated[bool, Field(default=False)]
+    async_save: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="Enable async checkpointing. Checkpoint will first be move from GPU to CPU and then write to disk in a async way.",
+        ),
+    ]
 
     @model_validator(mode="after")
     def check_path_and_interval(self):

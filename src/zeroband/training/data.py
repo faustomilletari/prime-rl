@@ -122,7 +122,7 @@ def _get_dataset_from_files_step(
 
                 rows = dataset.count_rows()
             except Exception as e:
-                logger.warn(f"Error loading dataset for step {step_count}: {e}, files: {files}")
+                logger.warning(f"Error loading dataset for step {step_count}: {e}, files: {files}")
                 rows = 0
 
             if rows >= batch_size:
@@ -323,7 +323,7 @@ class ParquetDataset(IterableDataset):
                             }
 
                         except Exception as e:
-                            self._logger.warn(f"Error processing row {counter} sample {sample_count}: {str(e)}")
+                            self._logger.warning(f"Error processing row {counter} sample {sample_count}: {str(e)}")
                             data = None
 
                         if data is not None:
@@ -333,7 +333,7 @@ class ParquetDataset(IterableDataset):
                         if sample_count >= target_sample_count_per_batch:
                             break
                 else:
-                    self._logger.warn(f"Batch {j} does not have the required columns")
+                    self._logger.warning(f"Batch {j} does not have the required columns")
 
                 if sample_count >= target_sample_count_per_batch:
                     break
