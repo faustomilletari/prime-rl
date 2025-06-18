@@ -1,4 +1,4 @@
-max_batch_size = 180
+max_batch_size = 360
 clean_rollout_path = true
 
 [model]
@@ -14,7 +14,8 @@ min_solve_rate = 0.1
 max_solve_rate = 0.5
 
 [parallel]
-dp = 6
+dp = 3
+tp = 2
 
 [rl]
 ckpt_path = "rollouts"
