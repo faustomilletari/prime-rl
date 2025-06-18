@@ -18,13 +18,20 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
 
     local_sandbox = CodeSandbox()
 
-    assert input_mode == "stdio", "Only 'stdio' input mode is supported." # TODO: Implement file input mode
-
     def create_request(code: str, test: dict) -> SandboxRequest:
-        return SandboxRequest(
-            args=CodeRunArgs(code=code, run_timeout=time_limit, stdin=test["input"]),
-            language=language,
-        )
+        if input_mode == "stdio":
+            return SandboxRequest(
+                args=CodeRunArgs(code=code, run_timeout=time_limit, stdin=test["input"]),
+                language=language,
+            )
+        elif input_mode == "file":
+            return SandboxRequest(
+                args=CodeRunArgs(code=code, run_timeout=time_limit, files={"input.txt": test["input"]}, fetch_files=["output.txt"]),
+                language=language,
+            )
+        else:
+            raise NotImplementedError(f"input mode doesn't exist: {input_mode}")
+
 
     requests = SandboxRequestBatch(
         requests=[create_request(code, test) for test in tests]
@@ -39,11 +46,20 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
     ), "Number of responses does not match number of tests."
 
     def score_response(response: SandboxResponse, test: dict) -> bool:
-        # TODO: Better error handling
+        response_text = None
         try:
-            return response.result.run_result.stdout.strip() == test["output"].strip()
+            if input_mode == "stdio":
+                response_text = response.result.run_result.stdout.strip() # type: ignore (Throw exception on missing attr)
+            elif input_mode == "file":
+                response_text = response.result.files["output.txt"].strip()
+            else:
+                raise NotImplementedError(f"input mode doesn't exist: {input_mode}")
         except Exception:
             return False
+
+        return response_text == test["output"].strip()
+
+    
 
     scores: list[bool] = [
         score_response(resp, test) for resp, test in zip(responses.responses, tests)
