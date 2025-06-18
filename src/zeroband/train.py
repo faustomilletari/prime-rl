@@ -493,7 +493,7 @@ def train(config: TrainingConfig):
                     path_to_delete = previous_ckpt_rollout.pop(0)
                     ckpt_step = int(str(path_to_delete).split("_")[-1])
 
-                    if path_to_delete.exists() and ckpt_step % config.ckpt.save_every != 0:
+                    if path_to_delete.exists() and ckpt_step % config.ckpt.interval_rollout != 0:
                         logger.info(f"Removing past rollout ckpt at {path_to_delete}")
                         shutil.rmtree(path_to_delete, ignore_errors=True)
 

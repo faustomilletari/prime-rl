@@ -54,8 +54,8 @@ class CkptConfig(BaseConfig):
 
     path: Annotated[str | None, Field(default=None)]
     interval: Annotated[int | None, Field(default=None)]
+    interval_rollout: Annotated[int | None, Field(default=None)]
     resume: Annotated[str | None, Field(default=None)]
-    save_every: Annotated[int | None, Field(default=None)]
 
     rollout_path: Annotated[str | None, Field(default=None)]
     clean_rollout_path: Annotated[bool, Field(default=False)]
