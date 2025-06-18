@@ -20,3 +20,7 @@ path = "rollouts"
 [optim]
 batch_size = 1024
 step_per_rollout = 1
+
+[ckpt]
+async_save = true
+clean_ckpt_path = true
