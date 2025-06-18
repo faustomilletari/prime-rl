@@ -18,8 +18,8 @@ dp = 3
 tp = 2
 
 [rl]
-ckpt_path = "rollouts"
 clean_ckpt_path = true
+ckpt_path = "checkpoints"
 
 [sampling]
 temperature = 1.0

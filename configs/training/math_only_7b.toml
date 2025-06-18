@@ -24,3 +24,4 @@ step_per_rollout = 1
 [ckpt]
 async_save = true
 clean_rollout_path = true
+rollout_path = "checkpoints"
