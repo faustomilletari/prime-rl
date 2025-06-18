@@ -13,7 +13,7 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
     language = verification_info["language"]
     input_mode = verification_info["input_mode"]
     time_limit = verification_info["time_limit"]
-    #memory_limit = verification_info["memory_limit"] # TODO: Implement memory limit in code sandbox
+    #memory_limit = verification_info["memory_limit"] # TODO: Implement memory limit in code sandbox (cgroups agony)
     tests = verification_info["tests"]
 
     local_sandbox = CodeSandbox()
@@ -41,25 +41,22 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
         sandbox=local_sandbox, request_batch=requests
     )
 
-    assert len(responses.responses) == len(
-        tests
-    ), "Number of responses does not match number of tests."
+    assert len(responses.responses) == len(tests), "Number of responses does not match number of tests."
 
-    def score_response(response: SandboxResponse, test: dict) -> bool:
-        response_text = None
+    def extract_response_text(response: SandboxResponse) -> str | None:
         try:
             if input_mode == "stdio":
                 response_text = response.result.run_result.stdout.strip() # type: ignore (Throw exception on missing attr)
             elif input_mode == "file":
                 response_text = response.result.files["output.txt"].strip()
             else:
-                raise NotImplementedError(f"input mode doesn't exist: {input_mode}")
+                return None
         except Exception:
-            return False
+            return None
+        return response_text
 
-        return response_text == test["output"].strip()
-
-    
+    def score_response(response: SandboxResponse, test: dict) -> bool:
+        return extract_response_text(response) == test["output"].strip()
 
     scores: list[bool] = [
         score_response(resp, test) for resp, test in zip(responses.responses, tests)
@@ -76,7 +73,7 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
                 print("=" * 80)
                 print(f"Test input:\n{test['input']}")
                 print(f"Expected output:\n{test['output']}")
-                print(f"Actual output:\n{resp.result.run_result.stdout.strip()}")
+                print(f"Actual output:\n{extract_response_text(resp)}")
         print("=" * 80)
         print(f"Passed {passed}/{total} tests.")
         print("=" * 80)

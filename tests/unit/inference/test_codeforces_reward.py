@@ -236,5 +236,3 @@ def test_codeforces_reward():
 
     file_score = codeforces_reward(completion_file, verification_info_file, verbose=False)
     assert file_score == (20 / 20)
-
-test_codeforces_reward()
