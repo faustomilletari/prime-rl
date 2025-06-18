@@ -281,8 +281,13 @@ def train(config: TrainingConfig):
 
             logprobs_aware_iterator = iter(data)
 
-            time_logprob = time.time() - time_start
-            logger.info(f"Time to compute logprobs: {time_logprob:.2f} seconds")
+            total_time = time.time() - time_start
+            total_time_logprob = total_time - total_time_data_loading - total_time_packing
+
+            logger.debug(f"Time to data loading: {total_time_data_loading:.2f} seconds")
+            logger.debug(f"Time to packing: {total_time_packing:.2f} seconds")
+            logger.info(f"Time to compute logprobs: {total_time_logprob:.2f} seconds")
+            logger.info(f"Total time data preprocessing: {total_time:.2f} seconds")
 
         logger.debug("start training rollout")
 
@@ -522,9 +527,10 @@ def train(config: TrainingConfig):
                 "rollout_step": rollout_step,
                 "step": training_progress.step,
                 "time_rollout_step": time_rollout_step,
-                "time_logprob": time_logprob,
+                "time_logprob": total_time_logprob,
                 "time_data_loading": total_time_data_loading,
                 "time_packing": total_time_packing,
+                "time_data_preprocessing": total_time,
             }
             log_to_wandb(new_metrics)
 
