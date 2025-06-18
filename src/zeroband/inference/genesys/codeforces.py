@@ -40,19 +40,22 @@ def codeforces_reward(code: str, verification_info: dict, verbose=False) -> floa
     assert len(responses.responses) == len(tests), "Number of responses does not match number of tests."
 
     def extract_response_text(response: SandboxResponse) -> str | None:
-        try:
-            if input_mode == "stdio":
-                response_text = response.result.run_result.stdout.strip() # type: ignore (Throw exception on missing attr)
-            elif input_mode == "file":
-                response_text = response.result.files["output.txt"].strip()
-            else:
+        if input_mode == "stdio":
+            if (run_result := response.result.run_result) is None:
                 return None
-        except Exception:
-            return None
-        return response_text
+            return run_result.stdout
+        elif input_mode == "file":
+            result_files = response.result.files
+            if not "output.txt" in result_files:
+                return None
+            return result_files["output.txt"]
+        else:
+            raise NotImplementedError(f"input mode doesn't exist: {input_mode}")
 
     def score_response(response: SandboxResponse, test: dict) -> bool:
-        return extract_response_text(response) == test["output"].strip()
+        if (response_text := extract_response_text(response)) is None:
+            return False
+        return response_text.strip() == test["output"].strip()
 
     test_successes: list[bool] = [score_response(resp, test) for resp, test in zip(responses.responses, tests)]
 
