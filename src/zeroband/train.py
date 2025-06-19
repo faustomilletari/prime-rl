@@ -13,7 +13,7 @@ import torch.distributed.tensor
 from jaxtyping import Float
 from liger_kernel.transformers import apply_liger_kernel_to_qwen2
 from torch._guards import log as torch_log
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy, fully_shard  # type: ignore
+from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 
 from zeroband.training import envs
 from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_state, save_checkpoint_fsdp_state, save_ckpt_for_rollout
