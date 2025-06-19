@@ -1,5 +1,7 @@
+stop_after_steps = 50
+
+[monitor.wandb]
 project = "reverse-debug"
-stop_after_steps = 100
 
 [model]
 name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
@@ -10,7 +12,6 @@ reshard_after_forward = true
 
 [optim]
 batch_size = 64
-step_per_rollout = 2
 
 [optim.optim]
 lr = 3e-6

@@ -112,7 +112,7 @@ class GRPOLossConfig(BaseConfig):
     """Configures the GRPO loss."""
 
     # The GRPO variant configuration
-    off_policy: GRPOVariantsConfig = ClippingConfig()
+    off_policy: GRPOVariantsConfig = RatioConfig()
 
     kl_coef: Annotated[float | None, Field(default=None)]
     entropy_loss_coeff: Annotated[float, Field(default=0)]
@@ -186,13 +186,6 @@ class Config(BaseSettings):
 
     # The monitor configuration
     monitor: MultiMonitorConfig = MultiMonitorConfig()
-
-    # W&B configurations
-    wandb: Annotated[bool, Field(default=True)]
-
-    project: Annotated[str, Field(default="prime_simple")]
-
-    wandb_run_name: Annotated[str | None, Field(default=None)]
 
     gpus_ids: Annotated[list[int] | None, Field(default=None)]
 
