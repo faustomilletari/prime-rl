@@ -482,15 +482,17 @@ def train(config: TrainingConfig):
 
             logger.info(log)
 
+            time_rollout_ckpt = None
+
             # Lets do this first so that clients can start downloading as soon as possible
             if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
                 logger.debug("saving rollout ckpt")
                 rollout_step = training_progress.step // config.optim.step_per_rollout
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
                 previous_ckpt_rollout.append(path)
-                time_rollout_ckpt = time.time()
+                t0 = time.time()
                 safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
-                time_rollout_ckpt = time.time() - time_rollout_ckpt
+                time_rollout_ckpt = time.time() - t0
 
                 time_shardcast = time.time()
                 if world_info.rank == 0:
@@ -506,7 +508,6 @@ def train(config: TrainingConfig):
                         logger.info(f"Removing past rollout ckpt at {path_to_delete}")
                         shutil.rmtree(path_to_delete, ignore_errors=True)
                 time_rollout_delete = time.time() - time_rollout_delete
-
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
                 pickle_path: str = config.train.memory_profile
@@ -536,10 +537,11 @@ def train(config: TrainingConfig):
                 "time_data_loading": total_time_data_loading,
                 "time_packing": total_time_packing,
                 "time_data_preprocessing": total_time,
-                "time_rollout_ckpt": time_rollout_ckpt,
                 "time_shardcast": time_shardcast,
                 "time_rollout_delete": time_rollout_delete,
             }
+            if time_rollout_ckpt is not None:
+                new_metrics["time_rollout_ckpt"] = time_rollout_ckpt
             log_to_wandb(new_metrics)
 
         if config.stop_after_steps is not None and training_progress.step >= config.stop_after_steps:
