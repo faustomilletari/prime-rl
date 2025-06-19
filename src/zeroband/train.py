@@ -483,6 +483,7 @@ def train(config: TrainingConfig):
             logger.info(log)
 
             time_rollout_ckpt = None
+            time_shardcast = None
 
             # Lets do this first so that clients can start downloading as soon as possible
             if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
@@ -537,11 +538,13 @@ def train(config: TrainingConfig):
                 "time_data_loading": total_time_data_loading,
                 "time_packing": total_time_packing,
                 "time_data_preprocessing": total_time,
-                "time_shardcast": time_shardcast,
                 "time_rollout_delete": time_rollout_delete,
             }
             if time_rollout_ckpt is not None:
                 new_metrics["time_rollout_ckpt"] = time_rollout_ckpt
+            if time_shardcast is not None:
+                new_metrics["time_shardcast"] = time_shardcast
+
             log_to_wandb(new_metrics)
 
         if config.stop_after_steps is not None and training_progress.step >= config.stop_after_steps:
