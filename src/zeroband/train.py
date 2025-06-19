@@ -490,17 +490,24 @@ def train(config: TrainingConfig):
                 rollout_step = training_progress.step // config.optim.step_per_rollout
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
                 previous_ckpt_rollout.append(path)
+                time_rollout_ckpt = time.time()
                 safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
+                time_rollout_ckpt = time.time() - time_rollout_ckpt
+
+                time_shardcast = time.time()
                 if world_info.rank == 0:
                     if envs.SHARDCAST_OUTPUT_DIR is not None:
                         logger.info(f"Broadcasting {safetensor_path}")
                         shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+                time_shardcast = time.time() - time_shardcast
 
+                time_rollout_delete = time.time()
                 if len(previous_ckpt_rollout) > config.async_level:
                     path_to_delete = previous_ckpt_rollout.pop(0)
                     if path_to_delete.exists():
                         logger.info(f"Removing past rollout ckpt at {path_to_delete}")
                         shutil.rmtree(path_to_delete, ignore_errors=True)
+                time_rollout_delete = time.time() - time_rollout_delete
 
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
@@ -531,6 +538,9 @@ def train(config: TrainingConfig):
                 "time_data_loading": total_time_data_loading,
                 "time_packing": total_time_packing,
                 "time_data_preprocessing": total_time,
+                "time_rollout_ckpt": time_rollout_ckpt,
+                "time_shardcast": time_shardcast,
+                "time_rollout_delete": time_rollout_delete,
             }
             log_to_wandb(new_metrics)
 
