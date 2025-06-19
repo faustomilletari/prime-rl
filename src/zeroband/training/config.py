@@ -56,6 +56,7 @@ class CkptConfig(BaseConfig):
 
     path: Annotated[str | None, Field(default=None)]
     interval: Annotated[int | None, Field(default=None)]
+    interval_rollout: Annotated[int | None, Field(default=None)]
     resume: Annotated[str | None, Field(default=None)]
 
     rollout_path: Annotated[str | None, Field(default=None)]
@@ -186,13 +187,6 @@ class Config(BaseSettings):
 
     # The monitor configuration
     monitor: MultiMonitorConfig = MultiMonitorConfig()
-
-    # W&B configurations
-    wandb: Annotated[bool, Field(default=True)]
-
-    project: Annotated[str, Field(default="prime_simple")]
-
-    wandb_run_name: Annotated[str | None, Field(default=None)]
 
     gpus_ids: Annotated[list[int] | None, Field(default=None)]
 
