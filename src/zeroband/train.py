@@ -197,7 +197,7 @@ def train(config: TrainingConfig):
         batch_size=config.optim.batch_size * config.optim.step_per_rollout,
         data_config=config.data,
         step_count_init=step_count_init,
-        use_vllm_logprobs=config.recompute_logprobs,
+        use_vllm_logprobs=True,
     )
     train_dataloader_iterator = iter(train_dataloader)
 
