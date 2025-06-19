@@ -270,6 +270,8 @@ class DataConfig(BaseConfig):
 
     split: Annotated[str, Field(default="train", description="Split of the dataset to use.")]
 
+    stream: Annotated[bool, Field(default=False, description="Whether to stream the dataset. If True, will stream the dataset instead of downloading it all at once.")]
+
     max_prompt_len: Annotated[
         int | None,
         Field(
