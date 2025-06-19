@@ -484,6 +484,7 @@ def train(config: TrainingConfig):
 
             time_rollout_ckpt = None
             time_shardcast = None
+            time_rollout_delete = None
 
             # Lets do this first so that clients can start downloading as soon as possible
             if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
@@ -544,6 +545,8 @@ def train(config: TrainingConfig):
                 new_metrics["time_rollout_ckpt"] = time_rollout_ckpt
             if time_shardcast is not None:
                 new_metrics["time_shardcast"] = time_shardcast
+            if time_rollout_delete is not None:
+                new_metrics["time_rollout_delete"] = time_rollout_delete
 
             log_to_wandb(new_metrics)
 
