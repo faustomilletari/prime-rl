@@ -61,7 +61,7 @@ class FakeTokenizedDataset(IterableDataset):
             if self.generate_logprobs and len_ > 1:
                 # Generate random negative values for log probabilities
                 # Exclude first token (BOS) to match expected format
-                logprobs = -torch.abs(torch.randn(len_ - 1))  # Negative values for log probs
+                logprobs = -torch.abs(torch.randn(len_))  # Negative values for log probs
 
             yield {
                 "input_ids": input_ids,

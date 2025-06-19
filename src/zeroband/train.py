@@ -247,18 +247,16 @@ def train(config: TrainingConfig):
 
                 for grad_acc_step in range(num_grad_acc_steps):
                     batch = batch_packed[grad_acc_step]
-                    logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
 
                     # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
                     if config.recompute_logprobs or batch["logprobs"] is None:
+                        logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
                         input_ids = batch["input_ids"].to("cuda")
 
                         model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
                         per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], batch["temperature"])
 
                         batch["logprobs"] = per_token_logps.to("cpu")
-                    else:
-                        logger.debug(f"Using vllm logprobs from dataset for grad_acc_step {grad_acc_step}")
 
                     if config.grpo.kl_coef is not None:
                         logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
