@@ -23,6 +23,7 @@ def null_reward(*args, **kwargs):
 TaskType = Literal[
     "verifiable_math",
     "prime_rl_code",
+    "codeforces",
     "reasoning_gym",
     "code_output_prediction",
     "reverse_text",
