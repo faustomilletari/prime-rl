@@ -192,7 +192,6 @@ def train(config: TrainingConfig):
         batch_size=config.optim.batch_size * config.optim.step_per_rollout,
         data_config=config.data,
         step_count_init=step_count_init,
-        use_vllm_logprobs=config.recompute_logprobs,
     )
     train_dataloader_iterator = iter(train_dataloader)
 
@@ -245,7 +244,7 @@ def train(config: TrainingConfig):
                     logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
 
                     # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
-                    if config.recompute_logprobs or batch["logprobs"] is None:
+                    if config.recompute_logprobs:
                         input_ids = batch["input_ids"].to("cuda")
 
                         model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
