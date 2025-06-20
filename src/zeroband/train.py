@@ -18,7 +18,7 @@ from torch.distributed._composable.fsdp import MixedPrecisionPolicy, fully_shard
 from zeroband.training import envs
 from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_state, save_checkpoint_fsdp_state, save_ckpt_for_rollout
 from zeroband.training.config import Config as TrainingConfig
-from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
+from zeroband.training.data import get_dataloader
 from zeroband.training.logger import setup_logger
 from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.utils import (
@@ -27,10 +27,8 @@ from zeroband.training.utils import (
     PerfCounter,
     apply_ac_ckpt,
     copy_model_to_cpu,
-    log_prompt_response_samples,
     offload_model_to_cpu,
     reshard_module,
-    wake_up_model_from_cpu,
 )
 from zeroband.training.world_info import WorldInfo, get_world_info
 from zeroband.utils.models import ModelType, get_model_and_tokenizer
@@ -206,73 +204,73 @@ def train(config: TrainingConfig):
         total_time_data_loading = 0
         total_time_packing = 0
 
-        # here we want to pre-compute the logprobs with the model before update
+        # # here we want to pre-compute the logprobs with the model before update
         with torch.no_grad():
-            if config.grpo.kl_coef is not None:
-                wake_up_model_from_cpu(model_reference, tensor_offloaded_repository[0])
-                # del tensor_offloaded_repository[0]
+            #     if config.grpo.kl_coef is not None:
+            #         wake_up_model_from_cpu(model_reference, tensor_offloaded_repository[0])
+            #         # del tensor_offloaded_repository[0]
 
-            if config.recompute_logprobs:
-                og_infer_step = training_progress.step // config.optim.step_per_rollout - config.async_level
-                infer_step = max(og_infer_step, 0)
-                wake_up_model_from_cpu(model_for_logprob_only, tensor_offloaded_repository[infer_step])
+            #     if config.recompute_logprobs:
+            #         og_infer_step = training_progress.step // config.optim.step_per_rollout - config.async_level
+            #         infer_step = max(og_infer_step, 0)
+            #         wake_up_model_from_cpu(model_for_logprob_only, tensor_offloaded_repository[infer_step])
 
-                if og_infer_step == infer_step:
-                    del tensor_offloaded_repository[infer_step]
+            #         if og_infer_step == infer_step:
+            #             del tensor_offloaded_repository[infer_step]
 
-            data: list[list[BatchOutput]] = []
+            #     data: list[list[BatchOutput]] = []
 
-            for rollout_step in range(config.optim.step_per_rollout):
-                logger.debug(f"start rollout step {rollout_step} / {config.optim.step_per_rollout}")
-                time_data_loading = time.time()
+            #     for rollout_step in range(config.optim.step_per_rollout):
+            #         logger.debug(f"start rollout step {rollout_step} / {config.optim.step_per_rollout}")
+            #         time_data_loading = time.time()
 
-                batch_rollout: list[DatasetOutput] = next(train_dataloader_iterator)
-                time_data_loading = time.time() - time_data_loading
-                total_time_data_loading += time_data_loading
+            #         batch_rollout: list[DatasetOutput] = next(train_dataloader_iterator)
+            #         time_data_loading = time.time() - time_data_loading
+            #         total_time_data_loading += time_data_loading
 
-                time_0 = time.time()
+            #         time_0 = time.time()
 
-                batch_packed = packed_batch(
-                    batch_rollout, config.data.seq_length, tokenizer.pad_token_id, config.train.micro_bs, config.collate_mode
-                )
-                num_grad_acc_steps = len(batch_packed)
+            #         batch_packed = packed_batch(
+            #             batch_rollout, config.data.seq_length, tokenizer.pad_token_id, config.train.micro_bs, config.collate_mode
+            #         )
+            #         num_grad_acc_steps = len(batch_packed)
 
-                time_1 = time.time()
-                total_time_packing += time_1 - time_0
+            #         time_1 = time.time()
+            #         total_time_packing += time_1 - time_0
 
-                for grad_acc_step in range(num_grad_acc_steps):
-                    batch = batch_packed[grad_acc_step]
+            #         for grad_acc_step in range(num_grad_acc_steps):
+            #             batch = batch_packed[grad_acc_step]
 
-                    # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
-                    if config.recompute_logprobs or batch["logprobs"] is None:
-                        logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
-                        input_ids = batch["input_ids"].to("cuda")
+            #             # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
+            #             if config.recompute_logprobs or batch["logprobs"] is None:
+            #                 logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
+            #                 input_ids = batch["input_ids"].to("cuda")
 
-                        model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
-                        per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], batch["temperature"])
+            #                 model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
+            #                 per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], batch["temperature"])
 
-                        batch["logprobs"] = per_token_logps.to("cpu")
+            #                 batch["logprobs"] = per_token_logps.to("cpu")
 
-                    if config.grpo.kl_coef is not None:
-                        logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
-                        input_ids = batch["input_ids"].to("cuda")
-                        per_token_logps_reference = get_logprobs(model_reference, input_ids, batch["position_ids"], batch["temperature"])
-                        batch["ref_logprobs"] = per_token_logps_reference.to("cpu")
+            #             if config.grpo.kl_coef is not None:
+            #                 logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
+            #                 input_ids = batch["input_ids"].to("cuda")
+            #                 per_token_logps_reference = get_logprobs(model_reference, input_ids, batch["position_ids"], batch["temperature"])
+            #                 batch["ref_logprobs"] = per_token_logps_reference.to("cpu")
 
-                data.append(batch_packed)
+            #         data.append(batch_packed)
 
-            if config.grpo.kl_coef is not None:
-                # if we don't manually reshard the the embed and lm head will conflict with the offloading because they will stay unshard until backward which we never call
-                reshard_module(model_reference)
-                tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
+            #     if config.grpo.kl_coef is not None:
+            #         # if we don't manually reshard the the embed and lm head will conflict with the offloading because they will stay unshard until backward which we never call
+            #         reshard_module(model_reference)
+            #         tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
 
-            if config.recompute_logprobs:
-                # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
-                # this avoid having to make sure we don't keep too much tensor offloaded in cpu memory
-                reshard_module(model_for_logprob_only)
-                offload_model_to_cpu(model_for_logprob_only)
+            #     if config.recompute_logprobs:
+            #         # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
+            #         # this avoid having to make sure we don't keep too much tensor offloaded in cpu memory
+            #         reshard_module(model_for_logprob_only)
+            #         offload_model_to_cpu(model_for_logprob_only)
 
-            logprobs_aware_iterator = iter(data)
+            # logprobs_aware_iterator = iter(data)
 
             total_time = time.time() - time_start
             total_time_logprob = total_time - total_time_data_loading - total_time_packing
@@ -284,6 +282,39 @@ def train(config: TrainingConfig):
 
         logger.debug("start training rollout")
 
+        # class BatchOutput(TypedDict):
+        #     # token level
+        #     input_ids: Int[torch.Tensor, "batch seq"]
+        #     advantages: Float[torch.Tensor, "batch seq"]
+        #     loss_mask: Int[torch.Tensor, "batch seq"]
+        #     position_ids: Int[torch.Tensor, "batch seq"]
+        #     logprobs: Float[torch.Tensor, "batch seq_minus_1"] | None  # logprobs from vllm (optional)
+
+        #     # sample level
+        #     seq_lens: Int[torch.Tensor, "sample"]
+        #     rewards: Float[torch.Tensor, "sample"]
+        #     task_rewards: Float[torch.Tensor, "sample"]
+        #     length_penalties: Float[torch.Tensor, "sample"]
+        #     target_lengths: Int[torch.Tensor, "sample"]
+        #     task_types: list[str]
+
+        #     # batch level
+        #     temperature: float
+
+        batch_fake = {
+            "input_ids": torch.randint(0, tokenizer.vocab_size, (config.train.micro_bs, config.data.seq_length)).to("cuda"),
+            "advantages": torch.randn(config.train.micro_bs, config.data.seq_length).to("cuda"),
+            "loss_mask": torch.ones(config.train.micro_bs, config.data.seq_length).int().to("cuda"),
+            "position_ids": torch.arange(config.data.seq_length).repeat(config.train.micro_bs, 1).to("cuda"),
+            "logprobs": torch.randn(config.train.micro_bs, config.data.seq_length - 1).to("cuda"),
+            "temperature": 1.0,
+            "task_types": ["math"],
+            "seq_lens": torch.ones(4).to("cuda"),
+            "rewards": torch.randn(4).to("cuda"),
+            "task_rewards": torch.randn(4).to("cuda"),
+            "length_penalties": torch.randn(4).to("cuda"),
+            "target_lengths": torch.ones(4).to("cuda"),
+        }
         # In the training loop
         for rollout_step in range(config.optim.step_per_rollout):
             logger.debug(f"training rollout step {rollout_step} / {config.optim.step_per_rollout}")
@@ -293,25 +324,26 @@ def train(config: TrainingConfig):
             if config.train.memory_profile and world_info.rank == 0:
                 torch.cuda.memory._record_memory_history()
 
-            data_per_rollout = next(logprobs_aware_iterator)
-            num_grad_acc_steps = len(data_per_rollout)
+            # data_per_rollout = next(logprobs_aware_iterator)
+            # num_grad_acc_steps = len(data_per_rollout)
+            num_grad_acc_steps = config.optim.batch_size // (world_info.world_size * config.train.micro_bs)
 
             # Collect samples for WandB logging - do this ONCE per step
-            if world_info.rank == 0 and config.monitor.wandb:
-                # Use the first batch for logging (could be configurable if needed)
-                batch = data_per_rollout[0]
+            # if world_info.rank == 0 and config.monitor.wandb:
+            #     # Use the first batch for logging (could be configurable if needed)
+            #     batch = data_per_rollout[0]
 
-                # Log the samples to WandB with history management
-                try:
-                    # Pass and update the sample history
-                    wandb_sample_history = log_prompt_response_samples(tokenizer, batch, training_progress.step, wandb_sample_history)
-                except Exception as e:
-                    logger.warning(f"Error logging samples to WandB: {e}")
+            #     # Log the samples to WandB with history management
+            #     try:
+            #         # Pass and update the sample history
+            #         wandb_sample_history = log_prompt_response_samples(tokenizer, batch, training_progress.step, wandb_sample_history)
+            #     except Exception as e:
+            #         logger.warning(f"Error logging samples to WandB: {e}")
 
             # Now here's the complete grad_acc_step loop WITHOUT the WandB logging inside it:
             for grad_acc_step in range(num_grad_acc_steps):
                 logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
-                batch = data_per_rollout[grad_acc_step]
+                batch = batch_fake
 
                 input_ids = batch["input_ids"].to("cuda")
                 if config.normalize_batch_to_token_count:
@@ -472,50 +504,50 @@ def train(config: TrainingConfig):
             time_shardcast = None
             time_rollout_delete = None
 
-            # Lets do this first so that clients can start downloading as soon as possible
-            if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
-                logger.debug("saving rollout ckpt")
-                rollout_step = training_progress.step // config.optim.step_per_rollout
-                path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-                previous_ckpt_rollout.append(path)
-                t0 = time.time()
-                safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
-                time_rollout_ckpt = time.time() - t0
+            # # Lets do this first so that clients can start downloading as soon as possible
+            # if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
+            #     logger.debug("saving rollout ckpt")
+            #     rollout_step = training_progress.step // config.optim.step_per_rollout
+            #     path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
+            #     previous_ckpt_rollout.append(path)
+            #     t0 = time.time()
+            #     safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
+            #     time_rollout_ckpt = time.time() - t0
 
-                time_shardcast = time.time()
-                if world_info.rank == 0:
-                    if envs.SHARDCAST_OUTPUT_DIR is not None:
-                        logger.info(f"Broadcasting {safetensor_path}")
-                        shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
-                time_shardcast = time.time() - time_shardcast
+            #     time_shardcast = time.time()
+            #     if world_info.rank == 0:
+            #         if envs.SHARDCAST_OUTPUT_DIR is not None:
+            #             logger.info(f"Broadcasting {safetensor_path}")
+            #             shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+            #     time_shardcast = time.time() - time_shardcast
 
-                time_rollout_delete = time.time()
-                if len(previous_ckpt_rollout) > config.async_level:
-                    path_to_delete = previous_ckpt_rollout.pop(0)
-                    ckpt_step = int(str(path_to_delete).split("_")[-1])
+            #     time_rollout_delete = time.time()
+            #     if len(previous_ckpt_rollout) > config.async_level:
+            #         path_to_delete = previous_ckpt_rollout.pop(0)
+            #         ckpt_step = int(str(path_to_delete).split("_")[-1])
 
-                    should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
-                    if path_to_delete.exists() and not should_keep:
-                        logger.info(f"Removing past rollout ckpt at {path_to_delete}")
-                        shutil.rmtree(path_to_delete, ignore_errors=True)
-                time_rollout_delete = time.time() - time_rollout_delete
-            if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
-                logger.info("Dumping memory snapshot.")
-                pickle_path: str = config.train.memory_profile
-                if not pickle_path.endswith(".pickle"):
-                    pickle_path += ".pickle"
-                torch.cuda.memory._dump_snapshot(pickle_path)
-                torch.cuda.memory._record_memory_history(enabled=False)
+            #         should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
+            #         if path_to_delete.exists() and not should_keep:
+            #             logger.info(f"Removing past rollout ckpt at {path_to_delete}")
+            #             shutil.rmtree(path_to_delete, ignore_errors=True)
+            #     time_rollout_delete = time.time() - time_rollout_delete
+            # if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
+            #     logger.info("Dumping memory snapshot.")
+            #     pickle_path: str = config.train.memory_profile
+            #     if not pickle_path.endswith(".pickle"):
+            #         pickle_path += ".pickle"
+            #     torch.cuda.memory._dump_snapshot(pickle_path)
+            #     torch.cuda.memory._record_memory_history(enabled=False)
 
-            if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
-                logger.info(
-                    f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
-                )
-                save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
+            # if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
+            #     logger.info(
+            #         f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
+            #     )
+            #     save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
 
-        if config.recompute_logprobs:
-            reshard_module(model_for_logprob_only)
-            tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
+        # if config.recompute_logprobs:
+        #     reshard_module(model_for_logprob_only)
+        #     tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
 
         time_rollout_step = time.time() - time_start
         logger.success(f"Finished training step {training_progress.step} in {time_rollout_step:.2f}s")
