@@ -398,7 +398,7 @@ def train(config: TrainingConfig):
 
                     loss = loss / num_grad_acc_steps
 
-                    inputs_ids_shape = input_ids.shape
+                inputs_ids_shape = input_ids.shape
 
                 # Now we can delete the batch data
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
@@ -407,13 +407,13 @@ def train(config: TrainingConfig):
                 loss.backward()
                 loss_batch += loss.detach().clone()
 
-                metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
-                metric_averager.update("losses/entropy_loss", entropy.detach().clone())
+                # metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
+                # metric_averager.update("losses/entropy_loss", entropy.detach().clone())
 
-                if clip_ratio is not None:
-                    metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
+                # if clip_ratio is not None:
+                #     metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
 
-                del loss, pg_loss, entropy, clip_ratio
+                # del loss, pg_loss, entropy, clip_ratio
 
             metric_averager.sync()
 
