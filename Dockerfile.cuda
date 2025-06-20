@@ -34,7 +34,6 @@ COPY ./README.md ./README.md
 COPY ./src/ ./src/
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-ENV UV_PYTHON_DOWNLOADS=0
 
 
 COPY src/ /app/src/
