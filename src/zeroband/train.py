@@ -419,7 +419,7 @@ def train(config: TrainingConfig):
 
                 # loss = loss / num_grad_acc_steps
 
-                # inputs_ids_shape = input_ids.shape
+                inputs_ids_shape = input_ids.shape
 
                 # # Now we can delete the batch data
                 # del batch, logits, input_ids, advantages, loss_mask, original_logprobs
