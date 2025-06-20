@@ -393,7 +393,7 @@ class BatchOutput(TypedDict):
     advantages: Float[torch.Tensor, "batch seq"]
     loss_mask: Int[torch.Tensor, "batch seq"]
     position_ids: Int[torch.Tensor, "batch seq"]
-    logprobs: Float[torch.Tensor, "batch seq_minus_1"] | None  # logprobs from vllm (optional)
+    logprobs: Float[torch.Tensor, "batch seq"] | None  # logprobs from vllm (optional)
 
     # sample level
     seq_lens: Int[torch.Tensor, "sample"]
