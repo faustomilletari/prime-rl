@@ -5,6 +5,7 @@ from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 
 from zeroband.training.config import ClippingConfig, GRPOVariantsConfig, KlCovConfig, RatioConfig
+from zeroband.utils.logger import get_logger
 
 
 @jaxtyped(typechecker=typechecker)
@@ -143,6 +144,11 @@ def grpo_loss_ratio(
     # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
+
+    get_logger().info(f"per_token_logps: {per_token_logps.shape}")
+    get_logger().info(f"original_logprobs: {original_logprobs.shape}")
+    get_logger().info(f"advantages: {advantages.shape}")
+    get_logger().info(f"clip_ratio: {clip_ratio}")
 
     ratio = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
 
