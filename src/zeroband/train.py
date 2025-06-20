@@ -504,50 +504,50 @@ def train(config: TrainingConfig):
             time_shardcast = None
             time_rollout_delete = None
 
-            # Lets do this first so that clients can start downloading as soon as possible
-            if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
-                logger.debug("saving rollout ckpt")
-                rollout_step = training_progress.step // config.optim.step_per_rollout
-                path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-                previous_ckpt_rollout.append(path)
-                t0 = time.time()
-                safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
-                time_rollout_ckpt = time.time() - t0
+            # # Lets do this first so that clients can start downloading as soon as possible
+            # if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
+            #     logger.debug("saving rollout ckpt")
+            #     rollout_step = training_progress.step // config.optim.step_per_rollout
+            #     path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
+            #     previous_ckpt_rollout.append(path)
+            #     t0 = time.time()
+            #     safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
+            #     time_rollout_ckpt = time.time() - t0
 
-                time_shardcast = time.time()
-                if world_info.rank == 0:
-                    if envs.SHARDCAST_OUTPUT_DIR is not None:
-                        logger.info(f"Broadcasting {safetensor_path}")
-                        shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
-                time_shardcast = time.time() - time_shardcast
+            #     time_shardcast = time.time()
+            #     if world_info.rank == 0:
+            #         if envs.SHARDCAST_OUTPUT_DIR is not None:
+            #             logger.info(f"Broadcasting {safetensor_path}")
+            #             shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+            #     time_shardcast = time.time() - time_shardcast
 
-                time_rollout_delete = time.time()
-                if len(previous_ckpt_rollout) > config.async_level:
-                    path_to_delete = previous_ckpt_rollout.pop(0)
-                    ckpt_step = int(str(path_to_delete).split("_")[-1])
+            #     time_rollout_delete = time.time()
+            #     if len(previous_ckpt_rollout) > config.async_level:
+            #         path_to_delete = previous_ckpt_rollout.pop(0)
+            #         ckpt_step = int(str(path_to_delete).split("_")[-1])
 
-                    should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
-                    if path_to_delete.exists() and not should_keep:
-                        logger.info(f"Removing past rollout ckpt at {path_to_delete}")
-                        shutil.rmtree(path_to_delete, ignore_errors=True)
-                time_rollout_delete = time.time() - time_rollout_delete
-            if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
-                logger.info("Dumping memory snapshot.")
-                pickle_path: str = config.train.memory_profile
-                if not pickle_path.endswith(".pickle"):
-                    pickle_path += ".pickle"
-                torch.cuda.memory._dump_snapshot(pickle_path)
-                torch.cuda.memory._record_memory_history(enabled=False)
+            #         should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
+            #         if path_to_delete.exists() and not should_keep:
+            #             logger.info(f"Removing past rollout ckpt at {path_to_delete}")
+            #             shutil.rmtree(path_to_delete, ignore_errors=True)
+            #     time_rollout_delete = time.time() - time_rollout_delete
+            # if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
+            #     logger.info("Dumping memory snapshot.")
+            #     pickle_path: str = config.train.memory_profile
+            #     if not pickle_path.endswith(".pickle"):
+            #         pickle_path += ".pickle"
+            #     torch.cuda.memory._dump_snapshot(pickle_path)
+            #     torch.cuda.memory._record_memory_history(enabled=False)
 
-            if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
-                logger.info(
-                    f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
-                )
-                save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
+            # if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
+            #     logger.info(
+            #         f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
+            #     )
+            #     save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
 
-        if config.recompute_logprobs:
-            reshard_module(model_for_logprob_only)
-            tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
+        # if config.recompute_logprobs:
+        #     reshard_module(model_for_logprob_only)
+        #     tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
 
         time_rollout_step = time.time() - time_start
         logger.success(f"Finished training step {training_progress.step} in {time_rollout_step:.2f}s")
