@@ -241,18 +241,16 @@ def train(config: TrainingConfig):
 
                 for grad_acc_step in range(num_grad_acc_steps):
                     batch = batch_packed[grad_acc_step]
-                    logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
 
                     # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
                     if config.recompute_logprobs:
+                        logger.debug(f"log prob grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
                         input_ids = batch["input_ids"].to("cuda")
 
                         model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
                         per_token_logps = get_logprobs(model_for_logprob, input_ids, batch["position_ids"], batch["temperature"])
 
                         batch["logprobs"] = per_token_logps.to("cpu")
-                    else:
-                        logger.debug(f"Using vllm logprobs from dataset for grad_acc_step {grad_acc_step}")
 
                     if config.grpo.kl_coef is not None:
                         logger.debug(f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}")
@@ -275,8 +273,13 @@ def train(config: TrainingConfig):
 
             logprobs_aware_iterator = iter(data)
 
-            time_logprob = time.time() - time_start
-            logger.info(f"Time to compute logprobs: {time_logprob:.2f} seconds")
+            total_time = time.time() - time_start
+            total_time_logprob = total_time - total_time_data_loading - total_time_packing
+
+            logger.debug(f"Time to data loading: {total_time_data_loading:.2f} seconds")
+            logger.debug(f"Time to packing: {total_time_packing:.2f} seconds")
+            logger.info(f"Time to compute logprobs: {total_time_logprob:.2f} seconds")
+            logger.info(f"Total time data preprocessing: {total_time:.2f} seconds")
 
         logger.debug("start training rollout")
 
@@ -464,18 +467,28 @@ def train(config: TrainingConfig):
 
             logger.info(log)
 
+            time_rollout_ckpt = None
+            time_shardcast = None
+            time_rollout_delete = None
+
             # Lets do this first so that clients can start downloading as soon as possible
             if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
                 logger.debug("saving rollout ckpt")
                 rollout_step = training_progress.step // config.optim.step_per_rollout
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
                 previous_ckpt_rollout.append(path)
+                t0 = time.time()
                 safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
+                time_rollout_ckpt = time.time() - t0
+
+                time_shardcast = time.time()
                 if world_info.rank == 0:
                     if envs.SHARDCAST_OUTPUT_DIR is not None:
                         logger.info(f"Broadcasting {safetensor_path}")
                         shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+                time_shardcast = time.time() - time_shardcast
 
+                time_rollout_delete = time.time()
                 if len(previous_ckpt_rollout) > config.async_level:
                     path_to_delete = previous_ckpt_rollout.pop(0)
                     ckpt_step = int(str(path_to_delete).split("_")[-1])
@@ -484,7 +497,7 @@ def train(config: TrainingConfig):
                     if path_to_delete.exists() and not should_keep:
                         logger.info(f"Removing past rollout ckpt at {path_to_delete}")
                         shutil.rmtree(path_to_delete, ignore_errors=True)
-
+                time_rollout_delete = time.time() - time_rollout_delete
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
                 pickle_path: str = config.train.memory_profile
@@ -509,10 +522,19 @@ def train(config: TrainingConfig):
             time_metrics = {
                 "step": training_progress.step,
                 "perf/time_rollout_step": time_rollout_step,
-                "perf/time_logprob": time_logprob,
+                "perf/time_logprob": total_time_logprob,
                 "perf/time_data_loading": total_time_data_loading,
                 "perf/time_packing": total_time_packing,
+                "time_data_preprocessing": total_time,
+                "time_rollout_delete": time_rollout_delete,
             }
+            if time_rollout_ckpt is not None:
+                time_metrics["perf/time_rollout_ckpt"] = time_rollout_ckpt
+            if time_shardcast is not None:
+                time_metrics["perf/time_shardcast"] = time_shardcast
+            if time_rollout_delete is not None:
+                time_metrics["perf/time_rollout_delete"] = time_rollout_delete
+
             monitor.log(time_metrics)
 
         if config.stop_after_steps is not None and training_progress.step >= config.stop_after_steps:

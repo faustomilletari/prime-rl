@@ -54,7 +54,6 @@ class FakeTokenizedDataset(IterableDataset):
             input_ids = torch.randint(3, self.vocab_size, (len_,))
             advantages = torch.randn(len_)
             self.step += 1
-
             logprobs = -torch.abs(torch.randn(len_))  # Negative values for log probs
 
             yield {
