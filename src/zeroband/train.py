@@ -372,30 +372,33 @@ def train(config: TrainingConfig):
 
                 # Loss
 
-                pg_loss, clip_ratio = grpo_loss(
-                    logits,
-                    input_ids,
-                    advantages,
-                    original_logprobs,
-                    loss_mask,
-                    batch["temperature"],
-                    max_tokens,
-                    config.grpo.off_policy,
-                )
+                if config.cross_entropy_loss:
+                    loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.shape[-1]), input_ids.view(-1))
+                else:
+                    pg_loss, clip_ratio = grpo_loss(
+                        logits,
+                        input_ids,
+                        advantages,
+                        original_logprobs,
+                        loss_mask,
+                        batch["temperature"],
+                        max_tokens,
+                        config.grpo.off_policy,
+                    )
 
-                entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
+                    entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
 
-                loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
+                    loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
 
-                # if config.grpo.kl_coef is not None:
-                #     kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
-                #     kl_scaled = kl * config.grpo.kl_coef
-                #     metric_averager.update("losses/kl", kl_scaled)
-                #     loss = loss + kl_scaled
+                    # if config.grpo.kl_coef is not None:
+                    #     kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
+                    #     kl_scaled = kl * config.grpo.kl_coef
+                    #     metric_averager.update("losses/kl", kl_scaled)
+                    #     loss = loss + kl_scaled
 
-                loss = loss / num_grad_acc_steps
+                    loss = loss / num_grad_acc_steps
 
-                inputs_ids_shape = input_ids.shape
+                    inputs_ids_shape = input_ids.shape
 
                 # Now we can delete the batch data
                 del batch, logits, input_ids, advantages, loss_mask, original_logprobs
@@ -478,26 +481,26 @@ def train(config: TrainingConfig):
 
             logger.info(log)
 
-            # Lets do this first so that clients can start downloading as soon as possible
-            if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
-                logger.debug("saving rollout ckpt")
-                rollout_step = training_progress.step // config.optim.step_per_rollout
-                path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-                previous_ckpt_rollout.append(path)
-                safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
-                if world_info.rank == 0:
-                    if envs.SHARDCAST_OUTPUT_DIR is not None:
-                        logger.info(f"Broadcasting {safetensor_path}")
-                        shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
+            # # Lets do this first so that clients can start downloading as soon as possible
+            # if config.ckpt.rollout_path is not None and training_progress.step % config.optim.step_per_rollout == 0:
+            #     logger.debug("saving rollout ckpt")
+            #     rollout_step = training_progress.step // config.optim.step_per_rollout
+            #     path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
+            #     previous_ckpt_rollout.append(path)
+            #     safetensor_path = save_ckpt_for_rollout(model, tokenizer, path, async_save=config.ckpt.async_save)
+            #     if world_info.rank == 0:
+            #         if envs.SHARDCAST_OUTPUT_DIR is not None:
+            #             logger.info(f"Broadcasting {safetensor_path}")
+            #             shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
 
-                if len(previous_ckpt_rollout) > config.async_level:
-                    path_to_delete = previous_ckpt_rollout.pop(0)
-                    ckpt_step = int(str(path_to_delete).split("_")[-1])
+            #     if len(previous_ckpt_rollout) > config.async_level:
+            #         path_to_delete = previous_ckpt_rollout.pop(0)
+            #         ckpt_step = int(str(path_to_delete).split("_")[-1])
 
-                    should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
-                    if path_to_delete.exists() and not should_keep:
-                        logger.info(f"Removing past rollout ckpt at {path_to_delete}")
-                        shutil.rmtree(path_to_delete, ignore_errors=True)
+            #         should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
+            #         if path_to_delete.exists() and not should_keep:
+            #             logger.info(f"Removing past rollout ckpt at {path_to_delete}")
+            #             shutil.rmtree(path_to_delete, ignore_errors=True)
 
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
@@ -507,15 +510,15 @@ def train(config: TrainingConfig):
                 torch.cuda.memory._dump_snapshot(pickle_path)
                 torch.cuda.memory._record_memory_history(enabled=False)
 
-            if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
-                logger.info(
-                    f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
-                )
-                save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
+            # if config.ckpt.interval is not None and training_progress.step % config.ckpt.interval == 0:
+            #     logger.info(
+            #         f"Saving checkpoint at step {training_progress.step}, rollout_step {training_progress.step // config.optim.step_per_rollout}"
+            #     )
+            #     save_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.path)
 
-        if config.recompute_logprobs:
-            reshard_module(model_for_logprob_only)
-            tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
+        # if config.recompute_logprobs:
+        #     reshard_module(model_for_logprob_only)
+        #     tensor_offloaded_repository[training_progress.step // config.optim.step_per_rollout] = copy_model_to_cpu(model)
 
         time_rollout_step = time.time() - time_start
         logger.success(f"Finished training step {training_progress.step} in {time_rollout_step:.2f}s")

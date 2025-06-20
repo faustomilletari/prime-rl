@@ -205,6 +205,8 @@ class Config(BaseSettings):
     normalize_batch_to_token_count: Annotated[bool, Field(default=True)]
 
     recompute_logprobs: Annotated[bool, Field(default=True)]
+    
+    cross_entropy_loss: bool = False
 
     @model_validator(mode="after")
     def check_liger(self):
