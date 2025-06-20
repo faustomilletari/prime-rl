@@ -271,7 +271,6 @@ def inference(config: InferenceConfig):
             config.rewards.len_reward,
             tokenizer=tokenizer,
             enable_thinking=config.model.enable_thinking,
-            tokenize=True,
         )
 
         generate_start_time = time.time()
