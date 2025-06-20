@@ -394,45 +394,47 @@ def train(config: TrainingConfig):
 
                 # Loss
 
-                pg_loss, clip_ratio = grpo_loss(
-                    logits,
-                    input_ids,
-                    advantages,
-                    original_logprobs,
-                    loss_mask,
-                    batch["temperature"],
-                    max_tokens,
-                    config.grpo.off_policy,
-                )
+                loss = torch.nn.functional.cross_entropy(logits.view(-1, logits.shape[-1]), input_ids.view(-1))
 
-                entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
+                # pg_loss, clip_ratio = grpo_loss(
+                #     logits,
+                #     input_ids,
+                #     advantages,
+                #     original_logprobs,
+                #     loss_mask,
+                #     batch["temperature"],
+                #     max_tokens,
+                #     config.grpo.off_policy,
+                # )
 
-                loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
+                # entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
 
-                if config.grpo.kl_coef is not None:
-                    kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
-                    kl_scaled = kl * config.grpo.kl_coef
-                    metric_averager.update("losses/kl", kl_scaled)
-                    loss = loss + kl_scaled
+                # loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
 
-                loss = loss / num_grad_acc_steps
+                # if config.grpo.kl_coef is not None:
+                #     kl = kl_penalty(original_logprobs, batch["ref_logprobs"].to("cuda"), loss_mask, max_tokens)
+                #     kl_scaled = kl * config.grpo.kl_coef
+                #     metric_averager.update("losses/kl", kl_scaled)
+                #     loss = loss + kl_scaled
 
-                inputs_ids_shape = input_ids.shape
+                # loss = loss / num_grad_acc_steps
 
-                # Now we can delete the batch data
-                del batch, logits, input_ids, advantages, loss_mask, original_logprobs
+                # inputs_ids_shape = input_ids.shape
+
+                # # Now we can delete the batch data
+                # del batch, logits, input_ids, advantages, loss_mask, original_logprobs
 
                 # Backward
                 loss.backward()
                 loss_batch += loss.detach().clone()
 
-                metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
-                metric_averager.update("losses/entropy_loss", entropy.detach().clone())
+                # metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
+                # metric_averager.update("losses/entropy_loss", entropy.detach().clone())
 
-                if clip_ratio is not None:
-                    metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
+                # if clip_ratio is not None:
+                #     metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
 
-                del loss, pg_loss, entropy, clip_ratio
+                # del loss, pg_loss, entropy, clip_ratio
 
             metric_averager.sync()
 
