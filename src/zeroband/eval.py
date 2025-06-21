@@ -38,7 +38,7 @@ def main(config: EvalConfig):
     logger.success(f"Initialized model and tokenizer in {time.time() - start_time:.2f}s")
 
     # Run benchmarks on base model
-    logger.info(f"Running benchmarks on base model {config.model.name}")
+    logger.info(f"Running evals on base model {config.model.name}")
     for benchmark in config.eval.benchmarks:
         run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
 
@@ -47,13 +47,13 @@ def main(config: EvalConfig):
         logger.info(
             f"Running online evaluation on {config.model.name} every {config.eval.online.interval} steps from checkpoint directory {config.eval.online.ckpt_path}"
         )
+        step = config.eval.online.interval
         while True:
             # Reload model weights from checkpoint once available
-            step = config.eval.online.interval
             llm = reload_checkpoint(llm, config.eval.online.ckpt_path, step)
 
             # Run benchmarks on new checkpoint
-            logger.info(f"Running benchmarks for checkpoint step {step}")
+            logger.info(f"Running evals for checkpoint step {step}")
             for benchmark in config.eval.benchmarks:
                 run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
 
