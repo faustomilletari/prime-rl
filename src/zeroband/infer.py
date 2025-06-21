@@ -79,7 +79,7 @@ def inference(config: InferenceConfig):
     logger.success(f"Initialized model and tokenizer in {time.time() - start_time:.2f}s")
 
     # Optionally, run evals on the base model
-    if config.eval is not None:
+    if config.eval is not None and dp_rank == 0:
         logger.info(f"Running benchmarks on base model {config.model.name}")
         for benchmark in config.eval.benchmarks:
             run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
@@ -222,15 +222,17 @@ def inference(config: InferenceConfig):
                 current_step_batch_counter += 1
 
         logger.info(f"Inference step {real_step} (Checkpoint step: {ckpt_step})")
-        
+
         # Reload model weights from checkpoint if we are too far ahead of the checkpoint step
         if config.rl and real_step - ckpt_step > config.rl.async_level:
-            logger.warning(f"Hit max async ({config.rl.max_async}) because inference step {real_step} is {real_step - ckpt_step} steps ahead of checkpoint step {ckpt_step}. Trying to reload model weights from {config.rl.ckpt_path}")
+            logger.warning(
+                f"Hit async level ({config.rl.async_level}) because inference step {real_step} is {real_step - ckpt_step} steps ahead of checkpoint step {ckpt_step}. Trying to reload model weights from {config.rl.ckpt_path}"
+            )
             ckpt_step = real_step - config.rl.async_level
             llm = reload_checkpoint(llm, config.rl.ckpt_path, ckpt_step)
 
         # Optionally, run online evals at the specified interval
-        if config.rl and config.eval and config.eval.online and real_step % config.eval.online.interval == 0:
+        if config.rl and dp_rank == 0 and config.eval and config.eval.online and real_step % config.eval.online.interval == 0:
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             for benchmark in config.eval.benchmarks:
                 run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
