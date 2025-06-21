@@ -24,6 +24,7 @@ from vllm import SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
 from zeroband.utils.pydantic_config import parse_argv
+from zeroband.inference.eval.utils import run_benchmark
 from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
@@ -76,6 +77,12 @@ def inference(config: InferenceConfig):
     llm = setup_model(config.model, tp=config.parallel.tp, seed=config.seed)
     tokenizer = llm.get_tokenizer()
     logger.success(f"Initialized model and tokenizer in {time.time() - start_time:.2f}s")
+
+    # Optionally, run evals on the base model
+    if config.eval is not None:
+        logger.info(f"Running benchmarks on base model {config.model.name}")
+        for benchmark in config.eval.benchmarks:
+            run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
 
     if config.toploc.enable_toploc2:
         llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
@@ -222,6 +229,13 @@ def inference(config: InferenceConfig):
             ckpt_step = real_step - config.rl.async_level
             llm = reload_checkpoint(llm, config.rl.ckpt_path, ckpt_step)
 
+        # Optionally, run online evals at the specified interval
+        if config.rl and config.eval and config.eval.online and real_step % config.eval.online.interval == 0:
+            logger.info(f"Running evals for checkpoint step {ckpt_step}")
+            for benchmark in config.eval.benchmarks:
+                run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
+
+        # Write the current step to a file, this is required for resuming tasks in production but can be ignored for local runs
         if config.step_path is not None:
             logger.info(f"Writing current inference step ({real_step}) to {config.step_path}")
             if not config.step_path.exists():

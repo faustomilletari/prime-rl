@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_validator
 
 from zeroband.utils.config import MultiMonitorConfig
+from zeroband.inference.eval.registry import Benchmark
 from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
 
 
@@ -323,6 +324,48 @@ class RLConfig(BaseConfig):
         ),
     ]
 
+class OnlineEvalConfig(BaseConfig):
+    """Configures online evaluation."""
+
+    ckpt_path: Annotated[
+        Path,
+        Field(
+            default=Path("checkpoints"),
+            description="Path to read checkpoints from when doing online evaluation. Expects subdirectories named 'step_x' within the directory.",
+        ),
+    ]
+
+    interval: Annotated[
+        int,
+        Field(
+            default=100,
+            ge=0,
+            description="Interval at which to evaluate the model.",
+        ),
+    ]
+
+    max_steps: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description="Maximum number of steps to run online evaluation for. If None, will run indefinitely.",
+        ),
+    ]
+
+
+class EvalConfig(BaseConfig):
+    """Configures evaluation."""
+
+    benchmarks: Annotated[
+        list[Benchmark],
+        Field(
+            default=["math500"],
+            description="Benchmarks to evaluate on. By default, it will evaluate only on the MATH-500 benchmark.",
+        ),
+    ]
+
+    online: Annotated[OnlineEvalConfig | None, Field(default=None)]
+
 
 class TopLocConfig(BaseConfig):
     """Configures TOPLOC."""
@@ -379,6 +422,9 @@ class Config(BaseSettings):
 
     # The RL configuration. If None, inference will run in a non-RL setting.
     rl: Annotated[RLConfig | None, Field(default=RLConfig())]
+
+    # The evaluation configuration. If None, will not run any evaluation.
+    eval: Annotated[EvalConfig | None, Field(default=None)]
 
     toploc: Annotated[TopLocConfig, Field(default=TopLocConfig())]
 
