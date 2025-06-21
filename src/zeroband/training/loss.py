@@ -144,7 +144,9 @@ def grpo_loss_ratio(
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
 
-    ratio = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
+    # ratio = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
+
+    ratio = per_token_logps * 0.0 + 1.0
 
     per_token_loss = -ratio * advantages
 
