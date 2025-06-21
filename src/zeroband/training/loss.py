@@ -119,7 +119,8 @@ def grpo_loss_clip(
 
 
 # beartype here just make sure we have the correct shape
-@jaxtyped(typechecker=typechecker)
+# @jaxtyped(typechecker=typechecker)
+@torch.compile
 def grpo_loss_ratio(
     logits: Float[Tensor, "batch seq vocab"],
     input_ids: Int[Tensor, "batch seq"],
@@ -226,6 +227,7 @@ def grpo_loss_kl_cov(
     return pg_loss, ppo_kl_abs
 
 
+@torch.compile
 def selective_log_softmax(logits, index):
     """
     credits to https://github.com/huggingface/trl/blob/07cfe1677e552b7d5c92b7740e5b2f0b057661d8/trl/trainer/utils.py#L1659
