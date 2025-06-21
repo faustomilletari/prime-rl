@@ -80,7 +80,6 @@ class BaseSettings(PydanticBaseSettings, BaseConfig):
         # By default, we do not parse CLI. To activate, set `_cli_parse_args` to true or a list of arguments at init time.
         cli_parse_args=False,
         cli_kebab_case=True,
-        cli_avoid_json=True,
         cli_implicit_flags=True,
         cli_use_class_docs_for_groups=True,
     )
