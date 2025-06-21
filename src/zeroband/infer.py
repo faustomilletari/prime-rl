@@ -229,7 +229,7 @@ def inference(config: InferenceConfig):
         if config.rl and dp_rank == 0 and config.eval and config.eval.online and real_step % config.eval.online.interval == 0:
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             for benchmark in config.eval.benchmarks:
-                run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
+                run_benchmark(llm, benchmark, config.model, config.sampling, ckpt_step, seed=config.seed, use_tqdm=config.use_tqdm)
 
         # Write the current step to a file, this is required for resuming tasks in production but can be ignored for local runs
         if config.step_path is not None:

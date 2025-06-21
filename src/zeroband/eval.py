@@ -52,7 +52,7 @@ def main(config: EvalConfig):
             # Run benchmarks on new checkpoint
             logger.info(f"Running evals for checkpoint step {step}")
             for benchmark in config.eval.benchmarks:
-                run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
+                run_benchmark(llm, benchmark, config.model, config.sampling, step, seed=config.seed)
 
             # Update eval step to next checkpoint step
             step += config.eval.online.interval
