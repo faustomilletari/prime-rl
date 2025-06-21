@@ -175,11 +175,8 @@ def toploc_cache_hook(_, inputs: tuple, toploc_cache: TopLocCache):
     assert isinstance(hidden_states, torch.Tensor)
     assert isinstance(sampling_metadata, SamplingMetadata)
 
-    # This check is true only for prefills
-    if max(sampling_metadata.selected_token_indices) > len(sampling_metadata.seq_groups):
-        return
-
-    # This pruning is required when cuda graph padding is enabled.
+    # This pruning is covers the prefill case and the cuda graph padding case
+    # The prefill case can occur in between decodes when recompute eviction occurs
     hidden_states = _prune_hidden_states(hidden_states, sampling_metadata)
     if len(sampling_metadata.seq_groups) != hidden_states.shape[0]:
         raise ValueError(f"Lengths dont match: {len(sampling_metadata.seq_groups)} {hidden_states.shape}")
