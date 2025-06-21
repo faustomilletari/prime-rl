@@ -72,7 +72,8 @@ def inference(config: InferenceConfig):
     # Initialize model and tokenizer
     logger.info(f"Initializing model and tokenizer ({config.model} tensor_parallel_size={config.parallel.tp} seed={config.seed})")
     start_time = time.time()
-    llm, tokenizer = setup_model(config.model, tp=config.parallel.tp, seed=config.seed)
+    llm = setup_model(config.model, tp=config.parallel.tp, seed=config.seed)
+    tokenizer = llm.get_tokenizer()
     logger.success(f"Initialized model and tokenizer in {time.time() - start_time:.2f}s")
 
     if config.toploc.enable_toploc2:

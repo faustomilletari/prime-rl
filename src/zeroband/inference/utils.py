@@ -46,9 +46,8 @@ def setup_model(model_config: ModelConfig, tp: int, seed: int | None):
         enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
         seed=seed,
     )
-    tokenizer = llm.get_tokenizer()
 
-    return llm, tokenizer
+    return llm
 
 
 def reload_model_weights(llm: LLM, ckpt_path: Path):
