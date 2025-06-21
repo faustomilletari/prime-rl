@@ -3,8 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
+from zeroband.eval.registry import Benchmark
 from zeroband.utils.config import MultiMonitorConfig
-from zeroband.inference.eval.registry import Benchmark
 from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
 
 
@@ -323,6 +323,7 @@ class RLConfig(BaseConfig):
             description="Maximum number of steps that inference can be ahead of training.",
         ),
     ]
+
 
 class OnlineEvalConfig(BaseConfig):
     """Configures online evaluation."""

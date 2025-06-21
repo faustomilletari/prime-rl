@@ -5,16 +5,24 @@ from typing import cast
 import pandas as pd
 from vllm import LLM, SamplingParams, TokensPrompt
 
+from zeroband.eval.config import EvalConfig
+from zeroband.eval.registry import Benchmark, get_benchmark_dataset, get_benchmark_display_name
 from zeroband.inference.config import ModelConfig, SamplingConfig
-from zeroband.inference.eval.config import EvalConfig
 from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.utils import format_prompts
-from zeroband.inference.eval.registry import Benchmark, get_benchmark_dataset, get_benchmark_display_name
 from zeroband.utils.logger import get_logger
 from zeroband.utils.monitor import get_monitor
 
 
-def run_benchmark(llm: LLM, benchmark: Benchmark, model_config: ModelConfig, sampling_config: SamplingConfig, eval_config: EvalConfig, seed: int | None = None, use_tqdm: bool = False) -> None:
+def run_benchmark(
+    llm: LLM,
+    benchmark: Benchmark,
+    model_config: ModelConfig,
+    sampling_config: SamplingConfig,
+    eval_config: EvalConfig,
+    seed: int | None = None,
+    use_tqdm: bool = False,
+) -> None:
     # Get the logger
     logger = get_logger()
     benchmark_start_time = time.time()
@@ -58,7 +66,7 @@ def run_benchmark(llm: LLM, benchmark: Benchmark, model_config: ModelConfig, sam
     generate_time = time.time() - generate_start_time
 
     # Compute rewards
-    logger.info(f"Computing rewards")
+    logger.info("Computing rewards")
     reward_start_time = time.time()
     verification_infos = [json.loads(item["verification_info"]) for item in dataset]
     task_types = [item["task_type"] for item in dataset]

@@ -5,14 +5,11 @@ from huggingface_hub import snapshot_download
 
 from zeroband.utils.monitor import setup_monitor
 from zeroband.utils.pydantic_config import parse_argv
-from zeroband.inference.eval.config import Config as EvalConfig
-from zeroband.inference.eval.utils import run_benchmark
+from zeroband.eval.config import Config as EvalConfig
+from zeroband.eval.utils import run_benchmark
 from zeroband.inference.utils import setup_model, reload_checkpoint
-from zeroband.inference.eval.logger import setup_logger
-from zeroband.inference.eval.utils import run_benchmark
+from zeroband.eval.logger import setup_logger
 from zeroband.utils.utils import clean_exit
-
-
 
 
 @clean_exit
