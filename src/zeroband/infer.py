@@ -24,7 +24,7 @@ from vllm import SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
 from zeroband.utils.pydantic_config import parse_argv
-from zeroband.inference.eval.utils import run_benchmark
+from zeroband.eval.utils import run_benchmark
 from zeroband.inference.config import Config as InferenceConfig
 from zeroband.inference.parquet import get_parquet_table
 from zeroband.inference.pipeline import all_reduce, patch_model_load, setup_comm, setup_hooks
@@ -77,12 +77,6 @@ def inference(config: InferenceConfig):
     llm = setup_model(config.model, tp=config.parallel.tp, seed=config.seed)
     tokenizer = llm.get_tokenizer()
     logger.success(f"Initialized model and tokenizer in {time.time() - start_time:.2f}s")
-
-    # Optionally, run evals on the base model
-    if config.eval is not None and dp_rank == 0:
-        logger.info(f"Running benchmarks on base model {config.model.name}")
-        for benchmark in config.eval.benchmarks:
-            run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
 
     if config.toploc.enable_toploc2:
         llm.llm_engine.model_executor.driver_worker.model_runner.sampler = Toploc2Sampler()
