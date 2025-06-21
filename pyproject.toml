@@ -8,7 +8,7 @@ dependencies = [
     "torch",
     "numpy",
     "setuptools",
-    "transformers>=4.51.0",
+    "transformers>=4.52.4",
     "datasets>=3.0.0",
     "torchdata>=0.8.0",
     "ninja",
