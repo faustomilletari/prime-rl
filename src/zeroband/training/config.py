@@ -190,7 +190,7 @@ class Config(BaseSettings):
 
     gpus_ids: Annotated[list[int] | None, Field(default=None)]
 
-    async_level: Annotated[int, Field(default=2, ge=1)]
+    max_async_level: Annotated[int, Field(default=2, ge=1)]
 
     collate_mode: Annotated[CollateMode, Field(default="padding")]
 

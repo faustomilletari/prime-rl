@@ -111,7 +111,7 @@ def train(config: TrainingConfig):
 
     if config.ckpt.rollout_path is not None and world_info.rank == 0:
         if envs.SHARDCAST_OUTPUT_DIR is not None:
-            shardcast.initialize(envs.SHARDCAST_OUTPUT_DIR, max_distribution_folders=config.async_level)
+            shardcast.initialize(envs.SHARDCAST_OUTPUT_DIR, max_distribution_folders=config.max_async_level)
 
     model, tokenizer = get_model_and_tokenizer(config.model.name, config.train.attn_impl)
 
@@ -213,7 +213,7 @@ def train(config: TrainingConfig):
                 # del tensor_offloaded_repository[0]
 
             if config.recompute_logprobs:
-                og_infer_step = training_progress.step // config.optim.step_per_rollout - config.async_level
+                og_infer_step = training_progress.step // config.optim.step_per_rollout - config.max_async_level
                 infer_step = max(og_infer_step, 0)
                 wake_up_model_from_cpu(model_for_logprob_only, tensor_offloaded_repository[infer_step])
 
@@ -491,7 +491,7 @@ def train(config: TrainingConfig):
                 time_shardcast = time.time() - time_shardcast
 
                 time_rollout_delete = time.time()
-                if len(previous_ckpt_rollout) > config.async_level:
+                if len(previous_ckpt_rollout) > config.max_async_level:
                     path_to_delete = previous_ckpt_rollout.pop(0)
                     ckpt_step = int(str(path_to_delete).split("_")[-1])
 

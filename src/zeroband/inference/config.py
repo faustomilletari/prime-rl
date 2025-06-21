@@ -315,7 +315,7 @@ class RLConfig(BaseConfig):
         ),
     ]
 
-    max_async: Annotated[
+    async_level: Annotated[
         int,
         Field(
             default=2,
@@ -382,7 +382,9 @@ class Config(BaseSettings):
 
     toploc: Annotated[TopLocConfig, Field(default=TopLocConfig())]
 
-    syn2: Annotated[bool, Field(default=False, description="A flag for SYNTHETIC-2 run. Will enforce auto-computing the max batch size for groups.")]
+    syn2: Annotated[
+        bool, Field(default=False, description="A flag for SYNTHETIC-2 run. Will enforce auto-computing the max batch size for groups.")
+    ]
 
     max_batch_size: Annotated[
         int | Literal["auto"],

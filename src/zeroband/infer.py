@@ -220,9 +220,9 @@ def inference(config: InferenceConfig):
                 current_step_batch_counter += 1
 
         logger.info(f"Inference step {real_step} (Checkpoint step: {ckpt_step})")
-        if config.rl and real_step - ckpt_step > config.rl.max_async:
+        if config.rl and real_step - ckpt_step > config.rl.async_level:
             logger.info(f"Required to reload model weights for step {ckpt_step} from {config.rl.ckpt_path}")
-            ckpt_step = real_step - config.rl.max_async
+            ckpt_step = real_step - config.rl.async_level
             attempt_count = 0
             while True:
                 stable_file = Path(config.rl.ckpt_path) / f"step_{ckpt_step}/stable"
@@ -454,10 +454,10 @@ if __name__ == "__main__":
         shardcast_process = run_main_bg(
             inference_envs.SHARDCAST_SERVERS,
             config.rl.ckpt_path,
-            config.rl.max_async + 1,
+            config.rl.async_level + 1,
             # TODO: maybe +1 because we most likely won't download the current step in time?
             # We could deadlock though.
-            max(current_step - config.rl.max_async, 1),
+            max(current_step - config.rl.async_level, 1),
         )
     else:
         shardcast_process = None
