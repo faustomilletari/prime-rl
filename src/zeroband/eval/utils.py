@@ -5,7 +5,6 @@ from typing import cast
 import pandas as pd
 from vllm import LLM, SamplingParams, TokensPrompt
 
-from zeroband.eval.config import EvalConfig
 from zeroband.eval.registry import Benchmark, get_benchmark_dataset, get_benchmark_display_name
 from zeroband.inference.config import ModelConfig, SamplingConfig
 from zeroband.inference.rewards import compute_vllm_rewards
@@ -19,7 +18,7 @@ def run_benchmark(
     benchmark: Benchmark,
     model_config: ModelConfig,
     sampling_config: SamplingConfig,
-    eval_config: EvalConfig,
+    step: int,
     seed: int | None = None,
     use_tqdm: bool = False,
 ) -> None:
@@ -100,6 +99,7 @@ def run_benchmark(
 
     # Log statistics to monitor
     eval_metrics = {
+        "step": step,
         "mean_sample_score": mean_sample_score,
         "mean_problem_score": mean_problem_score,
     }
@@ -108,6 +108,7 @@ def run_benchmark(
     # Log timing metrics to monitor
     monitor.log(
         {
+            "step": step,
             "load_data_time": load_data_time,
             "generate_time": generate_time,
             "reward_time": reward_time,
