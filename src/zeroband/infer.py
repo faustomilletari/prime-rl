@@ -9,6 +9,7 @@ import shutil
 import time
 from pathlib import Path
 import uuid
+from collections import defaultdict
 
 # Import environment before any other imports
 # ruff: noqa: I001
@@ -20,7 +21,7 @@ import requests
 import torch
 from datasets import load_dataset
 from toploc.utils import sha256sum
-from vllm import LLM, SamplingParams, TokensPrompt
+from vllm import LLM, SamplingParams, TokensPrompt, RequestOutput
 from huggingface_hub import snapshot_download
 
 from zeroband.utils.pydantic_config import parse_argv
@@ -285,22 +286,77 @@ def inference(config: InferenceConfig):
             tokenize=True,
         )
 
-        # Convert BatchEncoding to TokensPrompt objects
-        token_prompts = [TokensPrompt(prompt_token_ids=input_ids) for input_ids in tokenized_prompts]
-
-        logger.info(f"Generating {batch_size} samples for {problems_per_batch} problems")
         start_time = time.time()
-        request_outputs = llm.generate(token_prompts, sampling_params, use_tqdm=config.use_tqdm)
-        end_time = time.time()
+        if config.contexts:
+            # Convert tokenized prompts to TokensPrompt objects (prompt_id -> TokensPrompt)
+            unordered_token_prompts: dict[int, TokensPrompt] = {
+                i: TokensPrompt(prompt_token_ids=prompt_token_ids) for i, prompt_token_ids in enumerate(tokenized_prompts)
+            }
+            # Save chunked request outputs (prompt_id -> RequestOutput)
+            unordered_request_outputs: dict[int, RequestOutput] = {}
+            unordered_proofs: dict[int, bytes] = defaultdict(bytes)
 
-        # Dropping like this isn't ideal. But in practice, we shouldn't have any prompts that are too long.
-        request_outputs = [req for req in request_outputs if len(req.outputs[0].token_ids) > 0]
-        if len(request_outputs) != len(prompts):
-            logger.warning(f"{len(prompts) - len(request_outputs)} prompts were filtered out because they were too long")
+            max_model_len = llm.llm_engine.model_config.max_model_len
+            max_input_tokens = max(len(token_prompt["prompt_token_ids"]) for token_prompt in unordered_token_prompts.values())
+            contexts_max_tokens = [context - max_input_tokens for context in sorted(config.contexts)]
+            assert min(contexts_max_tokens) > 0, "Contexts must be larger than the max input tokens"
+            assert max(config.contexts) <= max_model_len, "Contexts must be smaller than the max model length"
+            for i, (context, max_tokens) in enumerate(zip(config.contexts, contexts_max_tokens)):
+                sampling_params.max_tokens = max_tokens
+                logger.info(
+                    f"Generating {batch_size} samples for {problems_per_batch} problems with context {context} ({max_tokens} tokens)"
+                )
+                logger.info(f"Token prompt IDs: {list(unordered_token_prompts.keys())}")
+                chunked_request_outputs = llm.generate(list(unordered_token_prompts.values()), sampling_params, use_tqdm=config.use_tqdm)
 
-        # This generates proofs for the remaining sequences that haven't reached max_len.
-        # We call here to give time for the proofs to be generated non-blocking in the background.
-        toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
+                # Force generation of proofs for the remaining sequences that haven't reached max_len.
+                toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
+
+                # Save the TOPLOC proofs for the current chunk
+                toploc_cache.wait_for_proofs()
+                chunked_proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
+                for prompt_id, chunked_proof in zip(unordered_token_prompts.keys(), chunked_proofs):
+                    unordered_proofs[prompt_id] += chunked_proof
+                toploc_cache.reset_cache()
+
+                # Only keep unfinished sequences for the next iteration
+                finished_prompt_ids = []
+                is_last_iteration = i == len(config.contexts) - 1
+                for prompt_id, request_output in zip(unordered_token_prompts.keys(), chunked_request_outputs):
+                    for output in request_output.outputs:
+                        # Note: This assumes that sampling.n == 1, else it might break
+                        if output.finish_reason == "stop" or is_last_iteration:
+                            finished_prompt_ids.append(prompt_id)
+                            unordered_request_outputs[prompt_id] = request_output
+                            break
+                for prompt_id in finished_prompt_ids:
+                    unordered_token_prompts.pop(prompt_id)
+                num_finished_sequences = len(finished_prompt_ids)
+                logger.info(
+                    f"Finished {num_finished_sequences} additional sequences at context {context} ({len(unordered_token_prompts)} remaining)"
+                )
+
+            # Order the request outputs by prompt_id to pretend like we generated all samples in one go
+            request_outputs = list(dict(sorted(unordered_request_outputs.items(), key=lambda x: x[0])).values())
+            proofs = list(dict(sorted(unordered_proofs.items(), key=lambda x: x[0])).values())
+            assert len(request_outputs) == batch_size, "Number of request outputs must match batch size"
+        else:
+            token_prompts: list[TokensPrompt] = [TokensPrompt(prompt_token_ids=prompt_token_ids) for prompt_token_ids in tokenized_prompts]
+            request_outputs = llm.generate(token_prompts, sampling_params, use_tqdm=config.use_tqdm)
+
+            # This generates proofs for the remaining sequences that haven't reached max_len.
+            # We call here to give time for the proofs to be generated non-blocking in the background.
+            toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
+
+            # Compute proofs
+            # Note (Jack): Currently, vllm guarantees that seq ids are in the same order as prompts passed to generate.
+            # Generate always adds requests to the engine in the order of the prompts.
+            # And returns them in the sequence they were added.
+            toploc_cache.wait_for_proofs()
+            proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
+            toploc_cache.reset_cache()
+
+        generation_time = time.time() - start_time
 
         # Compute progress metrics
         batch_problems = len(problems)
@@ -311,7 +367,7 @@ def inference(config: InferenceConfig):
         total_tokens += batch_tokens
         total_problems += batch_problems
         total_samples += batch_samples
-        logger.success(f"Generated {batch_samples} samples for {batch_problems} problems in {end_time - start_time:.2f}s")
+        logger.success(f"Generated {batch_samples} samples for {batch_problems} problems in {generation_time:.2f}s")
 
         # Print example
         first_prompt = tokenizer.decode(request_outputs[0].prompt_token_ids)
@@ -328,11 +384,11 @@ def inference(config: InferenceConfig):
         monitor.log(progress_metrics)
 
         # Compute performance metrics
-        batch_tokens_per_second = batch_tokens / (end_time - start_time)
-        batch_samples_per_minute = batch_samples / (end_time - start_time) * 60
+        batch_tokens_per_second = batch_tokens / generation_time
+        batch_samples_per_minute = batch_samples / generation_time * 60
         batch_avg_seq_length = batch_tokens / batch_size
         logger.info(
-            f"Batch throughput: {batch_tokens_per_second:.2f} tokens/sec, {batch_samples_per_minute:.2f} samples/min ({batch_tokens} tokens in {end_time - start_time:.2f}s, avg seq len: {batch_avg_seq_length:.1f})"
+            f"Batch throughput: {batch_tokens_per_second:.2f} tokens/sec, {batch_samples_per_minute:.2f} samples/min ({batch_tokens} tokens in {generation_time:.2f}s, avg seq len: {batch_avg_seq_length:.1f})"
         )
 
         # Log performance metrics
@@ -343,14 +399,6 @@ def inference(config: InferenceConfig):
             "step": real_step,
         }
         monitor.log(perf_metrics)
-
-        # Compute proofs
-        # Note (Jack): Currently, vllm guarantees that seq ids are in the same order as prompts passed to generate.
-        # Generate always adds requests to the engine in the order of the prompts.
-        # And returns them in the sequence they were added.
-        toploc_cache.wait_for_proofs()
-        proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
-        toploc_cache.reset_cache()
 
         # Compute and log rewards and advantages
         logger.info("Computing rewards and advantages")

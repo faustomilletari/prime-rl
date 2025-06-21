@@ -394,6 +394,8 @@ class Config(BaseSettings):
         ),
     ]
 
+    contexts: Annotated[list[int] | None, Field(default=None, description="List of contexts to use for chunked inference.")]
+
     scale_factor: Annotated[
         float,
         Field(
