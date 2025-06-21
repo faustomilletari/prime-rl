@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -372,7 +373,8 @@ def train(config: TrainingConfig):
                     config.grpo.off_policy,
                 )
 
-                entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
+                with torch.no_grad() if config.grpo.entropy_loss_coeff == 0 else nullcontext():
+                    entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
 
                 loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
 
