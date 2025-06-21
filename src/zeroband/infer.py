@@ -1,3 +1,7 @@
+# (Jack): This is an umerged patch to fix a bug in vllm https://github.com/vllm-project/vllm/pull/19940
+# This can be removed once the patch is merged and vllm is updated.
+import zeroband.inference.monkeypatch_sampling_metadata  # noqa: F401
+
 import json
 import multiprocessing as mp
 import os
