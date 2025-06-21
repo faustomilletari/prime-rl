@@ -4,7 +4,6 @@ from typing import Any
 import torch
 from datasets import Dataset
 from safetensors import safe_open
-from transformers import AutoTokenizer
 from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 from vllm.transformers_utils.tokenizer import AnyTokenizer
@@ -13,7 +12,7 @@ from zeroband.inference.config import LenRewardsConfig, ModelConfig
 from zeroband.inference.work_counting import get_inference_input_output_flops  # noqa: F401
 
 
-def filter_data_by_prompt_length(data: Dataset, max_length: int, tokenizer: AutoTokenizer, tokenize_batch_size: int = 10000):
+def filter_data_by_prompt_length(data: Dataset, max_length: int, tokenizer: AnyTokenizer, tokenize_batch_size: int = 10000):
     def _add_token_lengths_batched(examples):
         prompts = examples["prompt"]
         tokenized = tokenizer(prompts, padding=False, truncation=False)
