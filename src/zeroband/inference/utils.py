@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 from vllm.transformers_utils.tokenizer import AnyTokenizer
 
+from zeroband.utils.logger import get_logger
 from zeroband.inference.config import LenRewardsConfig, ModelConfig
 from zeroband.inference.work_counting import get_inference_input_output_flops  # noqa: F401
 
@@ -53,6 +55,8 @@ def reload_model_weights(llm: LLM, ckpt_path: Path):
     # Access the internal model from vLLM
     model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     # Load state dict
+    logger = get_logger()
+    logger.info(f"Reloading model weights from {ckpt_path}")
     with safe_open(ckpt_path, framework="pt", device="cpu") as f:
         # Create a better weight iterator that filters out empty keys and handles prefixes
         def weights_iterator():
@@ -70,6 +74,34 @@ def reload_model_weights(llm: LLM, ckpt_path: Path):
     device = next(model.parameters()).device
     process_weights_after_loading(model, model_config, device)
 
+    return llm
+    
+def reload_checkpoint(llm: LLM, ckpt_path: Path, step: int, poll_interval: int = 1, log_interval: int = 30) -> LLM:
+    """
+    Tries to reload model weights from a safetensors checkpoints at a given step. Searches for a "stable" file to indicate that the checkpoint is ready to load and uses the `reload_model_weights` function to hot-reload the model weights into an active vLLM instance. Will poll for the checkpoint every `poll_interval` seconds and log a message every `log_interval` seconds.
+
+    Args:
+        llm: The vLLM instance to reload the model weights into.
+        ckpt_path: The path to the checkpoint directory.
+        step: The step to reload the model weights from.
+        poll_interval: The interval in seconds to poll for the checkpoint.
+        log_interval: The interval in seconds to log a message.
+
+    Returns:
+        The vLLM instance with the loaded model weights.
+    """
+    logger = get_logger()
+    wait_time = 0
+    while True:
+        stable_file = Path(ckpt_path) / f"step_{step}" / "stable"
+        if stable_file.exists():
+            logger.info(f"Found checkpoint for step {step} at {stable_file}. Reloading model weights.")
+            llm = reload_model_weights(llm, stable_file.parent / "model.safetensors")
+            break
+        if wait_time % log_interval == 0 and wait_time > 0:  # Every log_interval seconds
+            logger.info(f"Waiting for checkpoint for step {step} at {stable_file} for {wait_time} seconds")
+        time.sleep(poll_interval)
+        wait_time += poll_interval
     return llm
 
 

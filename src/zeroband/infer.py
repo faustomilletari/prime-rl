@@ -34,6 +34,7 @@ from zeroband.utils.monitor import setup_monitor
 from zeroband.inference.utils import (
     setup_model,
     filter_data_by_prompt_length,
+    reload_checkpoint,
     reload_model_weights,
     compute_max_batch_size,
     get_inference_input_output_flops,
@@ -214,23 +215,12 @@ def inference(config: InferenceConfig):
                 current_step_batch_counter += 1
 
         logger.info(f"Inference step {real_step} (Checkpoint step: {ckpt_step})")
+        
+        # Reload model weights from checkpoint if we are too far ahead of the checkpoint step
         if config.rl and real_step - ckpt_step > config.rl.async_level:
-            logger.info(f"Required to reload model weights for step {ckpt_step} from {config.rl.ckpt_path}")
+            logger.warning(f"Hit max async ({config.rl.max_async}) because inference step {real_step} is {real_step - ckpt_step} steps ahead of checkpoint step {ckpt_step}. Trying to reload model weights from {config.rl.ckpt_path}")
             ckpt_step = real_step - config.rl.async_level
-            attempt_count = 0
-            while True:
-                stable_file = Path(config.rl.ckpt_path) / f"step_{ckpt_step}/stable"
-                if stable_file.exists():
-                    logger.info(f"Reloading model weights for step {ckpt_step} from {stable_file}")
-                    llm = reload_model_weights(llm, Path(config.rl.ckpt_path) / f"step_{ckpt_step}/model.safetensors")
-                    total_problems = 0
-                    total_tokens = 0
-                    logger.success(f"Reloaded model weights for step {ckpt_step} from {stable_file}")
-                    break
-                if attempt_count % 30 == 0:
-                    logger.info(f"No stable file found at {stable_file}, waiting for new checkpoint")
-                time.sleep(1)
-                attempt_count += 1
+            llm = reload_checkpoint(llm, config.rl.ckpt_path, ckpt_step)
 
         if config.step_path is not None:
             logger.info(f"Writing current inference step ({real_step}) to {config.step_path}")
