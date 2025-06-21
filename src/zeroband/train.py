@@ -296,7 +296,7 @@ def train(config: TrainingConfig):
             num_grad_acc_steps = len(data_per_rollout)
 
             # Collect samples for WandB logging - do this ONCE per step
-            if world_info.rank == 0 and config.monitor.wandb:
+            if config.monitor.wandb is not None and config.monitor.wandb.log_samples and world_info.rank == 0:
                 # Use the first batch for logging (could be configurable if needed)
                 batch = data_per_rollout[0]
 
