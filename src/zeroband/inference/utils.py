@@ -142,7 +142,7 @@ def format_prompts(
     return formatted_prompts
 
 
-def compute_max_batch_size(llm: LLM) -> int:
+def compute_max_batch_size(llm: LLM, max_model_len: int | None = None) -> int:
     """
     Automatically computes the maximum batch size (number of sequences decoded in
     parallel) without exceeding the GPU memory to prevent cache eviction. We use vLLM's
@@ -164,7 +164,7 @@ def compute_max_batch_size(llm: LLM) -> int:
     """
     num_gpu_blocks = llm.llm_engine.model_executor.cache_config.num_gpu_blocks
     block_size = llm.llm_engine.model_executor.cache_config.block_size
-    max_model_len = llm.llm_engine.model_config.max_model_len
+    max_model_len = max_model_len or llm.llm_engine.model_config.max_model_len
     max_cache_tokens = num_gpu_blocks * block_size
     max_batch_size = max_cache_tokens // max_model_len
 
