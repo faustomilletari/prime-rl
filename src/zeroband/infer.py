@@ -297,15 +297,13 @@ def inference(config: InferenceConfig):
             unordered_proofs: dict[int, bytes] = defaultdict(bytes)
 
             max_model_len = llm.llm_engine.model_config.max_model_len
-            max_input_tokens = max(len(token_prompt["prompt_token_ids"]) for token_prompt in unordered_token_prompts.values())
-            contexts_max_tokens = [context - max_input_tokens for context in sorted(config.contexts)]
-            assert min(contexts_max_tokens) > 0, "Contexts must be larger than the max input tokens"
             assert max(config.contexts) <= max_model_len, "Contexts must be smaller than the max model length"
-            for i, (context, max_tokens) in enumerate(zip(config.contexts, contexts_max_tokens)):
+            for i, context in enumerate(config.contexts):
+                max_input_tokens = max(len(token_prompt["prompt_token_ids"]) for token_prompt in unordered_token_prompts.values())
+                max_tokens = context - max_input_tokens
+                assert max_tokens > 0, "Context must be larger than the max input tokens"
                 sampling_params.max_tokens = max_tokens
-                logger.info(
-                    f"Generating {batch_size} samples for {problems_per_batch} problems with context {context} ({max_tokens} tokens)"
-                )
+                logger.info(f"Generating {len(unordered_token_prompts)} samples with context {context} ({max_tokens} tokens)")
                 logger.info(f"Token prompt IDs: {list(unordered_token_prompts.keys())}")
                 chunked_request_outputs = llm.generate(list(unordered_token_prompts.values()), sampling_params, use_tqdm=config.use_tqdm)
 
@@ -326,9 +324,15 @@ def inference(config: InferenceConfig):
                     for output in request_output.outputs:
                         # Note: This assumes that sampling.n == 1, else it might break
                         if output.finish_reason == "stop" or is_last_iteration:
+                            # We finished the sequence, so we can pop it from the token prompts
                             finished_prompt_ids.append(prompt_id)
                             unordered_request_outputs[prompt_id] = request_output
-                            break
+                        else:
+                            # Overwrite the token prompt so that we prefill the next chunk
+                            unordered_token_prompts[prompt_id] = TokensPrompt(
+                                prompt_token_ids=list(request_output.prompt_token_ids) + list(output.token_ids)
+                            )
+
                 for prompt_id in finished_prompt_ids:
                     unordered_token_prompts.pop(prompt_id)
                 num_finished_sequences = len(finished_prompt_ids)
