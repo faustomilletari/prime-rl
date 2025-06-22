@@ -322,10 +322,13 @@ def inference(config: InferenceConfig):
                 finish_sequence = context == max(config.contexts)  # Last context
                 for mb_i, mb_unordered_tokens_prompts in enumerate(micro_batches):
                     # 1. Figure out the max_tokens to set
-                    max_input_tokens = max(len(token_prompt["prompt_token_ids"]) for token_prompt in mb_unordered_tokens_prompts.values())
+                    input_token_count = sum(len(token_prompt["prompt_token_ids"]) for token_prompt in mb_unordered_tokens_prompts.values())
+                    cacheable_area = max_batch_size * context
+                    max_tokens = (cacheable_area - input_token_count) // len(mb_unordered_tokens_prompts)
+
                     # TopLoc1 proofs do chunks of 32 tokens
                     # So we must have a multiple of 32 tokens
-                    max_tokens = int((context - max_input_tokens) / 32) * 32
+                    max_tokens = int(max_tokens / 32) * 32
                     assert max_tokens > 0, "Context must be larger than the max input tokens"
                     sampling_params.max_tokens = max_tokens
 
