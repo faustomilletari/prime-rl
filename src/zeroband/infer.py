@@ -9,7 +9,6 @@ import shutil
 import time
 from pathlib import Path
 import uuid
-from collections import defaultdict
 
 # Import environment before any other imports
 # ruff: noqa: I001
@@ -21,7 +20,7 @@ import requests
 import torch
 from datasets import load_dataset
 from toploc.utils import sha256sum
-from vllm import LLM, SamplingParams, TokensPrompt, RequestOutput
+from vllm import LLM, SamplingParams, TokensPrompt
 from huggingface_hub import snapshot_download
 
 from zeroband.utils.pydantic_config import parse_argv
@@ -289,17 +288,19 @@ def inference(config: InferenceConfig):
         generate_start_time = time.time()
         if config.contexts:
             # Convert tokenized prompts to TokensPrompt objects (prompt_id -> TokensPrompt)
+            # TODO(jack): These can probably be lists and then we dont need the list dict sort thing going on at the end?
             unordered_token_prompts: dict[int, TokensPrompt] = {
                 i: TokensPrompt(prompt_token_ids=prompt_token_ids) for i, prompt_token_ids in enumerate(tokenized_prompts)
             }
             # Save chunked request outputs (prompt_id -> RequestOutput)
-            unordered_request_outputs: dict[int, RequestOutput] = {}
-            unordered_proofs: dict[int, bytes] = defaultdict(bytes)
+            unordered_output_token_ids: dict[int, list[int]] = {i: [] for i in unordered_token_prompts.keys()}
+            unordered_proofs: dict[int, bytes] = {i: b"" for i in unordered_token_prompts.keys()}
 
             max_model_len = llm.llm_engine.model_config.max_model_len
-            assert max(config.contexts) <= max_model_len, "The final context should be the max model length"
+            assert max(config.contexts) <= max_model_len, "The final context should be less than the max model length"
+            assert sorted(config.contexts) == config.contexts, "Contexts must be sorted"
             num_finished_sequences = 0
-            for i, context in enumerate(config.contexts):
+            for context in config.contexts:
                 # Auto-compute the max batch size for the current context
                 logger.info(f"Running at context {context}")
                 local_max_batch_size = compute_max_batch_size(llm, max_model_len=context)
@@ -318,23 +319,19 @@ def inference(config: InferenceConfig):
                     {prompt_id: unordered_token_prompts[prompt_id] for prompt_id in micro_batch_prompt_ids}
                     for micro_batch_prompt_ids in micro_batch_prompt_ids
                 ]
-                finish_sequence = i == len(config.contexts) - 1
-                for j, mb_unordered_tokens_prompts in enumerate(micro_batches):
-                    if max_batch_size > len(mb_unordered_tokens_prompts):
-                        logger.warning(
-                            f"Micro-batch {j} has {len(mb_unordered_tokens_prompts)} sequences, but we expect {max_batch_size}. Only running prefill and finishing those sequences to avoid running at low throughput."
-                        )
-                        finish_sequence = True
-                        max_tokens = 1
-                    else:
-                        max_input_tokens = max(
-                            len(token_prompt["prompt_token_ids"]) for token_prompt in mb_unordered_tokens_prompts.values()
-                        )
-                        max_tokens = context - max_input_tokens
-                        assert max_tokens > 0, "Context must be larger than the max input tokens"
+                finish_sequence = context == max(config.contexts)  # Last context
+                for mb_i, mb_unordered_tokens_prompts in enumerate(micro_batches):
+                    # 1. Figure out the max_tokens to set
+                    max_input_tokens = max(len(token_prompt["prompt_token_ids"]) for token_prompt in mb_unordered_tokens_prompts.values())
+                    # TopLoc1 proofs do chunks of 32 tokens
+                    # So we must have a multiple of 32 tokens
+                    max_tokens = int((context - max_input_tokens) / 32) * 32
+                    assert max_tokens > 0, "Context must be larger than the max input tokens"
                     sampling_params.max_tokens = max_tokens
+
+                    # 2. Generate
                     logger.info(
-                        f"Generating {len(mb_unordered_tokens_prompts)} samples with context {context} for micro batch {j + 1}/{len(micro_batches)} ({max_tokens} tokens)"
+                        f"Generating {len(mb_unordered_tokens_prompts)} samples with context {context} for micro batch {mb_i + 1}/{len(micro_batches)} ({max_tokens} tokens)"
                     )
                     logger.info(f"Token prompt IDs: {list(mb_unordered_tokens_prompts.keys())}")
                     start_time = time.time()
@@ -355,28 +352,52 @@ def inference(config: InferenceConfig):
                     # Only keep unfinished sequences for the next iteration
                     finished_prompt_ids = []
                     for prompt_id, request_output in zip(mb_unordered_tokens_prompts.keys(), request_outputs):
-                        for output in request_output.outputs:
-                            # Note: This assumes that sampling.n == 1, else it might break
-                            if output.finish_reason == "stop" or finish_sequence:
-                                # We remember which sequences finished, so we can pop remove them from the prompt pool
-                                finished_prompt_ids.append(prompt_id)
-                                unordered_request_outputs[prompt_id] = request_output
-                            else:
-                                # Overwrite the token prompt so that we prefill the next chunk
-                                unordered_token_prompts[prompt_id] = TokensPrompt(
-                                    prompt_token_ids=list(request_output.prompt_token_ids) + list(output.token_ids)
-                                )
+                        # Note: This assumes that sampling.n == 1, else it might break
+                        assert len(request_output.outputs) == 1, "Sampling.n must be 1"
+                        output = request_output.outputs[0]
+                        unordered_output_token_ids[prompt_id].extend(output.token_ids)
+                        if output.finish_reason == "stop" or finish_sequence:
+                            # We remember which sequences finished, so we can pop remove them from the prompt pool
+                            finished_prompt_ids.append(prompt_id)
+                        else:
+                            # Overwrite the token prompt so that we prefill the next chunk
+                            unordered_token_prompts[prompt_id] = TokensPrompt(
+                                prompt_token_ids=[*request_output.prompt_token_ids, *output.token_ids]
+                            )
                     for prompt_id in finished_prompt_ids:
                         unordered_token_prompts.pop(prompt_id)
 
                     num_finished_sequences += len(finished_prompt_ids)
-                    logger.info(f"Finished {len(finished_prompt_ids)} sequences at micro batch {j} at context {context}")
+                    logger.info(f"Finished {len(finished_prompt_ids)} sequences at micro batch {mb_i} at context {context}")
                 logger.info(f"Finished {num_finished_sequences} sequences at context {context}")
 
             # Order the request outputs by prompt_id to pretend like we generated all samples in one go
-            request_outputs = list(dict(sorted(unordered_request_outputs.items(), key=lambda x: x[0])).values())
+            # request_outputs = list(dict(sorted(unordered_request_outputs.items(), key=lambda x: x[0])).values())
+            from vllm.outputs import RequestOutput, CompletionOutput
+
+            request_outputs = []
+            for prompt_id in unordered_output_token_ids.keys():
+                request_outputs.append(
+                    RequestOutput(
+                        request_id="shouldnt matter",
+                        prompt=None,
+                        prompt_logprobs=None,
+                        finished=True,
+                        prompt_token_ids=tokenized_prompts[prompt_id],
+                        outputs=[
+                            CompletionOutput(
+                                index=0,
+                                token_ids=unordered_output_token_ids[prompt_id],
+                                text=tokenizer.decode(unordered_output_token_ids[prompt_id], skip_special_tokens=True),
+                                cumulative_logprob=None,
+                                logprobs=None,
+                            )
+                        ],
+                    )
+                )
             proofs = list(dict(sorted(unordered_proofs.items(), key=lambda x: x[0])).values())
             assert len(request_outputs) == batch_size, "Number of request outputs must match batch size"
+            assert len(proofs) == batch_size, "Number of proofs must match batch size"
         else:
             token_prompts: list[TokensPrompt] = [TokensPrompt(prompt_token_ids=prompt_token_ids) for prompt_token_ids in tokenized_prompts]
             request_outputs = llm.generate(token_prompts, sampling_params, use_tqdm=config.use_tqdm)
