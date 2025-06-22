@@ -318,7 +318,6 @@ def inference(config: InferenceConfig):
                     {prompt_id: unordered_token_prompts[prompt_id] for prompt_id in micro_batch_prompt_ids}
                     for micro_batch_prompt_ids in micro_batch_prompt_ids
                 ]
-                logger.info(f"Computed {len(micro_batches)} micro-batches for context {context}")
                 finish_sequence = i == len(config.contexts) - 1
                 for j, mb_unordered_tokens_prompts in enumerate(micro_batches):
                     if max_batch_size > len(mb_unordered_tokens_prompts):
