@@ -156,7 +156,8 @@ def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: 
         return get_inference_input_output_flops_deepseek_v3(config, num_input_tokens, num_output_tokens)
     else:
         get_logger().warning(
-            f"Model {type(config).__name__} flop calculation not specifically supported. Using fallback calculation based on parameter count."
+            f"Model {type(config).__name__} flop calculation not specifically supported. Using fallback calculation based on parameter count.",
+            once=True,
         )
         num_params = _get_num_params(model_name_or_path)
         return 2 * num_params * num_input_tokens, 2 * num_params * num_output_tokens
