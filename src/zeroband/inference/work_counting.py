@@ -148,6 +148,11 @@ def _get_num_params(model_name_or_path: str) -> int:
     return sum(p.numel() for p in model.parameters()) - offset
 
 
+@lru_cache(maxsize=None)
+def _warn_only_once(message: str):
+    get_logger().warning(message)
+
+
 def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: int, num_output_tokens: int) -> tuple[int, int]:
     config = _get_config(model_name_or_path)
     if isinstance(config, Qwen3Config) or isinstance(config, Qwen3MoeConfig):
@@ -155,9 +160,8 @@ def get_inference_input_output_flops(model_name_or_path: str, num_input_tokens: 
     elif isinstance(config, DeepseekV3Config):
         return get_inference_input_output_flops_deepseek_v3(config, num_input_tokens, num_output_tokens)
     else:
-        get_logger().warning(
-            f"Model {type(config).__name__} flop calculation not specifically supported. Using fallback calculation based on parameter count.",
-            once=True,
+        _warn_only_once(
+            f"Model {type(config).__name__} flop calculation not specifically supported. Using fallback calculation based on parameter count."
         )
         num_params = _get_num_params(model_name_or_path)
         return 2 * num_params * num_input_tokens, 2 * num_params * num_output_tokens
