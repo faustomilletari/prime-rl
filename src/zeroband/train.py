@@ -526,8 +526,8 @@ def train(config: TrainingConfig):
                 "perf/time_logprob": total_time_logprob,
                 "perf/time_data_loading": total_time_data_loading,
                 "perf/time_packing": total_time_packing,
-                "time_data_preprocessing": total_time,
-                "time_rollout_delete": time_rollout_delete,
+                "perf/time_data_preprocessing": total_time,
+                "perf/time_rollout_delete": time_rollout_delete,
             }
             if time_rollout_ckpt is not None:
                 time_metrics["perf/time_rollout_ckpt"] = time_rollout_ckpt
