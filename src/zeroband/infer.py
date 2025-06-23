@@ -359,7 +359,11 @@ def inference(config: InferenceConfig):
                         assert len(request_output.outputs) == 1, "Sampling.n must be 1"
                         output = request_output.outputs[0]
                         unordered_output_token_ids[prompt_id].extend(output.token_ids)
-                        if output.finish_reason == "stop" or finish_sequence:
+                        if (
+                            output.finish_reason == "stop"
+                            or finish_sequence
+                            or len(request_output.prompt_token_ids) + len(output.token_ids) >= max_model_len
+                        ):
                             # We remember which sequences finished, so we can pop remove them from the prompt pool
                             finished_prompt_ids.append(prompt_id)
                         else:
