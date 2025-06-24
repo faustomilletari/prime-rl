@@ -12,6 +12,7 @@ from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.utils import format_prompts
 from zeroband.utils.logger import get_logger
 from zeroband.utils.monitor import get_monitor
+from zeroband.utils.utils import capitalize
 
 
 def compute_pass_rates(rewards: list[int]):
@@ -93,18 +94,23 @@ def run_benchmark(
 
     # Compute scores
     sample_stats = pd.DataFrame(rows)
-    pass_rates = sample_stats.groupby("request_id").apply(lambda x: compute_pass_rates(x.reward), include_groups=False).apply(pd.Series)
+    is_binary = sorted(list(sample_stats.reward.unique())) == [0, 1]
+    if is_binary:
+        pass_rates = sample_stats.groupby("request_id").apply(lambda x: compute_pass_rates(x.reward), include_groups=False).apply(pd.Series)
     reward_time = time.time() - reward_start_time
 
     # Log statistics
     benchmark_time = time.time() - benchmark_start_time
     logger.success(f"Ran {benchmark_name} in {benchmark_time:.2f}s")
-    logger.info(f"Mean score: {sample_stats.reward.mean()}")
-    for pass_rate, pass_rate_score in pass_rates.mean().items():
-        logger.info(f"Mean {pass_rate} score: {pass_rate_score:.2f}")
+    logger.info(f"Score: {sample_stats.reward.mean():.2f}")
+    if is_binary:
+        for pass_rate, pass_rate_score in pass_rates.mean().items():
+            logger.info(f"{capitalize(pass_rate)}: {pass_rate_score:.2f}")
 
     # Log statistics to monitor
-    eval_metrics = {"step": step, **pass_rates.mean().to_dict()}
+    eval_metrics = {"step": step, "score": sample_stats.reward.mean()}
+    if is_binary:
+        eval_metrics.update(pass_rates.mean().to_dict())
     monitor.log(eval_metrics, prefix=f"eval/{benchmark}")
 
     # Log timing metrics to monitor

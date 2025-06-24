@@ -4,6 +4,10 @@ import torch.distributed as dist
 import wandb
 
 
+def capitalize(s: str) -> str:
+    return s[0].upper() + s[1:]
+
+
 def clean_exit(func):
     """
     A decorator that ensures the a torch.distributed process group is properly
