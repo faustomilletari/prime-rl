@@ -42,7 +42,7 @@ def main(config: EvalConfig):
     # Run benchmarks on base model
     logger.info(f"Running evals on base model {config.model.name}")
     for benchmark in config.eval.benchmarks:
-        run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed, use_tqdm=config.use_tqdm)
+        run_benchmark(llm, benchmark, config.model, config.sampling, step=0, seed=config.seed, use_tqdm=config.use_tqdm)
 
     # If specified, run online evaluation
     if config.eval.online:
