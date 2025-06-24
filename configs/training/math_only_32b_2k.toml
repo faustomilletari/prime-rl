@@ -1,3 +1,5 @@
+collate_mode = "packing"
+
 [monitor.wandb]
 project = "math-debug"
 
@@ -9,7 +11,6 @@ micro_bs = 8
 reshard_after_forward = true
 ac_ckpt = true
 
-collate_mode = "packing"
 
 
 [optim]
