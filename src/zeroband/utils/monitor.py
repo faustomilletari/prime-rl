@@ -120,7 +120,12 @@ class WandbMonitor(Monitor):
             self.logger.warning(f"Skipping WandbMonitor initialization from non-master rank ({rank})")
             return
         self.wandb = wandb.init(
-            project=config.project, group=config.group, name=config.name, dir=config.dir, config=run_config.model_dump()
+            project=config.project,
+            group=config.group,
+            name=config.name,
+            dir=config.dir,
+            config=run_config.model_dump(),
+            mode="offline" if config.offline else None,
         )
         self.prefix = f"{config.prefix}/" if config.prefix else ""
 

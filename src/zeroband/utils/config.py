@@ -70,6 +70,8 @@ class WandbMonitorConfig(BaseConfig):
         ),
     ]
 
+    offline: Annotated[bool, Field(default=False, description="Whether to run W&B in offline mode.")]
+
     prefix: Annotated[
         str,
         Field(
