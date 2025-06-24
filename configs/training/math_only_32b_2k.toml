@@ -1,0 +1,27 @@
+[monitor.wandb]
+project = "math-debug"
+
+[model]
+name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+
+[train]
+micro_bs = 8 
+reshard_after_forward = true
+ac_ckpt = true
+
+collate_mode = "packing"
+
+
+[optim]
+batch_size = 1024
+step_per_rollout = 1
+
+[data]
+seq_length = 2048
+path = "rollouts"
+
+
+[ckpt]
+rollout_path = "checkpoints"
+clean_rollout_path = true
+async_save = true
