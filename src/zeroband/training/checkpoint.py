@@ -1,5 +1,5 @@
+import multiprocessing as mp
 import os
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -87,72 +87,85 @@ def load_checkpoint_fsdp_state(
     training_progress.total_samples = state["training_progress"].total_samples
 
 
-async_ckpt_job = None
-
-
-def save_ckpt_for_rollout(
-    model: ModelType, tokenizer: AutoTokenizer, path: Path, dtype: torch.dtype = torch.bfloat16, async_save: bool = False
-) -> Path:
+class RolloutCkptManager:
     """
-    Save the checkpoint for rollout as one unified safetensors file.
-
-    Return:
-        Path to the saved checkpoint safetensor
+    This class is used to save the checkpoint for rollout in a separate process.
+    Most of the checkpointing is async expect the gpu all gather.
+    Moving tensor to cpu and to disk is async.
+    Disk write is done in a separate process.
     """
-    logger = get_logger()
-    world_info = get_world_info()
 
-    if not path.exists():
-        path.mkdir(parents=True, exist_ok=True)
+    def __init__(self, tokenizer: AutoTokenizer):
+        ctx = mp.get_context("spawn")
+        self.saving_queue = ctx.Queue()
+        self.tokenizer = tokenizer
+        self.logger = get_logger()
 
-    path_file = path / "model.safetensors"
+        self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue,))
+        self.process.start()
 
-    start_time = time.time()
-    logger.info(f"Saving rollout ckpt at {path}")
+        self.ckpt_to_delete = []
 
-    cpu_state = {}
-    copy_stream = torch.cuda.Stream()  # private stream for DMA
+    @staticmethod
+    def _save_loop(q: mp.Queue):
+        """Runs in its *own* Python process; handles disk I/O only."""
+        while True:
+            cpu_state, path, start_time = q.get()
+            path_file = path / "model.safetensors"
 
-    for key, value in model.state_dict().items():
-        if isinstance(value, DTensor):
-            value: DTensor = value.to(dtype)
-            # only gather after the downcast to dtype as it will be faster
-            value = value.full_tensor()  # ideally would only be gathered on rank 0
-
-        if world_info.rank == 0:
-            key: set[str] = get_fqns(model, key)
-            assert len(key) == 1
-            key = next(iter(key))
-
-            host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
-            with torch.cuda.stream(copy_stream):
-                host_buf.copy_(value, non_blocking=True)
-
-            cpu_state[key] = host_buf
-
-    torch.cuda.synchronize()
-    torch.distributed.barrier()
-
-    logger.info(f"gathering full tensor checkpointing in {time.time() - start_time:.2f} seconds")
-
-    def _save():
-        if world_info.rank == 0:
             save_file(cpu_state, path_file, metadata={"format": "pt"})
 
-            model.config.save_pretrained(path)
-            model.generation_config.save_pretrained(path)
-            tokenizer.save_pretrained(path)
+            # model.config.save_pretrained(path)
+            # model.generation_config.save_pretrained(path)
+            # tokenizer.save_pretrained(path)
 
             stable_file = path / "stable"
             stable_file.touch()
 
-            logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
+            # logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
+            q.task_done()
+            break
 
-    if async_save:
-        logger.info(f"Rollout ckpt async saving  in {path} in {time.time() - start_time:.2f} seconds scheduled with async")
-        async_ckpt_job = threading.Thread(target=_save)
-        async_ckpt_job.start()
-    else:
-        _save()
+    def save_ckpt_for_rollout(self, model: ModelType, path: Path, dtype: torch.dtype = torch.bfloat16) -> Path:
+        """
+        Save the checkpoint for rollout as one unified safetensors file.
 
-    return path_file
+        Return:
+            Path to the saved checkpoint safetensor
+        """
+        world_info = get_world_info()
+
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
+
+        start_time = time.time()
+        self.logger.info(f"Saving rollout ckpt at {path}")
+
+        cpu_state = {}
+        copy_stream = torch.cuda.Stream()  # private stream for DMA
+
+        for key, value in model.state_dict().items():
+            if isinstance(value, DTensor):
+                value: DTensor = value.to(dtype)
+                # only gather after the downcast to dtype as it will be faster
+                value = value.full_tensor()  # ideally would only be gathered on rank 0
+
+            if world_info.rank == 0:
+                key: set[str] = get_fqns(model, key)
+                assert len(key) == 1
+                key = next(iter(key))
+
+                # we use pin and shared memory for avoiding multi processing data duplication
+                host_buf = torch.empty_like(value, device="cpu", pin_memory=True, share_memory=True)
+                with torch.cuda.stream(copy_stream):
+                    host_buf.copy_(value, non_blocking=True)
+
+                cpu_state[key] = host_buf
+
+        torch.cuda.synchronize()
+        torch.distributed.barrier()
+
+        self.saving_queue.put((cpu_state, path, start_time))
+        self.logger.info(f"Saving rollout ckpt at {path} scheduled in {time.time() - start_time:.2f} seconds")
+
+        return path
