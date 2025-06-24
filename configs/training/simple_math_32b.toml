@@ -5,12 +5,13 @@ project = "math-debug"
 name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 
 [train]
-micro_bs = 8 
+micro_bs = 4
 reshard_after_forward = true
 ac_ckpt = true
+torch_compile = true
 
 [optim]
-batch_size = 512
+batch_size = 1024
 step_per_rollout = 1
 
 [optim.optim]
@@ -19,7 +20,7 @@ lr = 1e-6
 
 [data]
 path = "rollouts"
-seq_length = 2048
+seq_length = 4096
 
 [ckpt]
 rollout_path = "checkpoints"
