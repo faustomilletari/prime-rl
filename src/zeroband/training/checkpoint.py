@@ -111,6 +111,7 @@ def save_ckpt_for_rollout(
     logger.info(f"Saving rollout ckpt at {path}")
 
     cpu_state = {}
+    copy_stream = torch.cuda.Stream()  # private stream for DMA
 
     for key, value in model.state_dict().items():
         if isinstance(value, DTensor):
@@ -122,9 +123,14 @@ def save_ckpt_for_rollout(
             key: set[str] = get_fqns(model, key)
             assert len(key) == 1
             key = next(iter(key))
-            cpu_state[key] = value.to("cpu", non_blocking=False)
-            # TODO(SAMI) keeping blocking here to avoid race condition, should be faster to make it non blocking tho
 
+            host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
+            with torch.cuda.stream(copy_stream):
+                host_buf.copy_(value, non_blocking=True)
+
+            cpu_state[key] = host_buf
+
+    torch.cuda.synchronize()
     torch.distributed.barrier()
 
     logger.info(f"gathering full tensor checkpointing in {time.time() - start_time:.2f} seconds")
