@@ -72,14 +72,6 @@ class WandbMonitorConfig(BaseConfig):
 
     offline: Annotated[bool, Field(default=False, description="Whether to run W&B in offline mode.")]
 
-    prefix: Annotated[
-        str,
-        Field(
-            default="",
-            description="The prefix to add to each key in the metrics dictionary before logging to W&B. Useful for distinguishing between different runs in the same group (e.g. training and inference)",
-        ),
-    ]
-
     log_samples: Annotated[bool, Field(default=False, description="Whether to log samples to W&B.")]
 
 

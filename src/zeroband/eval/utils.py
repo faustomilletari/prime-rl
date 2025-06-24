@@ -94,9 +94,12 @@ def run_benchmark(
 
     # Compute scores
     sample_stats = pd.DataFrame(rows)
-    is_binary = sorted(list(sample_stats.reward.unique())) == [0, 1]
+    unique_rewards = sample_stats.reward.unique()
+    is_binary = sorted(unique_rewards) == [0.0, 1.0]
     if is_binary:
         pass_rates = sample_stats.groupby("request_id").apply(lambda x: compute_pass_rates(x.reward), include_groups=False).apply(pd.Series)
+    else:
+        logger.warning("Skipping computing pass@k rates because the task rewards appear to be non-binary")
     reward_time = time.time() - reward_start_time
 
     # Log statistics
@@ -111,7 +114,7 @@ def run_benchmark(
     eval_metrics = {"step": step, "score": sample_stats.reward.mean()}
     if is_binary:
         eval_metrics.update(pass_rates.mean().to_dict())
-    monitor.log(eval_metrics, prefix=f"eval/{benchmark}")
+    monitor.log(eval_metrics, wandb_prefix=f"eval/{benchmark}")
 
     # Log timing metrics to monitor
     time_metrics = {
@@ -121,4 +124,4 @@ def run_benchmark(
         "reward_time": reward_time,
         "benchmark_time": benchmark_time,
     }
-    monitor.log(time_metrics, prefix=f"eval/time/{benchmark}")
+    monitor.log(time_metrics, wandb_prefix=f"eval/{benchmark}/time")

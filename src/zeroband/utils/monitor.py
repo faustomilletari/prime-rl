@@ -127,13 +127,12 @@ class WandbMonitor(Monitor):
             config=run_config.model_dump(),
             mode="offline" if config.offline else None,
         )
-        self.prefix = f"{config.prefix}/" if config.prefix else ""
 
     def log(self, metrics: dict[str, Any]) -> None:
         if not self.enabled:
             return
-        metrics = {f"{self.prefix}{k}": v for k, v in metrics.items()}
-        wandb.log(metrics, step=metrics.get("step", None))
+        step = metrics.pop("step", None)
+        wandb.log(metrics, step=step)
 
 
 MonitorType = Literal["file", "socket", "api", "wandb"]
@@ -169,15 +168,16 @@ class MultiMonitor:
             self._stop_event = threading.Event()
             self._start_metrics_thread()
 
-    def log(self, metrics: dict[str, Any], prefix: str | None = None, exclude: list[MonitorType] = []) -> None:
+    def log(self, metrics: dict[str, Any], wandb_prefix: str | None = None, exclude: list[MonitorType] = []) -> None:
         """Logs metrics to all outputs."""
         if self.disabled:
             return
-        if prefix is not None:
-            metrics = {f"{prefix}/{k}": v for k, v in metrics.items()}
         self.logger.debug(f"Logging metrics: {metrics}")
         for output_type, output in self.outputs.items():
             if output_type not in exclude:
+                if output_type == "wandb" and wandb_prefix is not None:
+                    step = metrics.pop("step", None)
+                    metrics = {**{f"{wandb_prefix}/{k}": v for k, v in metrics.items()}, "step": step}
                 output.log(metrics)
 
     def _set_has_gpu(self) -> bool:
