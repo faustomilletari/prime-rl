@@ -87,6 +87,13 @@ def load_checkpoint_fsdp_state(
     training_progress.total_samples = state["training_progress"].total_samples
 
 
+@dataclass
+class CkptJobStatus:
+    path: Path
+    success: bool
+    error: Exception | None = None
+
+
 class RolloutCkptManager:
     """
     This class is used to save the checkpoint for rollout in a separate process.
@@ -98,33 +105,41 @@ class RolloutCkptManager:
     def __init__(self, tokenizer: AutoTokenizer):
         ctx = mp.get_context("spawn")
         self.saving_queue = ctx.Queue()
+        self.results_queue: mp.Queue[CkptJobStatus] = ctx.Queue()
+
         self.tokenizer = tokenizer
         self.logger = get_logger()
 
-        self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue,))
+        self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue, self.results_queue))
         self.process.start()
 
         self.ckpt_to_delete = []
 
     @staticmethod
-    def _save_loop(q: mp.Queue):
+    def _save_loop(ckpt_job_queue: mp.Queue, results_queue: mp.Queue):
         """Runs in its *own* Python process; handles disk I/O only."""
 
         while True:
-            cpu_state, path, start_time = q.get()
-            path_file = path / "model.safetensors"
+            cpu_state, path, start_time = ckpt_job_queue.get()
 
-            save_file(cpu_state, path_file, metadata={"format": "pt"})
+            try:
+                path_file = path / "model.safetensors"
 
-            # model.config.save_pretrained(path)
-            # model.generation_config.save_pretrained(path)
-            # tokenizer.save_pretrained(path)
+                save_file(cpu_state, path_file, metadata={"format": "pt"})
 
-            stable_file = path / "stable"
-            stable_file.touch()
+                # model.config.save_pretrained(path)
+                # model.generation_config.save_pretrained(path)
+                # tokenizer.save_pretrained(path)
 
-            # logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
-            break
+                stable_file = path / "stable"
+                stable_file.touch()
+
+                # logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
+                results_queue.put(CkptJobStatus(path=path, success=True))
+            except Exception as e:
+                # logger.error(f"Error saving rollout ckpt at {path}: {e}")
+                results_queue.put(CkptJobStatus(path=path, success=False, error=e))
+                break
 
     def save_ckpt_for_rollout(self, model: ModelType, path: Path, dtype: torch.dtype = torch.bfloat16) -> Path:
         """
