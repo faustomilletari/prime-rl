@@ -9,9 +9,9 @@ from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 from vllm.transformers_utils.tokenizer import AnyTokenizer
 
-from zeroband.utils.logger import get_logger
 from zeroband.inference.config import LenRewardsConfig, ModelConfig
 from zeroband.inference.work_counting import get_inference_input_output_flops  # noqa: F401
+from zeroband.utils.logger import get_logger
 
 
 def filter_data_by_prompt_length(data: Dataset, max_length: int, tokenizer: AnyTokenizer, tokenize_batch_size: int = 10000):
@@ -75,7 +75,8 @@ def reload_model_weights(llm: LLM, ckpt_path: Path):
     process_weights_after_loading(model, model_config, device)
 
     return llm
-    
+
+
 def reload_checkpoint(llm: LLM, ckpt_path: Path, step: int, poll_interval: int = 1, log_interval: int = 30) -> LLM:
     """
     Tries to reload model weights from a safetensors checkpoints at a given step. Searches for a "stable" file to indicate that the checkpoint is ready to load and uses the `reload_model_weights` function to hot-reload the model weights into an active vLLM instance. Will poll for the checkpoint every `poll_interval` seconds and log a message every `log_interval` seconds.
