@@ -155,7 +155,7 @@ def _warn_only_once(message: str):
 
 def get_flops_scale_factor(model_name_or_path: str) -> int:
     if model_name_or_path == "deepseek-r1/DeepSeek-R1-0528":
-        return 4
+        return 8
     return 1
 
 
