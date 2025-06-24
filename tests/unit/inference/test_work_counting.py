@@ -12,7 +12,7 @@ from zeroband.inference.work_counting import get_inference_input_output_flops
 def test_get_inference_input_output_flops_deepseek_v3(model_name_or_path: str, active_params: int):
     # 1 input token, 0 output tokens should be almost equal to 2 * active params
     input_flops, output_flops = get_inference_input_output_flops(model_name_or_path, 1, 1)
-    assert abs(input_flops - 2 * active_params) / active_params < 0.05
+    assert abs(input_flops / 8 - 2 * active_params) / active_params < 0.05
     assert output_flops > input_flops
 
 
