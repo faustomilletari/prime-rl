@@ -109,6 +109,7 @@ class RolloutCkptManager:
     @staticmethod
     def _save_loop(q: mp.Queue):
         """Runs in its *own* Python process; handles disk I/O only."""
+
         while True:
             cpu_state, path, start_time = q.get()
             path_file = path / "model.safetensors"
@@ -123,7 +124,6 @@ class RolloutCkptManager:
             stable_file.touch()
 
             # logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
-            q.task_done()
             break
 
     def save_ckpt_for_rollout(self, model: ModelType, path: Path, dtype: torch.dtype = torch.bfloat16) -> Path:
@@ -156,7 +156,7 @@ class RolloutCkptManager:
                 key = next(iter(key))
 
                 # we use pin and shared memory for avoiding multi processing data duplication
-                host_buf = torch.empty_like(value, device="cpu", pin_memory=True, share_memory=True)
+                host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
                 with torch.cuda.stream(copy_stream):
                     host_buf.copy_(value, non_blocking=True)
 
