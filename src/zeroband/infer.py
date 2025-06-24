@@ -7,13 +7,12 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 import pyarrow.parquet as pq
 import requests
 import torch
-from datasets import Dataset, load_dataset
+from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from toploc.utils import sha256sum
 from vllm import LLM, SamplingParams, TokensPrompt
@@ -94,7 +93,7 @@ def inference(config: InferenceConfig):
     # Initialize dataset
     logger.info(f"Initializing dataset (name={config.data.name}, split={config.data.split})")
     start_time = time.time()
-    dataset = cast(Dataset, load_dataset(config.data.name, split=config.data.split))
+    dataset = load_dataset(config.data.name, split=config.data.split)
 
     if not config.rewards.compute_reward:
         logger.info("Reward computation is disabled, setting task_type to null_reward")

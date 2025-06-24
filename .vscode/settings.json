@@ -7,5 +7,6 @@
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
-    "python.languageServer": "None"
+    "python.languageServer": "None",
+    "cursorpyright.analysis.typeCheckingMode": "off"
 }
