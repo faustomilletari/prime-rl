@@ -7,22 +7,15 @@ from zeroband.inference import envs
 
 from pydantic import Field
 
-from zeroband.inference.config import ModelConfig, EvalConfig, LogConfig, SamplingConfig as InferenceSamplingConfig
+from zeroband.inference.config import ModelConfig, EvalConfig, LogConfig, SamplingConfig
 from zeroband.utils.config import MultiMonitorConfig
 from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
 
 
-class SamplingConfig(InferenceSamplingConfig):
-    """Configures sampling parameters for evaluation."""
-
-    n: Annotated[
-        int,
-        Field(default=1, description="Number of completions to generate for each prompt. This is essentially the pass@k rate (where k=n)."),
-    ]
-
-
 class ParallelConfig(BaseConfig):
     """Configures multi-node and multi-GPU setups through different types of parallelism (TP, DP, PP)."""
+
+    # Note(Mika): Currently, we do not support DP and PP for evaluation.
 
     tp: Annotated[
         int | Literal["auto"],
@@ -33,10 +26,8 @@ class ParallelConfig(BaseConfig):
     ]
 
 
-
-
 class Config(BaseSettings):
-    """Configures offline evaluation."""
+    """Configures evaluation."""
 
     # The model configuration
     model: Annotated[ModelConfig, Field(default=ModelConfig())]
@@ -62,6 +53,6 @@ class Config(BaseSettings):
         int | None,
         Field(
             default=None,
-            description="Random seed used across inference components. If None, no seeding is used.",
+            description="Random seed used across evaluation components. If None, no seeding is used.",
         ),
     ]
