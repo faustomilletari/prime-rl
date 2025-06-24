@@ -2,6 +2,7 @@ import json
 import time
 from typing import cast
 
+import numpy as np
 import pandas as pd
 from vllm import LLM, SamplingParams, TokensPrompt
 
@@ -11,6 +12,16 @@ from zeroband.inference.rewards import compute_vllm_rewards
 from zeroband.inference.utils import format_prompts
 from zeroband.utils.logger import get_logger
 from zeroband.utils.monitor import get_monitor
+
+
+def compute_pass_rates(rewards: list[int]):
+    pass_rates = [k for k in range(1, len(rewards) + 1) if (k & (k - 1)) == 0]
+    return {f"pass@{k}": compute_pass_at_k(rewards, k) for k in pass_rates}
+
+
+def compute_pass_at_k(rewards: list[int], k: int):
+    sublists = [rewards[i : i + k] for i in range(0, len(rewards), k)]
+    return np.array([any(sublist) for sublist in sublists]).mean()
 
 
 def run_benchmark(
@@ -77,42 +88,31 @@ def run_benchmark(
         req_id = request_output.request_id
         for output, reward in zip(request_output.outputs, request_reward.rewards):
             logger.debug(f"Request ID: {req_id}\n{llm.get_tokenizer().decode(request_output.prompt_token_ids)}{output.text}")
-            rows.append(
-                {
-                    "request_id": req_id,
-                    "reward": reward.reward,
-                }
-            )
-    sample_stats = pd.DataFrame(rows)
-    problem_stats = sample_stats.groupby("request_id").agg({"reward": "mean"})
+            row = {"request_id": req_id, "reward": reward.reward}
+            rows.append(row)
 
     # Compute scores
-    mean_sample_score = sample_stats["reward"].mean()
-    mean_problem_score = problem_stats["reward"].mean()
+    sample_stats = pd.DataFrame(rows)
+    pass_rates = sample_stats.groupby("request_id").apply(lambda x: compute_pass_rates(x.reward), include_groups=False).apply(pd.Series)
     reward_time = time.time() - reward_start_time
 
     # Log statistics
     benchmark_time = time.time() - benchmark_start_time
     logger.success(f"Ran {benchmark_name} in {benchmark_time:.2f}s")
-    logger.info(f"Mean problem score: {mean_problem_score:.2f}")
-    logger.info(f"Mean sample score: {mean_sample_score:.2f}")
+    logger.info(f"Mean score: {sample_stats.reward.mean()}")
+    for pass_rate, pass_rate_score in pass_rates.mean().items():
+        logger.info(f"Mean {pass_rate} score: {pass_rate_score:.2f}")
 
     # Log statistics to monitor
-    eval_metrics = {
-        "step": step,
-        "mean_sample_score": mean_sample_score,
-        "mean_problem_score": mean_problem_score,
-    }
+    eval_metrics = {"step": step, **pass_rates.mean().to_dict()}
     monitor.log(eval_metrics, prefix=f"eval/{benchmark}")
 
     # Log timing metrics to monitor
-    monitor.log(
-        {
-            "step": step,
-            "load_data_time": load_data_time,
-            "generate_time": generate_time,
-            "reward_time": reward_time,
-            "benchmark_time": benchmark_time,
-        },
-        prefix=f"eval/{benchmark}/time",
-    )
+    time_metrics = {
+        "step": step,
+        "load_data_time": load_data_time,
+        "generate_time": generate_time,
+        "reward_time": reward_time,
+        "benchmark_time": benchmark_time,
+    }
+    monitor.log(time_metrics, prefix=f"eval/time/{benchmark}")

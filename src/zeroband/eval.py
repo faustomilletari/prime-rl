@@ -1,14 +1,15 @@
 # Import environment before any other imports
 # ruff: noqa
 import time
+
 from huggingface_hub import snapshot_download
 
+from zeroband.eval.config import Config as EvalConfig
+from zeroband.eval.logger import setup_logger
+from zeroband.eval.utils import run_benchmark
+from zeroband.inference.utils import reload_checkpoint, setup_model
 from zeroband.utils.monitor import setup_monitor
 from zeroband.utils.pydantic_config import parse_argv
-from zeroband.eval.config import Config as EvalConfig
-from zeroband.eval.utils import run_benchmark
-from zeroband.inference.utils import setup_model, reload_checkpoint
-from zeroband.eval.logger import setup_logger
 from zeroband.utils.utils import clean_exit
 
 
@@ -37,7 +38,7 @@ def main(config: EvalConfig):
     # Run benchmarks on base model
     logger.info(f"Running evals on base model {config.model.name}")
     for benchmark in config.eval.benchmarks:
-        run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed)
+        run_benchmark(llm, benchmark, config.model, config.sampling, config.eval, seed=config.seed, use_tqdm=config.use_tqdm)
 
     # If specified, run online evaluation
     if config.eval.online:
@@ -52,7 +53,7 @@ def main(config: EvalConfig):
             # Run benchmarks on new checkpoint
             logger.info(f"Running evals for checkpoint step {step}")
             for benchmark in config.eval.benchmarks:
-                run_benchmark(llm, benchmark, config.model, config.sampling, step, seed=config.seed)
+                run_benchmark(llm, benchmark, config.model, config.sampling, step, seed=config.seed, use_tqdm=config.use_tqdm)
 
             # Update eval step to next checkpoint step
             step += config.eval.online.interval
