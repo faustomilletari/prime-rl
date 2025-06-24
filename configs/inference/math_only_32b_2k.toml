@@ -1,4 +1,4 @@
-max_batch_size = 256
+max_batch_size = 512
 clean_rollout_path = true
 
 [model]
