@@ -2,6 +2,10 @@
 # ruff: noqa
 import time
 
+# Import environment before any other imports
+# ruff: noqa: I001
+from zeroband.eval import envs
+
 from huggingface_hub import snapshot_download
 
 from zeroband.eval.config import Config as EvalConfig
