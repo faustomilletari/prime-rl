@@ -197,6 +197,7 @@ def inference(config: InferenceConfig):
     total_problems = 0
     total_samples = 0
     total_tokens = 0
+    last_eval_step = -1
 
     dataset_offset = 0
     while True:
@@ -226,7 +227,15 @@ def inference(config: InferenceConfig):
             llm = reload_checkpoint(llm, config.rl.ckpt_path, ckpt_step)
 
         # Optionally, run online evals at the specified interval
-        if config.rl and dp_rank == 0 and config.eval and config.eval.online and real_step % config.eval.online.interval == 0:
+        if (
+            config.rl
+            and dp_rank == 0
+            and config.eval
+            and config.eval.online
+            and ckpt_step % config.eval.online.interval == 0
+            and ckpt_step > last_eval_step
+        ):
+            last_eval_step = ckpt_step
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             for benchmark in config.eval.benchmarks:
                 run_benchmark(llm, benchmark, config.model, config.sampling, ckpt_step, seed=config.seed, use_tqdm=config.use_tqdm)
