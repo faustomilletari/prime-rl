@@ -37,6 +37,7 @@ dependencies = [
     "pydantic-settings>=2.9.1",
     "cydifflib>=1.2.0",
     "loguru>=0.7.3",
+    "verifiers>=0.1.1",
 ]
 
 [project.optional-dependencies]
