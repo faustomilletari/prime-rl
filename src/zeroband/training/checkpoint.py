@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -102,18 +103,22 @@ class RolloutCkptManager:
     Disk write is done in a separate process.
     """
 
-    def __init__(self, tokenizer: AutoTokenizer):
-        ctx = mp.get_context("spawn")
-        self.saving_queue = ctx.Queue()
-        self.results_queue: mp.Queue[CkptJobStatus] = ctx.Queue()
+    def __init__(self, tokenizer: AutoTokenizer, max_async_level: int, interval_rollout: int | None = None):
+        self.max_async_level = max_async_level
+        self.interval_rollout = interval_rollout
 
         self.tokenizer = tokenizer
         self.logger = get_logger()
 
-        self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue, self.results_queue))
-        self.process.start()
+        if get_world_info().rank == 0:
+            ctx = mp.get_context("spawn")
 
-        self.ckpt_to_delete = []
+            self.saving_queue = ctx.Queue()
+            self.results_queue: mp.Queue = ctx.Queue()
+            self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue, self.results_queue))
+            # self.process_delete = ctx.Process(target=self._delete_ckpt_loop, args=(self.results_queue, self.max_async_level, self.interval_rollout))
+            self.process.start()
+            # self.process_delete.start()
 
     @staticmethod
     def _save_loop(ckpt_job_queue: mp.Queue, results_queue: mp.Queue):
@@ -135,11 +140,36 @@ class RolloutCkptManager:
                 stable_file.touch()
 
                 # logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
-                results_queue.put(CkptJobStatus(path=path, success=True))
+                results_queue.put(obj=CkptJobStatus(path=path, success=True))
             except Exception as e:
                 # logger.error(f"Error saving rollout ckpt at {path}: {e}")
                 results_queue.put(CkptJobStatus(path=path, success=False, error=e))
                 break
+
+    @staticmethod
+    def _delete_ckpt_loop(results_queue: mp.Queue, max_async_level: int, interval_rollout: int | None):
+        """Process to handle deletion of old checkpoints."""
+        ckpt_to_delete = []
+        while True:
+            ckpt_job_status = results_queue.get()
+
+            if ckpt_job_status.success:
+                try:
+                    ckpt_to_delete.append(ckpt_job_status.path)
+
+                    if len(ckpt_to_delete) > max_async_level:
+                        path_to_delete = ckpt_to_delete.pop(0)
+                        ckpt_step = int(str(path_to_delete).split("_")[-1])
+
+                        should_keep = interval_rollout is not None and ckpt_step % interval_rollout == 0
+
+                        if path_to_delete.exists() and not should_keep:
+                            shutil.rmtree(path_to_delete, ignore_errors=True)
+
+                except Exception:
+                    # Log error but don't break the loop
+                    # logger.error(f"Error deleting rollout ckpt at {path_to_delete}: {e}")
+                    pass
 
     def save_ckpt_for_rollout(self, model: ModelType, path: Path, dtype: torch.dtype = torch.bfloat16) -> Path:
         """

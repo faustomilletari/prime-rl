@@ -196,7 +196,7 @@ def train(config: TrainingConfig):
     )
     train_dataloader_iterator = iter(train_dataloader)
 
-    rollout_ckpt_manager = RolloutCkptManager(tokenizer)
+    rollout_ckpt_manager = RolloutCkptManager(tokenizer, config.max_async_level, config.ckpt.interval_rollout)
 
     logger.info("Starting training loop")
 
@@ -478,7 +478,6 @@ def train(config: TrainingConfig):
                 logger.debug("saving rollout ckpt")
                 rollout_step = training_progress.step // config.optim.step_per_rollout
                 path = Path(config.ckpt.rollout_path) / f"step_{rollout_step}"
-                rollout_ckpt_manager.ckpt_to_delete.append(path)
                 t0 = time.time()
                 safetensor_path = rollout_ckpt_manager.save_ckpt_for_rollout(model, path)
                 time_rollout_ckpt = time.time() - t0
@@ -489,17 +488,6 @@ def train(config: TrainingConfig):
                         logger.info(f"Broadcasting {safetensor_path}")
                         shardcast.broadcast(safetensor_path)  # TODO: Is this blocking?
                 time_shardcast = time.time() - time_shardcast
-
-                time_rollout_delete = time.time()
-                if len(rollout_ckpt_manager.ckpt_to_delete) > config.max_async_level:
-                    path_to_delete = rollout_ckpt_manager.ckpt_to_delete.pop(0)
-                    ckpt_step = int(str(path_to_delete).split("_")[-1])
-
-                    should_keep = config.ckpt.interval_rollout is not None and ckpt_step % config.ckpt.interval_rollout == 0
-                    if path_to_delete.exists() and not should_keep:
-                        logger.info(f"Removing past rollout ckpt at {path_to_delete}")
-                        shutil.rmtree(path_to_delete, ignore_errors=True)
-                time_rollout_delete = time.time() - time_rollout_delete
 
             if config.train.memory_profile and (training_progress.step == 2) and world_info.rank == 0:
                 logger.info("Dumping memory snapshot.")
@@ -535,8 +523,6 @@ def train(config: TrainingConfig):
                 time_metrics["perf/time_rollout_ckpt"] = time_rollout_ckpt
             if time_shardcast is not None:
                 time_metrics["perf/time_shardcast"] = time_shardcast
-            if time_rollout_delete is not None:
-                time_metrics["perf/time_rollout_delete"] = time_rollout_delete
 
             monitor.log(time_metrics)
 
