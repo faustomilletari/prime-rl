@@ -3,7 +3,7 @@ clean_rollout_path = true
 
 [model]
 name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-max_model_len = 16384
+max_model_len = 8192
 
 [monitor.wandb]
 project = "math-ablation"

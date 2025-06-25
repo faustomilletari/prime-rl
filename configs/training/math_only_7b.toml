@@ -15,7 +15,7 @@ reshard_after_forward = true
 ac_ckpt = true
 
 [data]
-seq_length = 16384
+seq_length = 8192
 path = "rollouts"
 
 [optim]
