@@ -19,7 +19,6 @@ def get_num_test_cases(test_code):
     
     # Find the assignment node for 'inputs'
     inputs_node = None
-    results_node = None
     
     for node in ast.walk(parsed):
         if isinstance(node, ast.Assign):

@@ -114,7 +114,6 @@ def run_test(in_outs, test=None, debug=False, timeout=TIMEOUT):
                 detail_results, debug_infos = execute_cb_code(method_func, inputs_list, outputs_list, timeout=timeout, early_stop=True, debug=debug)
             elif which_type == CODE_TYPE.standard_input:
                 detail_results = execute_std_code(method_func, exec_code, inputs_list, outputs_list, timeout=timeout, early_stop=True, debug=debug)
-                debug_infos = detail_results.get('debug', None)
                 detail_results = {k:v for k, v in detail_results.items() if k!='debug'}
                 if set(detail_results.values()) == {(False, 'returncode:1')}:
                     synthesized_code, exec_code = synthesize_std_code(test, debug)

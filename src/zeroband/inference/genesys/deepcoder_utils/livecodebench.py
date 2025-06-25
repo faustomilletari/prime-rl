@@ -426,7 +426,6 @@ def run_test(sample, test=None, debug=False, timeout=6):
         return in_outs, {"error": "no test code provided"}
     elif test is not None:
         results = []
-        sol = import_string
         if debug:
             print(f"loading test code = {datetime.now().time()}")
 

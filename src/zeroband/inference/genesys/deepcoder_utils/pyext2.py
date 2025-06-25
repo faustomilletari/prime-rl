@@ -249,7 +249,7 @@ class _RuntimeModule(object):
         return _RuntimeModule.from_objects(module_name_for_code_eval, '', **d)
     @staticmethod
     @overload.argc(2)
-    def from_objects(module_name_for_code_eval, docstring, **d):
+    def from_objects(module_name_for_code_eval, docstring, **d):  # noqa: F811
         '''Create a module at runtime from `d`.
 
            :param name: The module name.
@@ -270,7 +270,7 @@ class _RuntimeModule(object):
         return _RuntimeModule.from_string(module_name_for_code_eval, '', s)
     @staticmethod
     @overload.argc(3)
-    def from_string(module_name_for_code_eval, docstring, s):
+    def from_string(module_name_for_code_eval, docstring, s):   # noqa: F811
         '''Create a module at runtime from `s``.
 
            :param name: The module name.

@@ -88,21 +88,19 @@ def check_correctness(tests: Union[List[Dict[str, str]], Dict[str, List[str]]], 
         total_tests = len(tests)
         if total_tests > max_tests:
             # Sort indices by test input length and take the max_tests longest ones
-            selected_indices = sorted(range(total_tests), key=lambda i: len(tests[i]['input']), reverse=True)[:max_tests]
+            selected_indices = sorted(range(total_tests), key=lambda i: len(tests[i]['input']), reverse=True)[:max_tests]  # type: ignore
             tests = [tests[i] for i in selected_indices]
-        num_tests = len(tests)
     else:
-        total_tests = len(tests['inputs'])
+        total_tests = len(tests['inputs'])  # type: ignore
         if total_tests > max_tests:
             # Select the tests with the longest input length.
-            selected_indices = sorted(range(total_tests), key=lambda i: len(tests['inputs'][i]), reverse=True)[:max_tests]
+            selected_indices = sorted(range(total_tests), key=lambda i: len(tests['inputs'][i]), reverse=True)[:max_tests]  # type: ignore
             # Create a new dict with only the selected test cases
             selected_tests = {
-                'inputs': [tests['inputs'][i] for i in selected_indices],
-                'outputs': [tests['outputs'][i] for i in selected_indices]
+                'inputs': [tests['inputs'][i] for i in selected_indices],  # type: ignore
+                'outputs': [tests['outputs'][i] for i in selected_indices]  # type: ignore
             }
             tests = selected_tests
-        num_tests = len(tests['inputs'])
     
     process = multiprocessing.Process(
         target=evaluate_code,
@@ -171,7 +169,7 @@ def lcb_check_correctness_v2(sample, generation, timeout=6, debug=False):
 
 
     def _temp_run(sample, generation, debug, result, metadata_list, timeout):
-        res, metadata = lcb_run_test(sample, test=generation, debug=debug, timeout=timeout)
+        res, metadata = lcb_run_test(sample, test=generation, debug=debug, timeout=timeout)  # type: ignore
         result.append(res)
         metadata_list.append(metadata)
 
@@ -211,7 +209,7 @@ def leetcode_check_correctness(tests: List[Dict[str, str]], code: str) -> bool:
      Returns:
           bool: True if all tests pass and result list exists, False otherwise
      """
-     succ, output = lc_code_exec(code + '\n' + tests["functional"])
+     succ, output = lc_code_exec(code + '\n' + tests["functional"])  # type: ignore
      if not succ:
          print(f"Error in code execution: {output}")
      return succ

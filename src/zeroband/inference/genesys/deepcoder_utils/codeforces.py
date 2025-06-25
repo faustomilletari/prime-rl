@@ -58,7 +58,6 @@ def run_test(in_outs, test=None, debug=False, timeout=TIMEOUT):
     #test_cases: [ { "input": "20 40 60 80 100\n0 1 2 3 4\n1 0", "output": "4900" }, { "input": "119 119 119 119 119\n0 0 0 0 0\n10 0", "output": "4930" }]
     if in_outs:
         if in_outs[0].get("fn_name") is None:
-            fn_name = in_outs[0].get("fn_name")
             which_type = CODE_TYPE.standard_input  # Standard input
             method_name = None
         else:
@@ -95,7 +94,6 @@ def run_test(in_outs, test=None, debug=False, timeout=TIMEOUT):
                 detail_results, debug_infos = execute_cb_code(method_func, inputs_list, outputs_list, timeout=timeout, early_stop=True, debug=debug)
             elif which_type == CODE_TYPE.standard_input:
                 detail_results = execute_std_code(method_func, exec_code, inputs_list, outputs_list, timeout=timeout, early_stop=True, debug=debug)
-                debug_infos = detail_results.get('debug', None)
                 detail_results = {k:v for k, v in detail_results.items() if k!='debug'}
                 if set(detail_results.values()) == {(False, 'returncode:1')}:
                     detail_results = execute_std_code(method_func, synthesized_code+'\ncode()\n', inputs_list, outputs_list, timeout=timeout, early_stop=True, debug=debug)
