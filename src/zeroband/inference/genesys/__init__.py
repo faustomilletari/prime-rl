@@ -13,6 +13,7 @@ from zeroband.inference.genesys.pydantic_json_adherance import validate_pydantic
 from zeroband.inference.genesys.reasoning_gym import verify_reasoning_gym
 from zeroband.inference.genesys.reverse_text import reverse_text
 from zeroband.inference.genesys.unscramble_sentence import compute_reward as compute_unscramble_reward
+from zeroband.inference.genesys.deepcoder import verify_deepcoder
 
 
 def null_reward(*args, **kwargs):
@@ -34,6 +35,7 @@ TaskType = Literal[
     "formatask",
     "kernelbench",
     "null_reward",
+    "deepcoder"
 ]
 
 
@@ -59,4 +61,5 @@ _REWARD_FUNCTIONS: dict[TaskType, Callable] = {
     "formatask": compute_formatask_reward,
     "kernelbench": assign_kernel_reward,
     "null_reward": null_reward,
+    "deepcoder": verify_deepcoder
 }
