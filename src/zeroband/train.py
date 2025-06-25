@@ -428,6 +428,7 @@ def train(config: TrainingConfig):
             padding_proportion = (config.data.seq_length - metric_averager["lengths/seq_lens"].item() - 1) / config.data.seq_length
 
             metrics = {
+                "step": training_progress.step,
                 "losses/Loss": loss_batch.item(),
                 "train/rollout_step": rollout_step,
                 "train/inner_lr": inner_lr,
