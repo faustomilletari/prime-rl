@@ -20,7 +20,7 @@ max_solve_rate = 0.3
 dp = 6
 
 [rl]
-ckpt_path = "rollouts"
+ckpt_path = "checkpoints"
 clean_ckpt_path = true
 
 [sampling]
