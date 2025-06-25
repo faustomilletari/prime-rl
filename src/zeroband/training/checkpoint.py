@@ -190,23 +190,46 @@ class RolloutCkptManager:
 
         cpu_state = {}
         
+        # First pass: collect all DTensors and convert to dtype
+        dtensor_items = []
+        regular_items = []
+        
         for key, value in model.state_dict().items():
             if isinstance(value, DTensor):
-                value: DTensor = value.to(dtype)
-                # only gather after the downcast to dtype as it will be faster
-                value = value.full_tensor()  # ideally would only be gathered on rank 0
+                value_dtype = value.to(dtype)
+                dtensor_items.append((key, value_dtype))
             else:
-                value = value.to(dtype)
-                
+                value_dtype = value.to(dtype)
+                regular_items.append((key, value_dtype))
+        
+        # Batch gather all DTensors at once
+        if dtensor_items:
+            # Option 1: Simple approach - gather all at once with barrier
+            full_tensors = []
+            for key, dtensor in dtensor_items:
+                full_tensors.append(dtensor.full_tensor())
+
+            # Now process the gathered tensors
+            for (key, _), full_tensor in zip(dtensor_items, full_tensors):
+                if world_info.rank == 0:
+                    fqn_set = get_fqns(model, key)
+                    assert len(fqn_set) == 1
+                    fqn = next(iter(fqn_set))
+                    
+                    host_buf = torch.empty_like(full_tensor, device="cpu", pin_memory=True)
+                    host_buf.copy_(full_tensor, non_blocking=True)
+                    cpu_state[fqn] = host_buf
+        
+        # Process regular tensors
+        for key, value in regular_items:
             if world_info.rank == 0:
-                key: set[str] = get_fqns(model, key)
-                assert len(key) == 1
-                key = next(iter(key))
+                fqn_set = get_fqns(model, key)
+                assert len(fqn_set) == 1
+                fqn = next(iter(fqn_set))
                 
                 host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
                 host_buf.copy_(value, non_blocking=True)
-                cpu_state[key] = host_buf
-
+                cpu_state[fqn] = host_buf
 
         # torch.cuda.synchronize()
         torch.distributed.barrier()
