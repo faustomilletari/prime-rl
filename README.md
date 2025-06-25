@@ -76,7 +76,7 @@ uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml --paral
 
 ```bash
 # Start trainer
-ulimit -n 4096
+ulimit -n 65536
 export CUDA_VISIBLE_DEVICES=1
 uv  run torchrun src/zeroband/train.py @ configs/training/simple_math.toml
 ```
@@ -92,7 +92,7 @@ uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml --paral
 
 ```bash
 # Start trainer
-ulimit -n 4096
+ulimit -n 65536
 export CUDA_VISIBLE_DEVICES=2
 uv  run torchrun src/zeroband/train.py @ configs/training/simple_math.toml
 ```
@@ -108,7 +108,7 @@ uv run python src/zeroband/infer.py @ configs/inference/simple_math.toml
 
 ```bash
 # Start trainer
-ulimit -n 4096
+ulimit -n 65536
 export CUDA_VISIBLE_DEVICES=6,7
 uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/simple_math.toml --data.num_workers 2
 ```
@@ -127,7 +127,7 @@ uv run python src/zeroband/infer.py @ configs/inference/deepscaler.toml
 then start the trainer
 
 ```bash
-ulimit -n 4096
+ulimit -n 65536
 export CUDA_VISIBLE_DEVICES=6,7
 uv  run torchrun --nproc_per_node=2 src/zeroband/train.py @ configs/training/deepscaler.toml
 ```
