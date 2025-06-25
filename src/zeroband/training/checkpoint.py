@@ -116,9 +116,11 @@ class RolloutCkptManager:
             self.saving_queue = ctx.Queue()
             self.results_queue: mp.Queue = ctx.Queue()
             self.process = ctx.Process(target=self._save_loop, args=(self.saving_queue, self.results_queue))
-            # self.process_delete = ctx.Process(target=self._delete_ckpt_loop, args=(self.results_queue, self.max_async_level, self.interval_rollout))
+            self.process_delete = ctx.Process(
+                target=self._delete_ckpt_loop, args=(self.results_queue, self.max_async_level, self.interval_rollout)
+            )
             self.process.start()
-            # self.process_delete.start()
+            self.process_delete.start()
 
     @staticmethod
     def _save_loop(ckpt_job_queue: mp.Queue, results_queue: mp.Queue):
@@ -210,7 +212,9 @@ class RolloutCkptManager:
         torch.cuda.synchronize()
         torch.distributed.barrier()
 
-        self.saving_queue.put((cpu_state, path, start_time))
+        if get_world_info().rank == 0:
+            self.saving_queue.put((cpu_state, path, start_time))
+
         self.logger.info(f"Saving rollout ckpt at {path} scheduled in {time.time() - start_time:.2f} seconds")
 
         return path
