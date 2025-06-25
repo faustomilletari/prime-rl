@@ -198,21 +198,21 @@ class RolloutCkptManager:
             else:
                 value = value.to(dtype)
                 
-            if world_info.rank == 0:
-                key: set[str] = get_fqns(model, key)
-                assert len(key) == 1
-                key = next(iter(key))
+            # if world_info.rank == 0:
+            #     key: set[str] = get_fqns(model, key)
+            #     assert len(key) == 1
+            #     key = next(iter(key))
                 
-                host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
-                host_buf.copy_(value, non_blocking=True)
-                cpu_state[key] = host_buf
+            #     host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
+            #     host_buf.copy_(value, non_blocking=True)
+            #     cpu_state[key] = host_buf
 
 
         # torch.cuda.synchronize()
         torch.distributed.barrier()
 
-        if get_world_info().rank == 0:
-            self.saving_queue.put((cpu_state, path, start_time))
+        # if get_world_info().rank == 0:
+        #     self.saving_queue.put((cpu_state, path, start_time))
 
         self.logger.info(f"Saving rollout ckpt at {path} scheduled in {time.time() - start_time:.2f} seconds")
 
