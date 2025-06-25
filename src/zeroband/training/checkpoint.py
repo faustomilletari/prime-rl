@@ -208,6 +208,7 @@ class RolloutCkptManager:
                 cpu_state[key] = host_buf
 
 
+        torch.cuda.synchronize()
         torch.distributed.barrier()
 
         if get_world_info().rank == 0:
