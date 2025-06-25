@@ -1,31 +1,25 @@
 # Taken from https://github.com/LiveCodeBench/LiveCodeBench/blob/998c52d394b836f15fff3b9a29866191108ff81b/lcb_runner/evaluation/testing_util.py
 import ast
-import json
-import sys
 import faulthandler
+import json
 import platform
-import multiprocessing
-import queue
-
-# used for debugging to time steps
-from datetime import datetime
 
 # to run the solution files we're using a timing based approach
 import signal
+import sys
+import time
 
-import numpy as np
-
+# used for debugging to time steps
+from datetime import datetime
+from decimal import Decimal
+from enum import Enum
 from io import StringIO
-
-# used for testing the code that reads from input
-from unittest.mock import patch, mock_open
 
 # from pyext import RuntimeModule
 from types import ModuleType
 
-from enum import Enum
-from decimal import Decimal
-import time
+# used for testing the code that reads from input
+from unittest.mock import mock_open, patch
 
 from .utils import BASE_IMPORTS
 
@@ -121,7 +115,7 @@ def make_function(code: str) -> str:
             + ast.unparse(function_ast)  # type: ignore
         )
         return main_code
-    except Exception as e:
+    except Exception:
         return code
 
 
@@ -144,7 +138,7 @@ def call_method(method, inputs):
     def _inner_call_method(_method):
         try:
             return _method()
-        except SystemExit as e:
+        except SystemExit:
             pass
         finally:
             pass
@@ -156,7 +150,7 @@ def get_function(compiled_sol, fn_name: str):  # type: ignore
     try:
         assert hasattr(compiled_sol, fn_name)
         return getattr(compiled_sol, fn_name)
-    except Exception as e:
+    except Exception:
         return
 
 

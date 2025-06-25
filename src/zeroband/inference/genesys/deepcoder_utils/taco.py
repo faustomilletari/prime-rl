@@ -1,29 +1,28 @@
 # modifed from https://github.com/hendrycks/apps/blob/main/eval/testing_util.py to fix some evaluation bugs and add instructions
 # https://github.com/NovaSky-AI/SkyThought/blob/main/skythought/skythought_evals/tasks/taco/taco_util.py
-from zeroband.inference.genesys.deepcoder_utils.pyext2 import RuntimeModule
-import signal
-import numpy as np
+import ast
+import faulthandler
+import os
+import pdb
 import platform
-import time
+import signal
+import subprocess
+import sys
+import tempfile
 
 # used for debugging to time steps
 from datetime import datetime
-
-import os, sys, json
-import faulthandler
-import psutil
-import subprocess
-import tempfile
-import inspect
 from enum import Enum
-from unittest.mock import patch, mock_open
 from io import StringIO
-import ast 
-import platform
+from unittest.mock import mock_open, patch
+
+import numpy as np
+
+from zeroband.inference.genesys.deepcoder_utils.pyext2 import RuntimeModule
 
 from .utils import BASE_IMPORTS
 
-import pdb
+
 class ForkedPDB(pdb.Pdb):
     """A Pdb subclass that may be used from a forked multiprocessing child."""
 
@@ -53,12 +52,11 @@ class Capturing(list):
         sys.stdout = self._stdout
 
 # to run the solution files we're using a timing based approach
-import signal
 # stuff for setting up signal timer
 class TimeoutException(Exception):
     pass
 def timeout_handler(signum, frame):
-    print(f"alarm went off")
+    print("alarm went off")
     # return
     raise TimeoutException
 signal.signal(signal.SIGALRM, timeout_handler)
@@ -268,7 +266,7 @@ def call_method(method, inputs):
     def _inner_call_method(_method):
         try:
             return _method()
-        except SystemExit as e:
+        except SystemExit:
             pass
         finally:
             pass
@@ -527,14 +525,14 @@ def compare_std_results(exec_outputs, outputs, debug=False):
         output_float = [float(e) for e in exec_outputs]
         gt_float = [float(e) for e in outputs]
         tmp_result = tmp_result or ((len(output_float) == len(gt_float)) and np.allclose(output_float, gt_float))
-    except Exception as e:
+    except Exception:
         pass
     try:
         if isinstance(exec_outputs[0], list):
             output_float = [float(e) for e in exec_outputs[0]]
             gt_float = [float(e) for e in outputs[0]]
             tmp_result = tmp_result or ((len(output_float) == len(gt_float)) and np.allclose(output_float, gt_float))
-    except Exception as e:
+    except Exception:
         pass
     if tmp_result:
         return True
@@ -597,7 +595,7 @@ def stripped_string_compare(s1, s2):
         s2_float = float(s2)
         is_equal = np.isclose(s1_float, s2_float)
         return is_equal
-    except Exception as e:
+    except Exception:
         pass
 
     # Edge case: Check if s1 and s2 rows are equal.
@@ -628,7 +626,7 @@ def stripped_string_compare(s1, s2):
                     sub_s2_float = float(sub_s2)
                     if not np.isclose(sub_s1_float, sub_s2_float):
                         return False
-                except Exception as e:
+                except Exception:
                     pass
     return True
 

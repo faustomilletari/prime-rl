@@ -26,7 +26,10 @@ __version__ = '0.7'
 
 __all__ = ['overload', 'RuntimeModule', 'switch', 'tail_recurse', 'copyfunc', 'set_docstring', 'annotate', 'safe_unpack', 'modify_function', 'assign', 'fannotate', 'compare_and_swap', 'is_main', 'call_if_main', 'run_main']
 
-import sys, inspect, types
+import inspect
+import sys
+import types
+
 
 def __targspec(func, specs, attr='__orig_arg__'):
     if hasattr(func, '__is_overload__') and func.__is_overload__:

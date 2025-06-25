@@ -1,9 +1,9 @@
 import ast
-import os
-import subprocess
 import faulthandler
-from tempfile import TemporaryDirectory
+import os
 import platform
+import subprocess
+from tempfile import TemporaryDirectory
 
 from zeroband.inference.genesys.deepcoder_utils.utils import BASE_IMPORTS
 

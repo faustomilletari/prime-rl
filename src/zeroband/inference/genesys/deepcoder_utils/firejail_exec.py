@@ -1,10 +1,9 @@
 # https://github.com/ganler/code-r1/blob/main/verl/utils/reward_score/coder1/firejail_exec.py
 import os
 import subprocess
-
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from .utils import BASE_IMPORTS, BASE_LEETCODE_IMPORTS
 
+from .utils import BASE_IMPORTS, BASE_LEETCODE_IMPORTS
 
 # sudo add-apt-repository ppa:deki/firejail
 # sudo apt-get update

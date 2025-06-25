@@ -2,16 +2,18 @@ import json
 import multiprocessing
 import re
 from multiprocessing import Manager
-from typing import List, Dict, Union
-import ast 
+from typing import Dict, List, Union
+
+from zeroband.inference.genesys.deepcoder_utils.codeforces import run_test as codeforces_run_test
+from zeroband.inference.genesys.deepcoder_utils.firejail_exec import code_exec_firejail as lc_code_exec
+from zeroband.inference.genesys.deepcoder_utils.humanevalplus import get_num_test_cases
+from zeroband.inference.genesys.deepcoder_utils.humanevalplus import run_test as humanevalplus_run_test
+from zeroband.inference.genesys.deepcoder_utils.kodcode import code_exec as kod_code_exec
 
 #from rllm.rewards.code_utils.code_contests import run_test as code_contests_run_test
 from zeroband.inference.genesys.deepcoder_utils.livecodebench import run_test as lcb_run_test
-from zeroband.inference.genesys.deepcoder_utils.codeforces import run_test as codeforces_run_test
-from zeroband.inference.genesys.deepcoder_utils.humanevalplus import run_test as humanevalplus_run_test, get_num_test_cases
 from zeroband.inference.genesys.deepcoder_utils.taco import run_test as taco_run_test
-from zeroband.inference.genesys.deepcoder_utils.firejail_exec import code_exec_firejail as lc_code_exec
-from zeroband.inference.genesys.deepcoder_utils.kodcode import code_exec as kod_code_exec
+
 
 def extract_code_from_model(model_response: str):
     """
@@ -188,7 +190,7 @@ def lcb_check_correctness_v2(sample, generation, timeout=6, debug=False):
         # consider that all tests failed
         result = [[-1 for i in range(len(in_outs["inputs"]))]]
         if debug:
-            print(f"global timeout")
+            print("global timeout")
     if not result:
         return False
     # print(result[0], metadata_list)
