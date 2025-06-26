@@ -131,8 +131,7 @@ class WandbMonitor(Monitor):
     def log(self, metrics: dict[str, Any]) -> None:
         if not self.enabled:
             return
-        step = metrics.pop("step", None)
-        wandb.log(metrics, step=step)
+        wandb.log(metrics, step=metrics.get("step", None))
 
 
 MonitorType = Literal["file", "socket", "api", "wandb"]
