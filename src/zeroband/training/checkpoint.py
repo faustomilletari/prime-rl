@@ -7,7 +7,6 @@ from pathlib import Path
 
 import torch
 from safetensors.torch import save_file
-from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
 from torch.distributed.tensor import DTensor
 from transformers import AutoTokenizer
 
@@ -188,28 +187,33 @@ class RolloutCkptManager:
         start_time = time.time()
         self.logger.info(f"Saving rollout ckpt at {path}")
 
+        copy_stream = torch.cuda.Stream()  # side stream for copies
+        default_stream = torch.cuda.current_stream()  # usually the default stream
+
         cpu_state = {}
-        
-        for key, value in model.state_dict().items():
-            if isinstance(value, DTensor):
-                value: DTensor = value.to(dtype)
-                # only gather after the downcast to dtype as it will be faster
-                value = value.full_tensor()  # ideally would only be gathered on rank 0
+        for k, v in model.state_dict().items():
+            # materialise and cast on the default stream
+            if isinstance(v, DTensor):
+                v = v.to(dtype).full_tensor()
             else:
-                value = value.to(dtype)
-                
+                v = v.to(dtype)
+
             if world_info.rank == 0:
-                key: set[str] = get_fqns(model, key)
-                assert len(key) == 1
-                key = next(iter(key))
-                
-                host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
-                host_buf.copy_(value, non_blocking=True)
-                cpu_state[key] = host_buf
+                host_buf = torch.empty_like(v, device="cpu", pin_memory=True)
 
+                # ▸ 1. make the copy stream wait for all prior work on default
+                copy_stream.wait_stream(default_stream)
 
-        # torch.cuda.synchronize()
-        torch.distributed.barrier()
+                # ▸ 2. launch the async copy *inside* the copy stream context
+                with torch.cuda.stream(copy_stream):
+                    host_buf.copy_(v, non_blocking=True)
+                    # ▸ 3. tell the allocator that v is still in use by copy_stream
+                    v.record_stream(copy_stream)
+
+                cpu_state[k] = host_buf
+
+        # ensure all outstanding copies are finished before we serialise
+        copy_stream.synchronize()
 
         if get_world_info().rank == 0:
             self.saving_queue.put((cpu_state, path, start_time))

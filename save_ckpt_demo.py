@@ -37,37 +37,38 @@ def apply_fsdp(model: ModelType, reshard_after_forward: bool = False):
     fully_shard(model, mp_policy=mp_policy, reshard_after_forward=reshard_after_forward)
 
 
-def save_ckpt_for_rollout_fast(model, path: Path, dtype: torch.dtype = torch.bfloat16):
-    """
-    Save the checkpoint for rollout as one unified safetensors file.
-    """
-    world_info = dist.get_rank(), dist.get_world_size()
-    rank, _ = world_info
+def save_ckpt_for_rollout_fast(model, path, dtype=torch.bfloat16):
+    rank = dist.get_rank()
+    copy_stream = torch.cuda.Stream()  # side stream for copies
+    default_stream = torch.cuda.current_stream()  # usually the default stream
 
     path.mkdir(parents=True, exist_ok=True)
     print(f"[rank={rank}] Saving rollout ckpt at {path}")
 
     cpu_state = {}
-    copy_stream = torch.cuda.Stream()  # private stream for DMA
-
-    for key, value in model.state_dict().items():
-        if isinstance(value, torch.distributed.tensor.DTensor):
-            value = value.to(dtype)
-            # only gather after the downcast to dtype as it will be faster
-            value = value.full_tensor()  # ideally would only be gathered on rank 0
+    for k, v in model.state_dict().items():
+        # materialise and cast on the default stream
+        if isinstance(v, torch.distributed.tensor.DTensor):
+            v = v.to(dtype).full_tensor()
         else:
-            value = value.to(dtype)
+            v = v.to(dtype)
 
         if rank == 0:
-            # we use pin and shared memory for avoiding multi processing data duplication
-            host_buf = torch.empty_like(value, device="cpu", pin_memory=True)
+            host_buf = torch.empty_like(v, device="cpu", pin_memory=True)
+
+            # ▸ 1. make the copy stream wait for all prior work on default
+            copy_stream.wait_stream(default_stream)
+
+            # ▸ 2. launch the async copy *inside* the copy stream context
             with torch.cuda.stream(copy_stream):
-                host_buf.copy_(value, non_blocking=True)
+                host_buf.copy_(v, non_blocking=True)
+                # ▸ 3. tell the allocator that v is still in use by copy_stream
+                v.record_stream(copy_stream)
 
-            cpu_state[key] = host_buf
+            cpu_state[k] = host_buf
 
-    torch.cuda.synchronize()
-    torch.distributed.barrier()
+    # ensure all outstanding copies are finished before we serialise
+    copy_stream.synchronize()
 
     if rank == 0:
         torch.save(cpu_state, path / "model.pt")
@@ -123,13 +124,15 @@ def main():
     apply_fsdp(model, reshard_after_forward=False)
 
     ckpt_dir = Path("demo_ckpt")
-    shutil.rmtree(ckpt_dir, ignore_errors=True)
+    if rank == 0:
+        shutil.rmtree(ckpt_dir, ignore_errors=True)
 
     save_ckpt_for_rollout_fast(model, ckpt_dir)
     if rank == 0:
         print(f"Fast ckpt hash: {hash_ckpt(ckpt_dir)}")
 
-    shutil.rmtree(ckpt_dir, ignore_errors=True)
+    if rank == 0:
+        shutil.rmtree(ckpt_dir, ignore_errors=True)
 
     save_ckpt_for_rollout_slow(model, ckpt_dir)
     if rank == 0:
