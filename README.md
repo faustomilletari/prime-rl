@@ -32,7 +32,10 @@ source $HOME/.local/bin/env
 3. Set up the environment (will default to Python 3.12)
 
 ```bash
-uv sync && uv sync --extra fa
+uv venv
+uv pip install vllm --torch-backend auto
+uv sync
+uv pip install flash-attention --no-build-isolation
 ```
 
 You can check that `flash_attn` is installed correctly by running `uv run python -c "import flash_attn"` and ensure no error is thrown.

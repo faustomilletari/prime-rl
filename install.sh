@@ -44,7 +44,10 @@ main() {
     fi
 
     log_info "Installing dependencies in virtual environment..."
-    uv sync && uv sync --extra fa
+    uv venv
+    uv pip install vllm --torch-backend auto
+    uv sync
+    uv pip install flash-attention --no-build-isolation
     log_info "Installation completed!"
 }
 
