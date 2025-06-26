@@ -78,8 +78,6 @@ class WandbMonitorConfig(BaseConfig):
         ),
     ]
 
-    log_samples: Annotated[bool, Field(default=False, description="Whether to log samples to W&B.")]
-
 
 class MultiMonitorConfig(BaseConfig):
     """Configures the monitoring system."""
