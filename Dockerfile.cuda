@@ -35,7 +35,6 @@ COPY ./src/ ./src/
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
-
 COPY src/ /app/src/
 COPY pyproject.toml /app/pyproject.toml
 COPY uv.lock /app/uv.lock
@@ -46,13 +45,13 @@ RUN --mount=type=cache,target=/app/.cache/uv \
     uv venv
 
 RUN --mount=type=cache,target=/app/.cache/uv \
-    uv pip install vllm --torch-backend auto
+    UV_PARALLEL=1 UV_COMPILE_BYTECODE=0 uv pip install vllm --torch-backend auto
 
 RUN --mount=type=cache,target=/app/.cache/uv \
-    uv sync --locked --no-dev
+    UV_PARALLEL=1 UV_COMPILE_BYTECODE=0 uv sync --locked --no-dev
 
 RUN --mount=type=cache,target=/app/.cache/uv \
-    uv pip install flash-attention --no-build-isolation
+    UV_PARALLEL=1 UV_COMPILE_BYTECODE=0 uv pip install flash-attention --no-build-isolation
 
 
 FROM python:3.12-slim
