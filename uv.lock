@@ -1759,18 +1759,6 @@ wheels = [
 ]
 
 [[package]]
-name = "prime-iroh"
-version = "0.3.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/57/89/9f229ffd4243321ef398fc9338a059e02ec266f8bd3b0b14485a851354b1/prime_iroh-0.3.1.tar.gz", hash = "sha256:5421c9d7e6a86243067fd80e4c94d29983eac2e514c07d8578f5a9ad94f40c3f", size = 63662, upload-time = "2025-06-09T13:56:43.901Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/e7/c51ebc8d6e70d847f7673359aff5827f5a1c8238f2613cce1a6bc3395031/prime_iroh-0.3.1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:344cf2819d82db5caa92862c0596e8a26404fa75848a658667525a9a7a4a11ca", size = 7351737, upload-time = "2025-06-09T13:58:51.108Z" },
-    { url = "https://files.pythonhosted.org/packages/b3/6a/8cad0e1d04c0307fd2bb1e021277523702d53c097fb29f54df08afe37677/prime_iroh-0.3.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:17a76302c98587f3d5b9721efde9d82a572a774fa5c44f9de1b491d1a360a4d3", size = 7070978, upload-time = "2025-06-09T13:59:41.477Z" },
-    { url = "https://files.pythonhosted.org/packages/5f/36/4b1ab173d926ea65cbf850609b7eba7a4d61bde3ea407b9a03162cc4b8cc/prime_iroh-0.3.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ad43bc215575e0310513dd70fdaea2105d8b7a8cce5109309c80303cec074654", size = 8997797, upload-time = "2025-06-09T14:01:22.312Z" },
-    { url = "https://files.pythonhosted.org/packages/b3/7b/c4b69e63e8ae399d87ed15ee4e0e0a548c2e65d1d4d8758ba0bb61653b32/prime_iroh-0.3.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cb5312c1b2fba7220e4d178f27f07f5d3ededb0cea55d52c65ac8dd424a25aa0", size = 8580018, upload-time = "2025-06-09T14:01:06.478Z" },
-]
-
-[[package]]
 name = "prometheus-client"
 version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2526,21 +2514,6 @@ wheels = [
 ]
 
 [[package]]
-name = "toploc"
-version = "0.1.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "setuptools" },
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/26/33f275fef46469e55c19e0c58f10d2a062b97481e9fa21869b943524ee2e/toploc-0.1.6.tar.gz", hash = "sha256:7a566c2db29d94865baa2c53b5563b426fd118b56a163b515551419b65ea7072", size = 18777, upload-time = "2025-04-10T08:14:59.181Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/7d/7c006936c2d417e00577b69398c595db70738aed9250e7efaecf878b38a2/toploc-0.1.6-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:20a37613b1a5f518101096a28ce03f7c646557c9e89c0d1932ecd5ae97413735", size = 8913286, upload-time = "2025-04-10T08:14:51.258Z" },
-    { url = "https://files.pythonhosted.org/packages/04/3e/579fbc4ea66630cf85bd76747bb1fa153f48c343b280a88f0472b208da59/toploc-0.1.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c9945bd74362d6f1cd651b61e81457b63400b5856104dbab1e3dfb9aba6ffbc7", size = 9053795, upload-time = "2025-04-10T08:14:53.146Z" },
-]
-
-[[package]]
 name = "torch"
 version = "2.7.0+cu128"
 source = { registry = "https://download.pytorch.org/whl/cu128" }
@@ -3058,9 +3031,6 @@ cu128 = [
     { name = "torch" },
 ]
 infer = [
-    { name = "fastapi" },
-    { name = "prime-iroh" },
-    { name = "toploc" },
     { name = "uvloop" },
     { name = "vllm" },
 ]
@@ -3086,7 +3056,6 @@ dev = [
 requires-dist = [
     { name = "beartype", marker = "extra == 'train'", specifier = ">=0.21.0" },
     { name = "datasets", specifier = ">=3.6.0" },
-    { name = "fastapi", marker = "extra == 'infer'", specifier = ">=0.115.14" },
     { name = "flash-attn", marker = "extra == 'train'", specifier = ">=2.8.0" },
     { name = "google-cloud-storage", specifier = ">=3.1.1" },
     { name = "jaxtyping", marker = "extra == 'train'", specifier = ">=0.3.2" },
@@ -3094,13 +3063,11 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "openai", marker = "extra == 'orchestrator'", specifier = ">=1.92.2" },
-    { name = "prime-iroh", marker = "extra == 'infer'", specifier = ">=0.3.1" },
     { name = "pydantic", specifier = ">=1.10.13" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pynvml", specifier = ">=12.0.0" },
     { name = "shardcast", marker = "extra == 'train'", specifier = ">=0.3.1" },
     { name = "tomli", specifier = ">=2.2.1" },
-    { name = "toploc", marker = "extra == 'infer'", specifier = ">=0.1.6" },
     { name = "torch", specifier = ">=2.7.0" },
     { name = "torch", marker = "extra == 'cu128'", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "zeroband", extra = "cu128" } },
     { name = "transformers", specifier = ">=4.53.0" },
