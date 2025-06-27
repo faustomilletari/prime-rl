@@ -1,11 +1,10 @@
 import os
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import torch
-from safetensors.torch import save_file
+import torch.distributed.checkpoint as dcp
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
 from transformers import AutoTokenizer
 
@@ -99,7 +98,7 @@ def save_ckpt_for_rollout(
         Path to the saved checkpoint safetensor
     """
     logger = get_logger()
-    world_info = get_world_info()
+    # world_info = get_world_info()
 
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
@@ -107,39 +106,34 @@ def save_ckpt_for_rollout(
     start_time = time.time()
     logger.info(f"Saving rollout ckpt at {path}")
 
-    # Gather full state dict on rank 0
-    state_dict = get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, cpu_offload=True))
+    dcp.async_save(
+        get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, broadcast_from_rank0=True)), checkpoint_id=path
+    )
 
-    path_file = path / "model.safetensors"
+    torch.distributed.barrier()
 
-    def _save():
-        if world_info.rank == 0:
-            logger.info(f"actually save {path_file}")
-            # Convert to regular tensors dict for safetensors
-            tensors_dict = {k: v for k, v in state_dict.items() if isinstance(v, torch.Tensor)}
-            save_file(tensors_dict, path_file, metadata={"format": "pt"})
+    # logger.info(f"gathering full tensor checkpointing in {time.time() - start_time:.2f} seconds")
+    logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
 
-            # Save model config if available
-            if hasattr(model, "config") and model.config is not None:
-                model.config.save_pretrained(path)
-            if hasattr(model, "generation_config") and model.generation_config is not None:
-                model.generation_config.save_pretrained(path)
+    # def _save():
+    #     if world_info.rank == 0:
+    #         logger.info(f"actually save {path_file}")
+    #         save_file(cpu_offload_state_dict, path_file, metadata={"format": "pt"})
 
-            # Save tokenizer
-            if tokenizer is not None:
-                tokenizer.save_pretrained(path)
+    #         model.config.save_pretrained(path)
+    #         model.generation_config.save_pretrained(path)
+    #         tokenizer.save_pretrained(path)
 
-            stable_file = path / "stable"
-            stable_file.touch()
+    #         stable_file = path / "stable"
+    #         stable_file.touch()
 
-            logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
+    #         logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
 
-    if async_save:
-        logger.info(f"Rollout ckpt async saving  in {path} in {time.time() - start_time:.2f} seconds scheduled with async")
-        global async_ckpt_job
-        async_ckpt_job = threading.Thread(target=_save)
-        async_ckpt_job.start()
-    else:
-        _save()
+    # if async_save:
+    #     logger.info(f"Rollout ckpt async saving  in {path} in {time.time() - start_time:.2f} seconds scheduled with async")
+    #     async_ckpt_job = threading.Thread(target=_save)
+    #     async_ckpt_job.start()
+    # else:
+    #     _save()
 
     return path
