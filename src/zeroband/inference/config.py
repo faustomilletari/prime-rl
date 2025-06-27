@@ -12,7 +12,7 @@ from zeroband.utils.utils import rgetattr, rsetattr
 class ServerConfig(BaseConfig):
     """Configures the inference server."""
 
-    host: Annotated[str, Field(default="0.0.0.0", description="The host to bind to.")]
+    host: Annotated[str | None, Field(default=None, description="The host to bind to.")]
     port: Annotated[int, Field(default=8000, description="The port to bind to.")]
 
 
