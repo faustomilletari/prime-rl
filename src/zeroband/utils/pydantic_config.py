@@ -58,6 +58,12 @@ class BaseSettings(PydanticBaseSettings, BaseConfig):
         """
         cls._TOML_FILES = []
 
+    def set_unknown_args(self, unknown_args: list[str]) -> None:
+        self._unknown_args = unknown_args
+
+    def get_unknown_args(self) -> list[str]:
+        return self._unknown_args
+
     @classmethod
     def settings_customise_sources(
         cls,
@@ -225,7 +231,7 @@ def parse_unknown_args(args: list[str], config_cls: type) -> list[str]:
     return known_args, unknown_args
 
 
-def parse_argv(config_cls: Type[T]) -> tuple[T, list[str]]:
+def parse_argv(config_cls: Type[T], allow_extras: bool = False) -> T:
     """
     Parse CLI arguments and TOML configuration files into a pydantic settings instance.
 
@@ -242,7 +248,10 @@ def parse_argv(config_cls: Type[T]) -> tuple[T, list[str]]:
     """
     toml_paths, cli_args = extract_toml_paths(sys.argv[1:])
     config_cls.set_toml_files(toml_paths)
-    known_args, unknown_args = parse_unknown_args(cli_args, config_cls)
-    config = config_cls(_cli_parse_args=to_kebab_case(known_args))
+    if allow_extras:
+        cli_args, unknown_args = parse_unknown_args(cli_args, config_cls)
+    config = config_cls(_cli_parse_args=to_kebab_case(cli_args))
     config_cls.clear_toml_files()
-    return config, unknown_args
+    if allow_extras:
+        config.set_unknown_args(unknown_args)
+    return config

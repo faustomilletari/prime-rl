@@ -23,8 +23,8 @@ def server(config: InferenceConfig, vllm_args: list[str]):
 
 
 def main():
-    config, unknown_args = parse_argv(InferenceConfig)
-    server(config, vllm_args=unknown_args)
+    config = parse_argv(InferenceConfig, allow_extras=True)
+    server(config, vllm_args=config.get_unknown_args())
 
 
 if __name__ == "__main__":
