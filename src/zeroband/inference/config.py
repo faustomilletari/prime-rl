@@ -3,7 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from zeroband.utils.pydantic_config import BaseConfig, BaseSettings
+from zeroband.utils.pydantic_config import BaseConfig, BaseSettings, get_all_fields
+from zeroband.utils.utils import rgetattr, rsetattr
 
 # TODO: Setting a thinking/ solution budget makes more sense to be part of the inference config, but is currently handled by the orchestrator because vLLM doesn't support it yet.
 
@@ -74,14 +75,6 @@ class ModelConfig(BaseConfig):
         ),
     ]
 
-    enable_thinking: Annotated[
-        bool,
-        Field(
-            default=True,
-            description="Whether to enable thinking. Used by the `format_prompts` function to prepend a thinking prompt.",
-        ),
-    ]
-
 
 class InferenceConfig(BaseSettings):
     """Configures inference."""
@@ -106,22 +99,19 @@ class InferenceConfig(BaseSettings):
     def to_vllm(self) -> Namespace:
         """Convert InferenceConfig to vLLM-compatible Namespace."""
         namespace = Namespace()
+        to_vllm = {
+            "server.host": "host",
+            "server.port": "port",
+            "model.name": "model",
+            "model.dtype": "dtype",
+            "model.max_model_len": "max_model_len",
+            "model.enforce_eager": "enforce_eager",
+            "parallel.tp": "tensor_parallel_size",
+            "parallel.dp": "data_parallel_size",
+        }
 
-        # Server config
-        namespace.host = self.server.host
-        namespace.port = self.server.port
-
-        # Model config
-        namespace.model = self.model.name
-        namespace.dtype = self.model.dtype
-        namespace.max_model_len = self.model.max_model_len
-        namespace.enforce_eager = self.model.enforce_eager
-
-        # Parallel config
-        namespace.tensor_parallel_size = self.parallel.tp
-        namespace.data_parallel_size = self.parallel.dp
-
-        # Inference config
-        namespace.seed = self.seed
+        for key in get_all_fields(self):
+            value = rgetattr(self, key)
+            rsetattr(namespace, to_vllm.get(key, key), value)
 
         return namespace
