@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
-from safetensors.torch import save_file
 from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
 from torch.distributed.tensor import DTensor
 from transformers import AutoTokenizer
@@ -105,7 +104,7 @@ def save_ckpt_for_rollout(
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
 
-    path_file = path / "model.safetensors"
+    path_file = path / f"model_{world_info.rank}.pt"
 
     start_time = time.time()
     logger.info(f"Saving rollout ckpt at {path}")
@@ -114,33 +113,32 @@ def save_ckpt_for_rollout(
 
     for key, value in model.state_dict().items():
         if isinstance(value, DTensor):
-            value: DTensor = value.to(dtype)
-            # only gather after the downcast to dtype as it will be faster
-            value = value.full_tensor()  # ideally would only be gathered on rank 0
+            value: DTensor = value.to_local()
+        else:
+            value = value.to(dtype)
 
-        if world_info.rank == 0:
-            key: set[str] = get_fqns(model, key)
-            assert len(key) == 1
-            key = next(iter(key))
-            cpu_state[key] = value.to("cpu", non_blocking=False)
-            # TODO(SAMI) keeping blocking here to avoid race condition, should be faster to make it non blocking tho
+        key: set[str] = get_fqns(model, key)
+        assert len(key) == 1
+        key = next(iter(key))
+        cpu_state[key] = value.to("cpu", non_blocking=False)
+        # TODO(SAMI) keeping blocking here to avoid race condition, should be faster to make it non blocking tho
 
     torch.distributed.barrier()
 
     logger.info(f"gathering full tensor checkpointing in {time.time() - start_time:.2f} seconds")
 
     def _save():
-        if world_info.rank == 0:
-            save_file(cpu_state, path_file, metadata={"format": "pt"})
+        # save_file(cpu_state, path_file, metadata={"format": "pt"})
+        torch.save(cpu_state, path_file)
 
-            model.config.save_pretrained(path)
-            model.generation_config.save_pretrained(path)
-            tokenizer.save_pretrained(path)
+        # model.config.save_pretrained(path)
+        # model.generation_config.save_pretrained(path)
+        # tokenizer.save_pretrained(path)
 
-            stable_file = path / "stable"
-            stable_file.touch()
+        stable_file = path / "stable"
+        stable_file.touch()
 
-            logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
+        logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
 
     if async_save:
         logger.info(f"Rollout ckpt async saving  in {path} in {time.time() - start_time:.2f} seconds scheduled with async")
