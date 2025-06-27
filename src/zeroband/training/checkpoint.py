@@ -6,8 +6,7 @@ from pathlib import Path
 
 import torch
 from safetensors.torch import save_file
-from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
-from torch.distributed.tensor import DTensor
+from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
 from transformers import AutoTokenizer
 
 from zeroband.training.world_info import get_world_info
@@ -105,37 +104,30 @@ def save_ckpt_for_rollout(
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
 
-    path_file = path / "model.safetensors"
-
     start_time = time.time()
     logger.info(f"Saving rollout ckpt at {path}")
 
-    cpu_state = {}
+    # Gather full state dict on rank 0
+    state_dict = get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, cpu_offload=True))
 
-    for key, value in model.state_dict().items():
-        if isinstance(value, DTensor):
-            value: DTensor = value.to(dtype)
-            # only gather after the downcast to dtype as it will be faster
-            value = value.full_tensor()  # ideally would only be gathered on rank 0
-
-        if world_info.rank == 0:
-            key: set[str] = get_fqns(model, key)
-            assert len(key) == 1
-            key = next(iter(key))
-            cpu_state[key] = value.to("cpu", non_blocking=False)
-            # TODO(SAMI) keeping blocking here to avoid race condition, should be faster to make it non blocking tho
-
-    torch.distributed.barrier()
-
-    logger.info(f"gathering full tensor checkpointing in {time.time() - start_time:.2f} seconds")
+    path_file = path / "model.safetensors"
 
     def _save():
         if world_info.rank == 0:
-            save_file(cpu_state, path_file, metadata={"format": "pt"})
+            logger.info(f"actually save {path_file}")
+            # Convert to regular tensors dict for safetensors
+            tensors_dict = {k: v for k, v in state_dict.items() if isinstance(v, torch.Tensor)}
+            save_file(tensors_dict, path_file, metadata={"format": "pt"})
 
-            model.config.save_pretrained(path)
-            model.generation_config.save_pretrained(path)
-            tokenizer.save_pretrained(path)
+            # Save model config if available
+            if hasattr(model, "config") and model.config is not None:
+                model.config.save_pretrained(path)
+            if hasattr(model, "generation_config") and model.generation_config is not None:
+                model.generation_config.save_pretrained(path)
+
+            # Save tokenizer
+            if tokenizer is not None:
+                tokenizer.save_pretrained(path)
 
             stable_file = path / "stable"
             stable_file.touch()
@@ -144,9 +136,10 @@ def save_ckpt_for_rollout(
 
     if async_save:
         logger.info(f"Rollout ckpt async saving  in {path} in {time.time() - start_time:.2f} seconds scheduled with async")
+        global async_ckpt_job
         async_ckpt_job = threading.Thread(target=_save)
         async_ckpt_job.start()
     else:
         _save()
 
-    return path_file
+    return path

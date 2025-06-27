@@ -94,6 +94,8 @@ def train(config: TrainingConfig):
     logger = setup_logger(config.log, world_info)
     wandb_sample_history = None
 
+    torch.distributed.init_process_group(backend="cpu:gloo,cuda:nccl")
+
     if config.ckpt.clean_rollout_path and config.ckpt.rollout_path is not None:
         logger.info(f"Cleaning rollout path {config.ckpt.rollout_path}")
         shutil.rmtree(config.ckpt.rollout_path, ignore_errors=True)
