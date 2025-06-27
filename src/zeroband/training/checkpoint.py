@@ -131,12 +131,13 @@ def save_ckpt_for_rollout(
         # save_file(cpu_state, path_file, metadata={"format": "pt"})
         torch.save(cpu_state, path_file)
 
-        # model.config.save_pretrained(path)
-        # model.generation_config.save_pretrained(path)
-        # tokenizer.save_pretrained(path)
+        if world_info.rank == 0:
+            model.config.save_pretrained(path)
+            model.generation_config.save_pretrained(path)
+            tokenizer.save_pretrained(path)
 
-        stable_file = path / "stable"
-        stable_file.touch()
+            stable_file = path / "stable"
+            stable_file.touch()
 
         logger.info(f"Full Rollout ckpt saved at {path} in {time.time() - start_time:.2f} seconds")
 
