@@ -39,7 +39,7 @@ def main(servers: list[str], output_dir: Path, versions_to_keep: int = -1, backl
         if backlog_version != -1:
             version = backlog_version
             backlog_version += 1
-        safetensors_filepath = output_dir / f"step_{version}/model.safetensors"
+        safetensors_filepath = output_dir / f"step_{version}/model.pt"
 
         # 2. Check if the version exists
         if version not in available_versions:
@@ -68,7 +68,7 @@ def main(servers: list[str], output_dir: Path, versions_to_keep: int = -1, backl
             if versions_to_keep != -1:
                 try:
                     logger.info(f"Deleting expired version {version - versions_to_keep}")
-                    expired_version = output_dir / f"step_{version - versions_to_keep}/model.safetensors"
+                    expired_version = output_dir / f"step_{version - versions_to_keep}/model.pt"
                     expired_version.unlink()
                     (output_dir / f"step_{version - versions_to_keep}/stable").unlink()
                 except FileNotFoundError:

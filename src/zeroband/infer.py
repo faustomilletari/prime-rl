@@ -174,7 +174,7 @@ def inference(config: InferenceConfig):
     if config.rl and config.rl.ckpt_start_path is not None:
         logger.info(f"Resuming from checkpoint {config.rl.ckpt_start_path}")
         path = Path(config.rl.ckpt_start_path)
-        path_file = path / "model.safetensors"
+        path_file = path / "model.pt"
         if not path_file.exists():
             raise FileNotFoundError(f"Checkpoint file {path_file} does not exist")
         ckpt_step = int(path.name.split("_")[-1])

@@ -4,7 +4,6 @@ from typing import Any
 
 import torch
 from datasets import Dataset
-from safetensors import safe_open
 from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 from vllm.transformers_utils.tokenizer import AnyTokenizer
@@ -57,17 +56,17 @@ def reload_model_weights(llm: LLM, ckpt_path: Path):
     # Load state dict
     logger = get_logger()
     logger.info(f"Reloading model weights from {ckpt_path}")
-    with safe_open(ckpt_path, framework="pt", device="cpu") as f:
-        # Create a better weight iterator that filters out empty keys and handles prefixes
-        def weights_iterator():
-            for key in f.keys():
-                # Skip empty keys
-                if not key:
-                    continue
-                yield key, f.get_tensor(key)
+    state_dict = torch.load(ckpt_path, map_location="cpu")
 
-        # Load weights
-        model.load_weights(weights_iterator())
+    # Create a better weight iterator that filters out empty keys and handles prefixes
+    def weights_iterator():
+        for key, value in state_dict.items():
+            # Skip empty keys
+            if not key:
+                continue
+            yield key, value
+
+    model.load_weights(weights_iterator())
 
     # Process weights after loading (important for some models)
     model_config = llm.llm_engine.model_config
@@ -97,7 +96,7 @@ def reload_checkpoint(llm: LLM, ckpt_path: Path, step: int, poll_interval: int =
         stable_file = Path(ckpt_path) / f"step_{step}" / "stable"
         if stable_file.exists():
             logger.info(f"Found checkpoint for step {step} at {stable_file}. Reloading model weights.")
-            llm = reload_model_weights(llm, stable_file.parent / "model.safetensors")
+            llm = reload_model_weights(llm, stable_file.parent / "model.pt")
             break
         if wait_time % log_interval == 0 and wait_time > 0:  # Every log_interval seconds
             logger.info(f"Waiting for checkpoint for step {step} at {stable_file} for {wait_time} seconds")
