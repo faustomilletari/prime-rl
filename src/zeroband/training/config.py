@@ -111,7 +111,7 @@ class ModelConfig(BaseConfig):
     ]
 
 
-CollateMode: TypeAlias = Literal["packing", "padding", "balancing"]
+CollateMode: TypeAlias = Literal["packing", "padding"]
 
 
 class DataConfig(BaseConfig):

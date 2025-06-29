@@ -23,13 +23,10 @@ from zeroband.training.checkpoint import (
 )
 from zeroband.training.config import Config as TrainingConfig
 from zeroband.training.data import (
-    BatchOutput,
-    DatasetOutput,
     get_dataloader,
-    packed_batch,
 )
 from zeroband.training.logger import setup_logger
-from zeroband.training.loss import entropy_loss, grpo_loss, selective_log_softmax
+from zeroband.training.loss import entropy_loss, get_logprobs, grpo_loss
 from zeroband.training.utils import (
     MetricsAverager,
     OffloadedTensor,
@@ -82,23 +79,6 @@ def get_device_placement(gpus_ids: list[int] | None, world_info: WorldInfo) -> i
         return world_info.local_rank
 
 
-def get_logprobs(
-    model: ModelType,
-    input_ids: torch.Tensor,
-    position_ids: torch.Tensor,
-    temperature: float,
-) -> torch.Tensor:
-    logits: Float[torch.Tensor, "batch seq vocab"] = model(
-        input_ids=input_ids, position_ids=position_ids
-    ).logits.contiguous()
-
-    input_ids_shifted = input_ids[:, 1:]
-    logits_shifted = logits[:, :-1, :] / temperature
-    logprobs = selective_log_softmax(logits_shifted, input_ids_shifted)
-    del logits, logits_shifted
-    return logprobs
-
-
 @clean_exit
 def train(config: TrainingConfig):
     if "ZERO_BAND_DEV" not in os.environ:
@@ -119,8 +99,6 @@ def train(config: TrainingConfig):
     torch.manual_seed(42)
 
     torch.cuda.set_device(get_device_placement(config.gpus_ids, world_info))
-
-    local_batch_size = get_local_batch_size(config.optim.batch_size, config.train.micro_bs, world_info)
 
     if config.ckpt.rollout_path is not None and world_info.rank == 0:
         if envs.SHARDCAST_OUTPUT_DIR is not None:
@@ -181,14 +159,18 @@ def train(config: TrainingConfig):
 
     step_count_init = config.start_step if config.start_step is not None else training_progress.step
 
-    train_dataloader = get_dataloader(
-        tokenizer=tokenizer,
-        local_batch_size=local_batch_size,
-        batch_size=config.optim.batch_size,
-        data_config=config.data,
-        step_count_init=step_count_init,
+    local_batch_size = get_local_batch_size(config.optim.batch_size, config.train.micro_bs, world_info)
+
+    train_dataloader = iter(
+        get_dataloader(
+            tokenizer=tokenizer,
+            batch_size=local_batch_size,
+            micro_bs=config.train.micro_bs,
+            data_config=config.data,
+            step_count_init=step_count_init,
+            collate_mode=config.collate_mode,
+        )
     )
-    train_dataloader_iterator = iter(train_dataloader)
 
     previous_ckpt_rollout = []
 
@@ -196,11 +178,13 @@ def train(config: TrainingConfig):
 
     while True:
         time_start = time.time()
+        logger.info(f"start training step {training_progress.step}")
 
-        total_time_data_loading = 0
-        total_time_packing = 0
+        micro_batches = next(train_dataloader)
+        time_data_loading = time.time() - time_start
 
         # here we want to pre-compute the logprobs with the model before update
+        time_logprob_start = time.time()
         with torch.no_grad():
             if config.recompute_logprobs:
                 og_infer_step = training_progress.step - config.max_async_level
@@ -210,31 +194,12 @@ def train(config: TrainingConfig):
                 if og_infer_step == infer_step:
                     del tensor_offloaded_repository[infer_step]
 
-            data: list[list[BatchOutput]] = []
-
             logger.info(f"start logprob recomputation step {training_progress.step}")
-            time_data_loading = time.time()
 
-            batch_rollout: list[DatasetOutput] = next(train_dataloader_iterator)
-            time_data_loading = time.time() - time_data_loading
-            total_time_data_loading += time_data_loading
-
-            time_0 = time.time()
-
-            batch_packed = packed_batch(
-                batch_rollout,
-                config.data.seq_length,
-                tokenizer.pad_token_id,
-                config.train.micro_bs,
-                config.collate_mode,
-            )
-            num_grad_acc_steps = len(batch_packed)
-
-            time_1 = time.time()
-            total_time_packing += time_1 - time_0
+            num_grad_acc_steps = len(micro_batches)
 
             for grad_acc_step in range(num_grad_acc_steps):
-                batch = batch_packed[grad_acc_step]
+                batch = micro_batches[grad_acc_step]
 
                 # Only compute logprobs if not using vllm logprobs or if the batch doesn't have them
                 if config.recompute_logprobs:
@@ -245,14 +210,11 @@ def train(config: TrainingConfig):
                     input_ids = batch["input_ids"].to("cuda")
 
                     model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
-
                     per_token_logps = get_logprobs(
                         model_for_logprob, input_ids, batch["position_ids"], batch["temperature"]
                     )
 
                     batch["logprobs"] = per_token_logps.to("cpu")
-
-                data.append(batch_packed)
 
             if config.recompute_logprobs:
                 # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
@@ -260,17 +222,11 @@ def train(config: TrainingConfig):
                 reshard_module(model_for_logprob_only)
                 offload_model_to_cpu(model_for_logprob_only)
 
-            logprobs_aware_iterator = iter(data)
-
-            total_time = time.time() - time_start
-            total_time_logprob = total_time - total_time_data_loading - total_time_packing
-
-            logger.debug(f"Time to data loading: {total_time_data_loading:.2f} seconds")
-            logger.debug(f"Time to packing: {total_time_packing:.2f} seconds")
-            logger.info(f"Time to compute logprobs: {total_time_logprob:.2f} seconds")
-            logger.info(f"Total time data preprocessing: {total_time:.2f} seconds")
-
-        logger.info(f"start training step {training_progress.step}")
+        time_logprobs = time.time() - time_logprob_start
+        time_data_and_logprob = time.time() - time_start
+        logger.info(f"Time to compute logprobs and data preprocessing: {time_data_and_logprob:.2f} seconds")
+        logger.debug(f"Time to data loading: {time_data_loading:.2f} seconds")
+        logger.debug(f"Time to logprob computation: {time_logprobs:.2f} seconds")
 
         metric_averager = MetricsAverager()
         loss_batch = torch.tensor(0.0, device="cuda")
@@ -278,12 +234,11 @@ def train(config: TrainingConfig):
         if config.train.memory_profile and world_info.rank == 0:
             torch.cuda.memory._record_memory_history()
 
-        data_per_rollout = next(logprobs_aware_iterator)
-        num_grad_acc_steps = len(data_per_rollout)
+        num_grad_acc_steps = len(micro_batches)
 
         for grad_acc_step in range(num_grad_acc_steps):
             logger.debug(f"training grad_acc_step {grad_acc_step} / {num_grad_acc_steps}")
-            batch = data_per_rollout[grad_acc_step]
+            batch = micro_batches[grad_acc_step]
 
             input_ids = batch["input_ids"].to("cuda")
             if config.normalize_batch_to_token_count:
@@ -448,10 +403,9 @@ def train(config: TrainingConfig):
             time_metrics = {
                 "step": training_progress.step,
                 "perf/time_rollout_step": time_rollout_step,
-                "perf/time_logprob": total_time_logprob,
-                "perf/time_data_loading": total_time_data_loading,
-                "perf/time_packing": total_time_packing,
-                "perf/time_data_preprocessing": total_time,
+                "perf/time_logprob": time_logprobs,
+                "perf/time_data_loading": time_data_loading,
+                "perf/time_data_preprocessing": time_data_and_logprob,
                 "perf/time_rollout_delete": time_rollout_delete,
             }
             if time_rollout_ckpt is not None:
