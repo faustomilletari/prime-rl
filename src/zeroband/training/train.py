@@ -2,7 +2,6 @@ import logging
 import os
 import shutil
 import time
-from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -30,12 +29,7 @@ from zeroband.training.data import (
     packed_batch,
 )
 from zeroband.training.logger import setup_logger
-from zeroband.training.loss import (
-    entropy_loss,
-    grpo_loss,
-    kl_penalty,
-    selective_log_softmax,
-)
+from zeroband.training.loss import entropy_loss, grpo_loss, selective_log_softmax
 from zeroband.training.utils import (
     MetricsAverager,
     OffloadedTensor,
@@ -114,7 +108,6 @@ def train(config: TrainingConfig):
 
     world_info = get_world_info()
     logger = setup_logger(config.log, world_info)
-    wandb_sample_history = None
 
     if config.ckpt.clean_rollout_path and config.ckpt.rollout_path is not None:
         logger.info(f"Cleaning rollout path {config.ckpt.rollout_path}")
@@ -164,12 +157,6 @@ def train(config: TrainingConfig):
 
     apply_fsdp(model, config.train.reshard_after_forward)
 
-    if config.grpo.kl_coef is not None:
-        model_reference, _ = get_model_and_tokenizer(
-            config.model.name, config.train.attn_impl
-        )
-        apply_fsdp(model_reference, config.train.reshard_after_forward)
-
     if config.recompute_logprobs:
         model_for_logprob_only, _ = get_model_and_tokenizer(
             config.model.name, config.train.attn_impl
@@ -196,38 +183,13 @@ def train(config: TrainingConfig):
     if config.train.torch_compile:
         model = torch.compile(model) if not TYPE_CHECKING else model
 
-        if config.grpo.kl_coef is not None:
-            model_reference = (
-                torch.compile(model_reference) if not TYPE_CHECKING else model_reference
-            )
-
         if config.recompute_logprobs:
-            model_for_logprob_only = (
-                torch.compile(model_for_logprob_only)
-                if not TYPE_CHECKING
-                else model_for_logprob_only
-            )
+            model_for_logprob_only: ModelType = torch.compile(model_for_logprob_only)
 
     tensor_offloaded_repository: dict[int, OffloadedTensor] = {}
 
-    if config.grpo.kl_coef is not None:
-        logger.info(
-            f"memory before model reference offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB"
-        )
-        tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
-        logger.info(
-            f"memory after model reference offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB"
-        )
-
     if config.recompute_logprobs:
-        logger.info(
-            f"memory before model for logprob offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB"
-        )
         tensor_offloaded_repository[0] = offload_model_to_cpu(model_for_logprob_only)
-        # will be redundant if kl loss is use but probably fine with it
-        logger.info(
-            f"memory after model for logprob offload: {torch.cuda.memory_allocated() / 1024**3:.2f} GB"
-        )
 
     if config.ckpt.resume:
         logger.info(f"loading checkpoint from {config.ckpt.resume}")
@@ -267,10 +229,6 @@ def train(config: TrainingConfig):
 
         # here we want to pre-compute the logprobs with the model before update
         with torch.no_grad():
-            if config.grpo.kl_coef is not None:
-                wake_up_model_from_cpu(model_reference, tensor_offloaded_repository[0])
-                # del tensor_offloaded_repository[0]
-
             if config.recompute_logprobs:
                 og_infer_step = (
                     training_progress.step // config.optim.step_per_rollout
@@ -334,25 +292,7 @@ def train(config: TrainingConfig):
 
                         batch["logprobs"] = per_token_logps.to("cpu")
 
-                    if config.grpo.kl_coef is not None:
-                        logger.debug(
-                            f"kl grad_acc_step {grad_acc_step} / {num_grad_acc_steps}, batch: {batch['input_ids'].shape}"
-                        )
-                        input_ids = batch["input_ids"].to("cuda")
-                        per_token_logps_reference = get_logprobs(
-                            model_reference,
-                            input_ids,
-                            batch["position_ids"],
-                            batch["temperature"],
-                        )
-                        batch["ref_logprobs"] = per_token_logps_reference.to("cpu")
-
                 data.append(batch_packed)
-
-            if config.grpo.kl_coef is not None:
-                # if we don't manually reshard the the embed and lm head will conflict with the offloading because they will stay unshard until backward which we never call
-                reshard_module(model_reference)
-                tensor_offloaded_repository[0] = offload_model_to_cpu(model_reference)
 
             if config.recompute_logprobs:
                 # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
@@ -414,7 +354,7 @@ def train(config: TrainingConfig):
 
                 # Loss
 
-                pg_loss, clip_ratio = grpo_loss(
+                loss, clip_ratio = grpo_loss(
                     logits,
                     input_ids,
                     advantages,
@@ -425,27 +365,10 @@ def train(config: TrainingConfig):
                     config.grpo.off_policy,
                 )
 
-                with (
-                    torch.no_grad()
-                    if config.grpo.entropy_loss_coeff == 0
-                    else nullcontext()
-                ):
+                with torch.no_grad():
                     entropy = entropy_loss(
                         logits, loss_mask, batch["temperature"], max_tokens
                     )
-
-                loss = pg_loss - config.grpo.entropy_loss_coeff * entropy
-
-                if config.grpo.kl_coef is not None:
-                    kl = kl_penalty(
-                        original_logprobs,
-                        batch["ref_logprobs"].to("cuda"),
-                        loss_mask,
-                        max_tokens,
-                    )
-                    kl_scaled = kl * config.grpo.kl_coef
-                    metric_averager.update("losses/kl", kl_scaled)
-                    loss = loss + kl_scaled
 
                 loss = loss / num_grad_acc_steps
 
@@ -458,7 +381,6 @@ def train(config: TrainingConfig):
                 loss.backward()
                 loss_batch += loss.detach().clone()
 
-                metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
                 metric_averager.update("losses/entropy_loss", entropy.detach().clone())
 
                 if clip_ratio is not None:
@@ -466,7 +388,7 @@ def train(config: TrainingConfig):
                         "losses/clip_ratio", clip_ratio.detach().clone()
                     )
 
-                del loss, pg_loss, entropy, clip_ratio
+                del loss, entropy, clip_ratio
 
             metric_averager.sync()
 

@@ -85,14 +85,6 @@ class BaseGRPOVariantConfig(BaseConfig):
     highest_entropy_ratio_loss: Annotated[float, Field(default=1.0)]
 
 
-class KlCovConfig(BaseGRPOVariantConfig):
-    """Configures the KL-Covariance loss."""
-
-    type: Annotated[Literal["kl_cov"], Field(default="kl_cov")]
-    kl_coef: Annotated[float, Field(default=1.0)]
-    k_percent: Annotated[float, Field(default=0.2)]
-
-
 class ClippingConfig(BaseGRPOVariantConfig):
     """Configures the clipping loss."""
 
@@ -109,7 +101,7 @@ class RatioConfig(BaseGRPOVariantConfig):
     clip_ratio: Annotated[float, Field(default=8.0)]
 
 
-GRPOVariantsConfig: TypeAlias = Union[ClippingConfig, KlCovConfig, RatioConfig]
+GRPOVariantsConfig: TypeAlias = Union[ClippingConfig, RatioConfig]
 
 
 class GRPOLossConfig(BaseConfig):
@@ -119,7 +111,6 @@ class GRPOLossConfig(BaseConfig):
     off_policy: GRPOVariantsConfig = RatioConfig()
 
     kl_coef: Annotated[float | None, Field(default=None)]
-    entropy_loss_coeff: Annotated[float, Field(default=0)]
 
 
 class ModelConfig(BaseConfig):
