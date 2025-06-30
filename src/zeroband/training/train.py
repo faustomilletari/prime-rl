@@ -21,10 +21,8 @@ from zeroband.training.checkpoint import (
     save_checkpoint_fsdp_state,
     save_ckpt_for_rollout,
 )
+from zeroband.training.data import DataLoader
 from zeroband.training.config import Config as TrainingConfig
-from zeroband.training.data import (
-    get_dataloader,
-)
 from zeroband.training.logger import setup_logger
 from zeroband.training.loss import entropy_loss, get_logprobs, grpo_loss
 from zeroband.training.utils import (
@@ -157,19 +155,10 @@ def train(config: TrainingConfig):
         logger.info(f"loading checkpoint from {config.ckpt.resume}")
         load_checkpoint_fsdp_state(model, [optimizer], training_progress, config.ckpt.resume)
 
-    step_count_init = config.start_step if config.start_step is not None else training_progress.step
-
     local_batch_size = get_local_batch_size(config.optim.batch_size, config.train.micro_bs, world_info)
 
-    train_dataloader = iter(
-        get_dataloader(
-            tokenizer=tokenizer,
-            batch_size=local_batch_size,
-            micro_bs=config.train.micro_bs,
-            data_config=config.data,
-            step_count_init=step_count_init,
-            collate_mode=config.collate_mode,
-        )
+    train_dataloader = DataLoader(
+        config.data.seq_length, tokenizer.pad_token_id, config.train.micro_bs, local_batch_size
     )
 
     previous_ckpt_rollout = []
@@ -180,7 +169,7 @@ def train(config: TrainingConfig):
         time_start = time.time()
         logger.info(f"start training step {training_progress.step}")
 
-        micro_batches = next(train_dataloader)
+        micro_batches = train_dataloader.get_batch()
         time_data_loading = time.time() - time_start
 
         # here we want to pre-compute the logprobs with the model before update
@@ -208,6 +197,10 @@ def train(config: TrainingConfig):
                     )
 
                     input_ids = batch["input_ids"].to("cuda")
+
+                    logger.info(
+                        f"HERE batch: {batch['input_ids'].shape}, {batch['position_ids'].shape}, {batch['temperature']}"
+                    )
 
                     model_for_logprob = model_for_logprob_only if config.recompute_logprobs else model
                     per_token_logps = get_logprobs(
