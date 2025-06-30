@@ -261,30 +261,47 @@ class BatchOutput(TypedDict):
 
 class PaddingDataset(IterableDataset[BatchOutput]):
     """
-    This dataset will pad each entry in the batch to the max_seq_len
+    This dataset will pad each entry in the batch to the max_seq_len and return a batch of size micro_bs.
     """
 
-    def __init__(self, dataset: IterableDataset[DatasetOutput], max_seq_len: int, pad_token_id: int, micro_bs: int):
+    def __init__(
+        self,
+        dataset: IterableDataset[DatasetOutput],
+        max_seq_len: int,
+        pad_token_id: int,
+        micro_bs: int,
+        batch_size: int,
+    ):
         self.dataset = dataset
         self.max_seq_len = max_seq_len
         self.pad_token_id = pad_token_id
         self.micro_bs = micro_bs
+        self.batch_size = batch_size
 
-    def __iter__(self) -> Generator[BatchOutput, Any, None]:
+        assert batch_size % micro_bs == 0, "batch_size must be divisible by micro_bs"
+
+    def __iter__(self) -> Generator[list[BatchOutput], Any, None]:
         """
         What this function does is:
             * iterate over **single** sample from the dataset
             * for each sample pad it to the max_seq_len
-            * once it reach micro_bs, yield the batch
+            * once it reach micro_bs, add the batch to the list of batches
+            * once the list of batches reach batch_size // micro_bs, yield the list of batches
             * repeat
         """
 
+        current_micro_batch = []
         current_batch = []
         for sample in self.dataset:
-            current_batch.append(self.pad_sample(sample))
-            if len(current_batch) == self.micro_bs:
-                yield self.collate_fn(current_batch)
+            current_micro_batch.append(self.pad_sample(sample))
+            if len(current_micro_batch) == self.micro_bs:
+                current_batch.append(self.collate_fn(current_micro_batch))
+                current_micro_batch = []
+
+            if len(current_batch) == self.batch_size // self.micro_bs:
+                yield current_batch
                 current_batch = []
+                current_micro_batch = []
 
     def pad_sample(self, sample: DatasetOutput):
         """
@@ -332,16 +349,24 @@ class PaddingDataset(IterableDataset[BatchOutput]):
 class PackingDataset(IterableDataset[BatchOutput]):
     """
     This dataset will pack the batch into a single batch in a efficient manner
+    it will return a batch where tensor are shaped [1, micro_bs * seq_len]
     """
 
     def __init__(
         self,
         dataset: IterableDataset[DatasetOutput],
         max_seq_len: int,
-        pad_token_id: int,
         micro_bs: int,
+        pad_token_id: int,
         batch_size: int,
     ):
+        self.dataset = dataset
+        self.max_seq_len = max_seq_len * micro_bs
+        self.pad_token_id = pad_token_id
+
+    def __iter__(self) -> Generator[BatchOutput, Any, None]:
+        # current_batch = []
+        # for sample in self.dataset:
         raise NotImplementedError("Not implemented")
 
 
@@ -352,7 +377,7 @@ def get_dataloader(
     data_config: DataConfig,
     step_count_init: int,
     collate_mode: CollateMode,
-) -> DataLoader[BatchOutput]:
+) -> IterableDataset[list[BatchOutput]]:
     """Get a dataloader for the training dataset"""
 
     path = data_config.path
@@ -364,16 +389,18 @@ def get_dataloader(
 
     match collate_mode:
         case "padding":
-            dataset = PaddingDataset(train_dataset, data_config.seq_length, tokenizer.pad_token_id, micro_bs)
+            dataset = PaddingDataset(
+                train_dataset, data_config.seq_length, tokenizer.pad_token_id, micro_bs, batch_size
+            )
+            return DataLoader(dataset, batch_size=1, collate_fn=lambda x: x)
+
         case "packing":
-            dataset = PackingDataset(train_dataset, data_config.seq_length, tokenizer.pad_token_id, micro_bs)
+            dataset = PackingDataset(
+                train_dataset, data_config.seq_length, micro_bs, tokenizer.pad_token_id, batch_size
+            )
+            raise NotImplementedError("Not implemented")
         case _:
             raise ValueError(f"Invalid collate mode: {collate_mode}")
-
-    n_batch = batch_size // micro_bs
-    assert batch_size % micro_bs == 0, "batch_size must be divisible by micro_bs"
-
-    return DataLoader(dataset, batch_size=n_batch, collate_fn=lambda x: x)
 
 
 # def pack_datatset_outputs_efficiently(

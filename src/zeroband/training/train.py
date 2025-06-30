@@ -181,6 +181,7 @@ def train(config: TrainingConfig):
         logger.info(f"start training step {training_progress.step}")
 
         micro_batches = next(train_dataloader)
+        print
         time_data_loading = time.time() - time_start
 
         # here we want to pre-compute the logprobs with the model before update
