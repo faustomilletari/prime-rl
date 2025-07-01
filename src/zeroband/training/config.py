@@ -101,7 +101,7 @@ class WeightCheckpointConfig(BaseConfig):
     save_async: Annotated[
         bool,
         Field(
-            default=False,
+            default=True,
             description="Whether to save the checkpoint asynchronously.",
         ),
     ]
@@ -157,6 +157,7 @@ class FakeDataLoaderConfig(BaseConfig):
             raise ValueError("Batch size must be divisible by micro batch size")
         if self.batch_size < self.micro_batch_size:
             raise ValueError("Batch size must be greater than or equal to micro batch size")
+        return self
 
 
 class DataLoaderConfig(BaseConfig):
