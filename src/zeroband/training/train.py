@@ -58,7 +58,7 @@ def train(config: TrainingConfig):
     orchestrator = None
     if config.orchestrator and world.rank == 0:
         logger.info("Starting orchestrator in a separate process")
-
+        config.orchestrator.num_train_workers = world.world_size
         orchestrator = mp.get_context("spawn").Process(
             target=run_orchestrator,
             args=(config.orchestrator,),
