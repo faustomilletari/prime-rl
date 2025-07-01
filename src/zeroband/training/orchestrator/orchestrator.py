@@ -105,7 +105,7 @@ async def orchestrate(config: OrchestratorConfig):
         if async_level > config.async_level:
             ckpt_step = step - 1 - config.async_level
             logger.warning(
-                f"Hit async barrier because step {step} is {async_level} steps ahead of checkpoint step {ckpt_step}."
+                f"Hit async barrier because step {step} is {async_level} (>{config.async_level}) steps ahead of checkpoint step {ckpt_step}."
             )
             wait_for_weight_checkpoint(config.weights.path, ckpt_step)
             await reload_weights(client, config.weights.path, ckpt_step)

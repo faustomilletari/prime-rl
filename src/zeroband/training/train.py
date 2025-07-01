@@ -139,7 +139,7 @@ def train(config: TrainingConfig):
         if config.recompute_logprobs:
             logger.debug("Recomputing logprobs")
             compute_logprobs_start_time = time.time()
-            og_infer_step = progress.step - config.async_level
+            og_infer_step = progress.step - 1 - config.async_level  # -1 because we haven't updated the model yet
             infer_step = max(og_infer_step, 0)
 
             # Wake up the logprob model from CPU
@@ -315,8 +315,7 @@ def train(config: TrainingConfig):
             "progress/train/step": progress.step,  # Shared W&B axis
             "step": progress.step,
         }
-        if world.rank == 0:
-            monitor.log(progress_metrics)
+        monitor.log(progress_metrics)
 
         # Log performance metrics
         perf_metrics = {
@@ -324,13 +323,11 @@ def train(config: TrainingConfig):
             "perf/train/mfu": mfu,
             "step": progress.step,
         }
-        if world.rank == 0:
-            monitor.log(perf_metrics)
+        monitor.log(perf_metrics)
 
         # Log loss metrics
-        if world.rank == 0:
-            loss_metrics["step"] = progress.step
-            monitor.log(loss_metrics)
+        loss_metrics["step"] = progress.step
+        monitor.log(loss_metrics)
 
         # Log time metrics
         time_metrics = {
@@ -341,8 +338,7 @@ def train(config: TrainingConfig):
             "time/train/save_ckpt": save_ckpt_time,
             "step": progress.step,
         }
-        if world.rank == 0:
-            monitor.log(time_metrics)
+        monitor.log(time_metrics)
 
         if config.max_steps and progress.step >= config.max_steps:
             break

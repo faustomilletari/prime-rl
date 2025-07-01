@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 from typing import Annotated, Literal, TypeAlias, Union
 
@@ -224,7 +225,7 @@ class Config(BaseSettings):
     log: LogConfig = LogConfig()
 
     # The monitor configuration
-    monitor: MultiMonitorConfig = MultiMonitorConfig()
+    monitor: Annotated[MultiMonitorConfig, Field(default=MultiMonitorConfig())]
 
     max_steps: Annotated[
         int | None,
@@ -260,4 +261,9 @@ class Config(BaseSettings):
             self.orchestrator.max_steps = self.max_steps
             self.orchestrator.model.name = self.model.name
             self.orchestrator.async_level = self.async_level
+            self.orchestrator.monitor.wandb = deepcopy(self.monitor.wandb)
+            group = self.monitor.wandb.group
+            if group:
+                self.monitor.wandb.name = f"{group}-train"
+                self.orchestrator.monitor.wandb.name = f"{group}-orchestrator"
         return self
