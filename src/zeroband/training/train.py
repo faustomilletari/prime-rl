@@ -57,6 +57,7 @@ def train(config: TrainingConfig):
     # Optionally, sidecar the orchestrator
     orchestrator = None
     if config.orchestrator and world.rank == 0:
+        config.orchestrator.num_train_workers = world.world_size
         logger.info("Starting orchestrator in a separate process")
 
         orchestrator = mp.get_context("spawn").Process(
@@ -78,6 +79,7 @@ def train(config: TrainingConfig):
         torch._dynamo.config.suppress_errors = True
 
     torch.set_float32_matmul_precision("high")
+    torch.cuda.set_device(world.rank)
 
     if config.weights.path and world.rank == 0:
         if envs.SHARDCAST_OUTPUT_DIR is not None:
