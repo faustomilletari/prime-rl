@@ -53,7 +53,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Setup monitor
     logger.info(f"Initializing monitor ({config.monitor})")
-    monitor = setup_monitor(config.monitor)
+    monitor = setup_monitor(config.monitor, None, config)
 
     # Setup client
     logger.info(f"Initializing OpenAI client ({config.client.base_url})")
@@ -86,6 +86,7 @@ async def orchestrate(config: OrchestratorConfig):
     # Iterate over dataset in batches
     total_steps = min(config.max_steps or math.inf, len(dataset) // config.batch_size)
     logger.info(f"Starting training loop ({total_steps=}, {config.batch_size=})")
+    total_tokens, total_samples = 0, 0
     ckpt_step = 0
     last_eval_step = -1
     for step in range(1, total_steps + 1):
@@ -152,6 +153,8 @@ async def orchestrate(config: OrchestratorConfig):
         num_input_tokens = sum(completion.usage.prompt_tokens for completion in chat_completions)
         num_output_tokens = sum(completion.usage.completion_tokens for completion in chat_completions)
         num_tokens = num_input_tokens + num_output_tokens
+        total_tokens += num_tokens
+        total_samples += config.batch_size
         throughput = num_tokens / (generate_completions_time + compute_rewards_time)
         avg_seq_length = num_tokens / config.batch_size
 
@@ -185,14 +188,20 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log progress metrics to monitor
         progress_metrics = {
-            "perf/infer_throughput": throughput,
-            "perf/avg_seq_length": avg_seq_length,
-            "perf/num_input_tokens": num_input_tokens,
-            "perf/num_output_tokens": num_output_tokens,
-            "perf/num_tokens": num_tokens,
+            "progress/infer/total_tokens": total_tokens,
+            "progress/infer/total_samples": total_samples,
+            "progress/train/step": ckpt_step,  # Shared W&B axis
             "step": step,
         }
-        monitor.log(progress_metrics, wandb_prefix="perf")
+        monitor.log(progress_metrics)
+
+        # Log perfrmance metrics to monitor
+        perf_metrics = {
+            "perf/infer/throughput": throughput,
+            "perf/infer/seq_len": avg_seq_length,
+            "step": step,
+        }
+        monitor.log(perf_metrics)
 
         # Log rewards metrics to monitor
         reward_metrics = {"reward/mean": np.mean(rewards), "step": step}
@@ -200,9 +209,9 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log time metrics to monitor
         time_metrics = {
-            "time/generate_completions": generate_completions_time,
-            "time/compute_rewards": compute_rewards_time,
-            "time/step": step_time,
+            "time/infer": step_time,
+            "time/infer/generate_completions": generate_completions_time,
+            "time/infer/compute_rewards": compute_rewards_time,
             "step": step,
         }
         monitor.log(time_metrics)

@@ -122,9 +122,9 @@ async def run_benchmark(
     # Log timing metrics to monitor
     time_metrics = {
         "step": step,
-        "benchmark": benchmark_time,
-        "load_data": load_data_time,
-        "generate_completions": generate_completions_time,
-        "compute_rewards": compute_rewards_time,
+        f"time/eval/{benchmark}": benchmark_time,
+        f"time/eval/{benchmark}/load_data": load_data_time,
+        f"time/eval/{benchmark}/generate_completions": generate_completions_time,
+        f"time/eval/{benchmark}/compute_rewards": compute_rewards_time,
     }
-    monitor.log(time_metrics, wandb_prefix=f"eval/{benchmark}/time")
+    monitor.log(time_metrics)
