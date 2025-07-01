@@ -312,6 +312,7 @@ def train(config: TrainingConfig):
         progress_metrics = {
             "progress/train/total_tokens": progress.total_tokens,
             "progress/train/total_samples": progress.total_samples,
+            "progress/train/step": progress.step,  # Shared W&B axis
             "step": progress.step,
         }
         if world.rank == 0:
