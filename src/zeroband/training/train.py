@@ -245,7 +245,6 @@ def train(config: TrainingConfig):
         logger.debug("Updating model")
         optimizer.step()
         optimizer.zero_grad()
-        progress.step += 1
 
         # Save the weight checkpoint
         step_path = Path(config.weights.path) / f"step_{progress.step}"
@@ -306,38 +305,48 @@ def train(config: TrainingConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Finished trainer step {progress.step} in {step_time:.2f}s (Loss: {loss_metrics['loss/loss']:.2f}, Entropy: {loss_metrics['loss/entropy']:.2f}, Clip Ratio: {loss_metrics['loss/clip_ratio']:.2f}, Throughput: {throughput:.2f} tokens/s, MFU: {mfu:.2f}%)"
+        step_message = f"Finished training step {progress.step} in {step_time:.2f}s (Loss: {loss_metrics['loss/loss']:.2f}, Entropy: {loss_metrics['loss/entropy']:.2f}, Clip Ratio: {loss_metrics['loss/clip_ratio']:.2f}, Throughput: {throughput:.2f} tokens/s, MFU: {mfu:.2f}%)"
         logger.success(step_message)
 
-        # Log performance metrics
+        # Log progress metrics
         progress_metrics = {
-            "perf/train/throughput": throughput,
-            "perf/train/mfu": mfu,
-            "perf/train/num_tokens": progress.total_tokens,
-            "perf/train/num_samples": progress.total_samples,
+            "progress/train/total_tokens": progress.total_tokens,
+            "progress/train/total_samples": progress.total_samples,
             "step": progress.step,
         }
         if world.rank == 0:
             monitor.log(progress_metrics)
 
+        # Log performance metrics
+        perf_metrics = {
+            "perf/train/throughput": throughput,
+            "perf/train/mfu": mfu,
+            "step": progress.step,
+        }
+        if world.rank == 0:
+            monitor.log(perf_metrics)
+
         # Log loss metrics
         if world.rank == 0:
+            loss_metrics["step"] = progress.step
             monitor.log(loss_metrics)
 
         # Log time metrics
         time_metrics = {
-            "step": progress.step,
             "time/train/step": step_time,
             "time/train/load_data": load_data_time,
             "time/train/save_weights": save_weights_time,
             "time/train/compute_logprobs": compute_logprobs_time,
             "time/train/save_ckpt": save_ckpt_time,
+            "step": progress.step,
         }
         if world.rank == 0:
             monitor.log(time_metrics)
 
         if config.max_steps and progress.step >= config.max_steps:
             break
+
+        progress.step += 1
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("Training finished!")
