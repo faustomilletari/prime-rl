@@ -24,6 +24,7 @@ from zeroband.training.logger import setup_logger
 from zeroband.training.loss import compute_logprobs, entropy_loss, grpo_loss
 from zeroband.training.metrics import BatchMetrics
 from zeroband.training.model import get_tokenizer, reshard_module, setup_model
+from zeroband.training.orchestrator.config import OrchestratorConfig
 from zeroband.training.orchestrator.orchestrator import orchestrate
 from zeroband.training.perf import get_perf_counter
 from zeroband.training.utils import (
@@ -38,11 +39,8 @@ from zeroband.utils.pydantic_config import parse_argv
 from zeroband.utils.utils import clean_exit
 
 
-def run_orchestrator_in_subprocess(orchestrator_config):
-    """Run the orchestrator in a completely separate process with its own event loop."""
-    # This function runs in a separate process, so it has its own memory space
-    # and can initialize its own logger/monitor without conflicts
-    asyncio.run(orchestrate(orchestrator_config))
+def sidecar_orchestrator(config: OrchestratorConfig):
+    asyncio.run(orchestrate(config))
 
 
 @clean_exit
@@ -61,8 +59,11 @@ def train(config: TrainingConfig):
     orchestrator = None
     if config.orchestrator and world.rank == 0:
         logger.info("Starting orchestrator in a separate process")
+
         orchestrator = mp.get_context("spawn").Process(
-            target=run_orchestrator_in_subprocess, args=(config.orchestrator,), daemon=True
+            target=sidecar_orchestrator,
+            args=(config.orchestrator,),
+            daemon=True,
         )
         orchestrator.start()
 
@@ -105,8 +106,6 @@ def train(config: TrainingConfig):
         weight_decay=config.optim.weight_decay,
         betas=(config.optim.betas1, config.optim.betas2),
     )
-
-    # TODO(Mika): Add this back but without dependency on the seq_len
 
     # Optionally, resume training from a checkpoint
     progress = TrainingProgress(total_tokens=0, step=0, total_samples=0)
