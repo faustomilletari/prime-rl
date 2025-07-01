@@ -207,7 +207,7 @@ async def orchestrate(config: OrchestratorConfig):
         }
         monitor.log(time_metrics)
 
-    logger.success("Training completed.")
+    logger.success("Orchestrator finished.")
 
 
 def run_orchestrator(config: OrchestratorConfig):
