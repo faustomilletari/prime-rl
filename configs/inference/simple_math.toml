@@ -1,6 +1,6 @@
 [model]
-name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
-max_model_len = 128
+name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+max_model_len = 2048
 
 [parallel]
 dp = 6
