@@ -78,6 +78,7 @@ def train(config: TrainingConfig):
         torch._dynamo.config.suppress_errors = True
 
     torch.set_float32_matmul_precision("high")
+    torch.cuda.set_device(world.rank)
 
     if config.weights.path and world.rank == 0:
         if envs.SHARDCAST_OUTPUT_DIR is not None:
