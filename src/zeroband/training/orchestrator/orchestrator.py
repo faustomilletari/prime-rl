@@ -212,6 +212,8 @@ async def orchestrate(config: OrchestratorConfig):
 
 def run_orchestrator(config: OrchestratorConfig):
     """Utility function to run the orchestrator as a sidecar process in a synchronous context."""
+    import asyncio
+
     asyncio.run(orchestrate(config))
 
 
