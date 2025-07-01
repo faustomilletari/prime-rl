@@ -35,7 +35,7 @@ from zeroband.utils.utils import clean_exit
 async def orchestrate(config: OrchestratorConfig):
     # Initialize the logger
     logger = setup_logger(config.log)
-    logger.info("Starting training orchestrator")
+    logger.info("Starting orchestrator")
 
     # Prepare paths to communicate with the trainer
     if config.rollout.clean:
@@ -59,9 +59,10 @@ async def orchestrate(config: OrchestratorConfig):
     tokenizer = AutoTokenizer.from_pretrained(config.model.name)
 
     # Check health of the client
-    logger.info("Checking inference pool health")
+    logger.info("Waiting for inference pool to be ready")
     await check_health(client)
     await check_has_model(client, config.model.name)
+    logger.success("Inference pool ready")
 
     # Reset weights to base model to allow reusing inference server across runs
     logger.info("Resetting weights to base model")
@@ -69,7 +70,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Optionally, run evals on base model
     if config.eval:
-        logger.info(f"Running evals on base model {config.model.name}")
+        logger.info("Running evals on base model")
         for benchmark in config.eval.benchmarks:
             await run_benchmark(client, benchmark, config.model, config.sampling, step=0, use_tqdm=True)
 
@@ -80,13 +81,12 @@ async def orchestrate(config: OrchestratorConfig):
     # Iterate over dataset in batches
     num_batches = len(dataset) // config.batch_size
     total_steps = min(config.max_steps or math.inf, num_batches)
-    logger.info(
-        f"Starting training loop with {total_steps} steps ({total_steps} batches of {config.batch_size} samples each)"
-    )
+    logger.info(f"Starting training loop ({total_steps=}, {num_batches=}, {config.batch_size=})")
     ckpt_step = 0
     last_eval_step = -1
     for step in range(1, total_steps + 1):
-        logger.info(f"Starting training step {step}")
+        logger.info(f"Training step {step} (checkpoint step: {ckpt_step})")
+        step_start_time = time.time()
 
         # Get the batch
         problems_per_batch = config.batch_size // config.sampling.n
@@ -99,7 +99,9 @@ async def orchestrate(config: OrchestratorConfig):
         async_level = step - 1 - ckpt_step  # How many steps training ahead
         if async_level > config.async_level:
             ckpt_step = step - 1 - config.async_level
-            logger.info(f"Hit async barrier {async_level} > {config.async_level}")
+            logger.warning(
+                f"Hit async barrier because step {step} is {async_level} steps ahead of checkpoint step {ckpt_step}."
+            )
             wait_for_weight_checkpoint(config.weights.path, ckpt_step)
             await reload_weights(client, config.weights.path, ckpt_step)
 
@@ -123,24 +125,21 @@ async def orchestrate(config: OrchestratorConfig):
                 )
 
         # Get the completions for the batch
-        logger.info(
-            f"Sending {len(batch_messages)} inference requests for training step {step} (checkpoint step: {ckpt_step})"
-        )
+        logger.info(f"Sending {len(batch_messages)} inference requests for training step {step}")
         start_time = time.time()
         chat_completions = await asyncio.gather(
             *(generate_completion(client, config.model, config.sampling, messages) for messages in batch_messages)
         )
         generate_time = time.time() - start_time
-        logger.success(f"Received {len(chat_completions)} completions in {generate_time:.2f}s")
 
         # Get the rewards for the completions
         # TODO: How are we getting the rewards? Is this handled in verifiers or does the orchestrator make a request to a dedicated reward server? For now, we use dummy rewards
+        logger.info(f"Computing rewards for step {step}")
         completions = [chat_completion.choices[0].message.content for chat_completion in chat_completions]
         task_types = [problem["task_type"] for problem in problems]
         verification_infos = [json.loads(problem["verification_info"]) for problem in problems]
         rewards = compute_rewards(completions, task_types, verification_infos)
         advantages = compute_advantages(rewards, config.sampling.n)
-        logger.info(f"Computed rewards (average reward: {np.mean(rewards):.2f})")
 
         # Compute batch metrics
         num_input_tokens = sum(completion.usage.prompt_tokens for completion in chat_completions)
@@ -149,30 +148,24 @@ async def orchestrate(config: OrchestratorConfig):
         throughput = num_tokens / generate_time
         avg_seq_length = num_tokens / config.batch_size
 
-        # Update total metrics
-        # TODO(Mika): Use some form of metrics averaging class to make this less verbose
-        # total_num_input_tokens += num_input_tokens
-        # total_num_output_tokens += num_output_tokens
-        # total_num_tokens += num_tokens
-        # total_generate_time += generate_time
-        # avg_throughput = total_num_tokens / total_generate_time
-        # avg_seq_length = total_num_tokens / step
-
-        # Log metrics to stdout
-        logger.info(
-            f"Throughput: {throughput:.1f} tokens/s ({num_tokens} tokens in {generate_time:.2f}s, {avg_seq_length:.1f} tokens/sample)"
-        )
-
-        # Log metrics to monitor
+        # Log progress metrics to monitor
         progress_metrics = {
-            "perf/throughput": throughput,
-            "perf/avg_seq_length": avg_seq_length,
-            "perf/num_input_tokens": num_input_tokens,
-            "perf/num_output_tokens": num_output_tokens,
-            "perf/num_tokens": num_tokens,
+            "throughput": throughput,
+            "avg_seq_length": avg_seq_length,
+            "num_input_tokens": num_input_tokens,
+            "num_output_tokens": num_output_tokens,
+            "num_tokens": num_tokens,
             "step": step,
         }
-        monitor.log(progress_metrics)
+        monitor.log(progress_metrics, wandb_prefix="infer")
+
+        reward_metrics = {"reward": np.mean(rewards), "step": step}
+        monitor.log(reward_metrics, wandb_prefix="reward")
+
+        # Log step metrics
+        step_time = time.time() - step_start_time
+        step_message = f"Finished training step {step} in {step_time:.2f}s (Avg. Reward: {np.mean(rewards):.2f}, Throughput: {throughput:.1f} tokens/s, Avg. Seq. Length: {avg_seq_length:.1f} tokens/sample)"
+        logger.success(step_message)
 
         # Write serialized batch to disk
         all_data_ranks_batches = prepare_batch(
@@ -188,14 +181,14 @@ async def orchestrate(config: OrchestratorConfig):
             collate_mode=config.collate_mode,
         )
 
+        step_path = Path(config.rollout.path) / f"step_{step}"
+        step_path.mkdir(parents=True, exist_ok=True)
         for i, batches in enumerate(all_data_ranks_batches):
-            save_folder = Path(config.rollout.path) / f"step_{step}"
-            save_folder.mkdir(parents=True, exist_ok=True)
-            save_path = save_folder / f"rank_{i}.pt"
-            tmp_path = save_path.with_suffix(".tmp")
+            batch_path = step_path / f"rank_{i}.pt"
+            tmp_path = batch_path.with_suffix(".tmp")
+            logger.debug(f"Saving rollouts for step {step} for rank {i} to {batch_path}")
             torch.save(batches, tmp_path)
-            tmp_path.rename(save_path)
-            logger.info(f"Saved rollouts for step {step} to {save_path}")
+            tmp_path.rename(batch_path)
 
     logger.success("Training completed.")
 
