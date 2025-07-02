@@ -71,8 +71,8 @@ async def generate_completion(
     messages: list[dict[str, str]],
     num_input_tokens: int,
 ) -> ChatCompletion:
-    if sampling_config.max_context:
-        sampling_config.max_tokens = sampling_config.max_context - num_input_tokens
+    if sampling_config.max_seq_len:
+        sampling_config.max_tokens = sampling_config.max_seq_len - num_input_tokens
 
     response = await client.chat.completions.create(
         messages=messages,

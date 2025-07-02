@@ -76,7 +76,7 @@ class SamplingConfig(BaseConfig):
         ),
     ]
 
-    max_context: Annotated[
+    max_seq_len: Annotated[
         int | None,
         Field(
             default=None,
