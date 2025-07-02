@@ -226,7 +226,7 @@ def train(config: TrainingConfig):
                 entropy = entropy_loss(logits, loss_mask, temperature, max_tokens)
 
             # Now we can delete the micro batch CUDA tensors
-            del logits, input_ids, position_ids, advantages, loss_mask, logprobs
+            del micro_batch, logits, input_ids, position_ids, advantages, loss_mask, logprobs
 
             # Scale the loss by the number of micro batches (=gradient accumulation steps)
             loss = loss / num_micro_batches
