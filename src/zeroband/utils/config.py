@@ -23,11 +23,8 @@ class LogConfig(BaseConfig):
 
     level: Annotated[
         Literal["debug", "info"],
-        Field(
-            default="info",
-            description="Logging level for the process. Will determine the logging verbosity and format.",
-        ),
-    ]
+        Field(description="Logging level for the process. Will determine the logging verbosity and format."),
+    ] = "info"
 
     path: Annotated[
         Path | None,
