@@ -1,21 +1,19 @@
 import concurrent.futures
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Callable
 
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
+import torch
 import torch.distributed as dist
 from huggingface_hub import HfApi
 from loguru import logger
-from pyarrow import Table
 
-from zeroband.training.data import STABLE_FILE
-from zeroband.training.parquet import SCHEMA
-from zeroband.training.world_info import reset_world_info
+from zeroband.training.config import AttnImplementation
+from zeroband.training.data import MicroBatch
+from zeroband.training.orchestrator.data import Sample
+from zeroband.training.world import reset_world
 from zeroband.utils.logger import reset_logger, set_logger
 
 TIMEOUT = 120
@@ -47,16 +45,16 @@ def setup_env():
 
 
 @pytest.fixture(autouse=True)
-def setup_world_info():
+def setup_world():
     """
     Fixture to reset the world info after each test.
     """
     yield
-    reset_world_info()
+    reset_world()
 
 
 @pytest.fixture(params=["eager", "sdpa", "flash_attention_2"])
-def attn_impl(request) -> AttnImpl:
+def attn_impl(request) -> AttnImplementation:
     """
     Fixture to test different attention implementations.
     """
@@ -98,76 +96,56 @@ def llm(model_name: str):
         dist.destroy_process_group()
 
 
-def create_dummy_parquet_table(batch_size: int, seq_len: int) -> Table:
-    """
-    Create a dummy parquet table with the inference schema.
-
-    Args:
-        batch_size: Number of samples in the batch
-        seq_len: Length of the sequence
-
-    Returns:
-        PyArrow table with the inference schema
-    """
-    # Create data dictionary with typed arrays
-    data = {
-        "input_tokens": pa.array([[1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.int32())),
-        "output_tokens": pa.array([[1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.int32())),
-        "prompt": pa.array(["prompt" for _ in range(batch_size)], type=pa.string()),
-        "completion": pa.array(["completion" for _ in range(batch_size)], type=pa.string()),
-        "advantages": pa.array([1] * batch_size, type=pa.float32()),
-        "rewards": pa.array([1] * batch_size, type=pa.float32()),
-        "task_rewards": pa.array([0] * batch_size, type=pa.float32()),
-        "length_penalties": pa.array([0] * batch_size, type=pa.float32()),
-        "proofs": pa.array([b"I am toploc proof, handcrafted by jack"] * batch_size, type=pa.binary()),
-        "step": pa.array([0] * batch_size, type=pa.int32()),
-        "target_lengths": pa.array([seq_len] * batch_size, type=pa.int32()),
-        "task_type": pa.array(["test_task"] * batch_size, type=pa.string()),
-        "problem_id": pa.array(["0"] * batch_size, type=pa.string()),
-        "input_logprobs": pa.array([[0.1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.float32())),
-        "output_logprobs": pa.array([[0.1] * seq_len for _ in range(batch_size)], type=pa.list_(pa.float32())),
-        "seed": pa.array([42] * batch_size, type=pa.int64()),
-        "temperature": pa.array([1.0] * batch_size, type=pa.float32()),
+def create_sample(seq_len: int) -> Sample:
+    return {
+        "input_ids": torch.randint(0, 100, (seq_len,)),
+        "advantages": torch.randn(seq_len),
+        "loss_mask": torch.ones(seq_len),
+        "position_ids": torch.zeros(seq_len),
+        "logprobs": torch.randn(seq_len - 1),
+        "total_tokens": seq_len,
     }
 
-    # Create table directly from dictionary
-    return Table.from_pydict(data, schema=SCHEMA)
+
+def create_dummy_batch(batch_size: int, seq_len: int) -> MicroBatch:
+    micro_batch = {}
+    samples = [create_sample(seq_len) for _ in range(batch_size)]
+    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
+        micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
+    micro_batch["temperature"] = 1.0
+    micro_batch["total_tokens"] = batch_size * seq_len
+    return micro_batch
 
 
 @pytest.fixture(scope="module")
-def fake_rollout_files_dir(
+def fake_rollout_dir(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Callable[[list[int], int, int, int], Path]:
-    """
-    Create a temporary directory with dummy parquet files with inference output for testing
+    """Create a temporary directory with dummy batches."""
+    path = tmp_path_factory.mktemp("fake-rollouts")
 
-    Args:
-        tmp_path: Automatically created temporary path by pytest
-
-    Returns:
-        A function that can be called to write dummy parquet files to the temporary directory
-    """
-    path = tmp_path_factory.mktemp("fake_rollout_files")
-
-    def write_dummy_parquet_files(
-        steps: list[int] = [0],
-        num_files: int = 1,
+    def write_dummy_batches(
+        steps: list[int] = [1],
         batch_size: int = 1,
+        micro_batch_size: int = 1,
         seq_len: int = 10,
     ) -> Path:
         for step in steps:
             step_path = path / f"step_{step}"
-            os.makedirs(step_path, exist_ok=True)
-            for file_idx in range(num_files):
-                table = create_dummy_parquet_table(batch_size, seq_len)
-                pq.write_table(table, f"{step_path}/{file_idx}.parquet")
-
-            stable_file = step_path / STABLE_FILE
-            stable_file.touch()
+            step_path.mkdir(parents=True, exist_ok=True)
+            batch_path = step_path / "rank_0.pt"
+            tmp_path = batch_path.with_suffix(".tmp")
+            batches = []
+            assert batch_size % micro_batch_size == 0, "Batch size must be divisible by micro batch size"
+            for _ in range(batch_size // micro_batch_size):
+                micro_batch = create_dummy_batch(micro_batch_size, seq_len)
+                batches.append(micro_batch)
+            torch.save(batches, tmp_path)
+            tmp_path.rename(batch_path)
 
         return path
 
-    return write_dummy_parquet_files
+    return write_dummy_batches
 
 
 class ProcessResult:

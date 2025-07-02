@@ -7,7 +7,7 @@ from tests import Command, Environment, ProcessResult
 
 pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 
-CMD = ["uv", "run", "torchrun", "src/zeroband/train.py", "@configs/training/debug.toml"]
+CMD = ["uv", "run", "train", "@configs/training/debug.toml"]
 
 
 @pytest.fixture(scope="module")
@@ -17,10 +17,11 @@ def output_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(scope="module")
 def process(
-    run_process: Callable[[Command, Environment], ProcessResult], fake_rollout_files_dir: Callable[[list[int], int, int, int], Path]
+    run_process: Callable[[Command, Environment], ProcessResult],
+    fake_rollout_dir: Callable[[list[int], int, int], Path],
 ):
-    data_path = fake_rollout_files_dir(steps=list(range(2)), num_files=8, batch_size=8, seq_len=16)
-    return run_process(CMD + ["--data.path", str(data_path), "--no-data.fake"], {})
+    rollout_path = fake_rollout_dir(steps=list(range(1, 6)), batch_size=16, micro_batch_size=8, seq_len=16)
+    return run_process(CMD + ["--data.path", rollout_path.as_posix(), "--data.fake", "None"], {})
 
 
 def test_no_error(process: ProcessResult):
