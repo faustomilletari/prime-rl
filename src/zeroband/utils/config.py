@@ -142,5 +142,5 @@ class MultiMonitorConfig(BaseConfig):
     ]
 
     def __str__(self) -> str:
-        is_enabled = lambda x: "enabled" if x is not None else "disabled"
+        is_enabled = lambda x: "enabled" if x is not None else "disabled"  # noqa
         return f"file={is_enabled(self.file)}, socket={is_enabled(self.socket)}, api={is_enabled(self.api)}, wandb={is_enabled(self.wandb)}, system_log_frequency={self.system_log_frequency}"
