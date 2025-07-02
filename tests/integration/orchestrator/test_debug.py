@@ -2,7 +2,6 @@ import pytest
 
 pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 
-# CMD = ["uv", "run", "eval", "@configs/eval/debug.toml"]
 # TODO(Mika): Figure out how to persist a vLLM server across integration tests
 
 
