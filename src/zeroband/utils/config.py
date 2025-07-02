@@ -93,7 +93,7 @@ class SampleLoggingConfig(BaseConfig):
     interval: Annotated[
         int,
         Field(
-            default=5,
+            default=10,
             ge=1,
             description="Step interval at which to log samples to W&B table.",
         ),
@@ -140,7 +140,7 @@ class WandbMonitorConfig(BaseConfig):
     log_samples: Annotated[
         SampleLoggingConfig | None,
         Field(
-            default=None,
+            default=SampleLoggingConfig(),
             description="Configuration for logging prompt/response samples to W&B tables. If None, no samples are logged.",
         ),
     ]
