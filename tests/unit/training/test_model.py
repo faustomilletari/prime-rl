@@ -8,6 +8,17 @@ SEQ_LEN = 8
 
 pytestmark = [pytest.mark.gpu]
 
+@pytest.fixture(params=["eager", "sdpa", "flash_attention_2"])
+def attn_impl(request) -> AttnImplementation:
+    """
+    Fixture to test different attention implementations.
+    """
+    try:
+        # ruff: noqa: F401
+        import flash_attn
+    except ImportError:
+        pytest.skip("Flash Attention not available")
+    return request.param
 
 def test_model_forward_gpu():
     model, tokenizer = get_model_and_tokenizer("Qwen/Qwen3-0.6B", "flash_attention_2")

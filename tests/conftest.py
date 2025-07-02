@@ -1,14 +1,12 @@
 import concurrent.futures
 import os
 import subprocess
-from typing import Callable
+from typing import Callable, Generator
 
 import pytest
 from huggingface_hub import HfApi
 from loguru import logger
-from openai import AsyncOpenAI
 
-from zeroband.training.config import AttnImplementation
 from zeroband.training.world import reset_world
 from zeroband.utils.logger import reset_logger, set_logger
 
@@ -47,25 +45,6 @@ def setup_world():
     """
     yield
     reset_world()
-
-
-@pytest.fixture(params=["eager", "sdpa", "flash_attention_2"])
-def attn_impl(request) -> AttnImplementation:
-    """
-    Fixture to test different attention implementations.
-    """
-    try:
-        # ruff: noqa: F401
-        import flash_attn
-    except ImportError:
-        pytest.skip("Flash Attention not available")
-    return request.param
-
-
-@pytest.fixture(scope="session")
-def model_name() -> str:
-    """Main model to use for tests."""
-    return "Qwen/Qwen3-0.6B"
 
 
 @pytest.fixture(scope="session")
@@ -123,5 +102,63 @@ def run_process() -> Callable[[Command, Environment], ProcessResult]:
 
 @pytest.fixture(scope="module")
 def run_processes() -> Callable[[list[Command], list[Environment]], list[ProcessResult]]:
-    """Factory fixture for running multiple processes in parallel. Used for parallel RL tests"""
+    """Factory fixture for running multiple processes in parallel."""
     return run_subprocesses_in_parallel
+
+
+VLLM_SERVER_ENV = {"CUDA_VISIBLE_DEVICES": "1"}
+VLLM_SERVER_CMD = ["uv", "run", "infer", "@configs/inference/reverse_text.toml"]
+
+
+@pytest.fixture(scope="session")
+def vllm_server() -> Generator[str, None, None]:
+    """Start a vLLM server for integration and e2e tests"""
+    import asyncio
+    import time
+    import urllib.error
+    import urllib.request
+
+    # Start the server as a subprocess
+    env = {**os.environ, **VLLM_SERVER_ENV}
+    process = subprocess.Popen(VLLM_SERVER_CMD, env=env)
+
+    # Default vLLM server URL
+    base_url = "http://localhost:8000"
+
+    async def wait_for_server_health(timeout: int = 120, interval: int = 1) -> bool:
+        """Wait for the server to be healthy by checking the /health endpoint."""
+        health_url = f"{base_url}/health"
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            try:
+                with urllib.request.urlopen(health_url, timeout=5) as response:
+                    if response.status == 200:
+                        return True
+            except (urllib.error.URLError, urllib.error.HTTPError):
+                pass
+            await asyncio.sleep(interval)
+
+        return False
+
+    try:
+        # Wait for the server to be healthy
+        is_healthy = asyncio.run(wait_for_server_health())
+
+        if not is_healthy:
+            raise RuntimeError("vLLM server did not become healthy within timeout")
+
+        # Yield to signal that the server is ready (can be used in tests that depend on it)
+        yield
+    finally:
+        # Shut down the server gracefully
+        logger.info("Shutting down vLLM server")
+        process.terminate()
+
+        # Wait for the process to terminate (with timeout)
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            # If it doesn't terminate gracefully, kill it
+            process.kill()
+            process.wait()

@@ -71,7 +71,7 @@ def output_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="module")
-def process(
+def train_process(
     run_process: Callable[[Command, Environment], ProcessResult],
     fake_rollout_dir: Callable[[list[int], int, int], Path],
 ):
@@ -79,5 +79,5 @@ def process(
     return run_process(CMD + ["--data.path", rollout_path.as_posix(), "--data.fake", "None"], {})
 
 
-def test_no_error(process: ProcessResult):
-    assert process.returncode == 0, f"Process failed with return code {process.returncode}"
+def test_no_error(train_process: ProcessResult):
+    assert train_process.returncode == 0, f"Train process failed with return code {train_process.returncode}"
