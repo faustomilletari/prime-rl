@@ -173,6 +173,8 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         verification_infos = [json.loads(problem["verification_info"]) for problem in problems]
         rewards = compute_rewards(completions, task_types, verification_infos)
         advantages = compute_advantages(rewards, config.sampling.n)
+        advantages_std = np.std(advantages)
+
         compute_rewards_time = time.time() - compute_rewards_start_time
 
         # Compute batch metrics
@@ -232,7 +234,11 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         monitor.log(perf_metrics)
 
         # Log rewards metrics to monitor
-        reward_metrics = {"reward/mean": np.mean(rewards), "reward/advantage_mean": np.mean(advantages), "step": step}
+        reward_metrics = {
+            "reward/mean": np.mean(rewards),
+            "reward/advantage_std": advantages_std,
+            "step": step,
+        }
         monitor.log(reward_metrics)
 
         # Log time metrics to monitor
