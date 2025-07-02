@@ -1,55 +1,65 @@
-from pathlib import Path
-from typing import Callable
+import asyncio
+import os
+import subprocess
+import time
+import urllib.error
+import urllib.request
 
-import pyarrow.parquet as pq
 import pytest
-
-from tests import Command, Environment, ProcessResult
-from zeroband.training.data import pa_schema
 
 pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 
-CMD = ["uv", "run", "src/zeroband/infer.py", "@configs/inference/debug.toml"]
+CMD = ["uv", "run", "infer", "@configs/inference/debug.toml"]
 
 
-@pytest.fixture(scope="module")
-def output_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    return tmp_path_factory.mktemp("test_infer_debug")
+async def wait_for_server_health(base_url: str, timeout: int = 60, interval: int = 1) -> bool:
+    """Wait for the server to be healthy by checking the /health endpoint."""
+    health_url = f"{base_url}/health"
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        try:
+            with urllib.request.urlopen(health_url, timeout=5) as response:
+                if response.status == 200:
+                    return True
+        except (urllib.error.URLError, urllib.error.HTTPError):
+            pass
+        await asyncio.sleep(interval)
+
+    return False
 
 
-@pytest.fixture(scope="module")
-def process(output_path: Path, run_process: Callable[[Command, Environment], ProcessResult]) -> ProcessResult:
-    return run_process(CMD + ["--rollout-path", str(output_path)], {})
+def test_vllm_server_startup_and_shutdown():
+    """Test that the vLLM server starts up, is reachable, and shuts down properly."""
+    # Start the server as a subprocess
+    env = dict(os.environ)
+    process = subprocess.Popen(CMD, env=env)
 
+    try:
+        # Wait for the server to be healthy
+        # Default port is 8000 based on the config
+        base_url = "http://localhost:8000"
+        is_healthy = asyncio.run(wait_for_server_health(base_url, timeout=60))
 
-def test_no_error(process: ProcessResult):
-    assert process.returncode == 0, f"Process failed with return code {process.returncode}"
+        assert is_healthy, "vLLM server did not become healthy within timeout"
 
+        # Optionally, test that we can also reach the models endpoint
+        try:
+            with urllib.request.urlopen(f"{base_url}/v1/models", timeout=5) as response:
+                assert response.status == 200, f"Failed to reach models endpoint: {response.status}"
+        except Exception as e:
+            pytest.fail(f"Failed to reach models endpoint: {e}")
 
-def test_output_directories_exist(output_path: Path):
-    assert output_path.joinpath("step_0").exists()
-    assert output_path.joinpath("step_1").exists()
-    assert output_path.joinpath("step_2").exists()
-    assert not output_path.joinpath("step_3").exists()
+    finally:
+        # Shut down the server gracefully
+        process.terminate()
 
+        # Wait for the process to terminate (with timeout)
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            # If it doesn't terminate gracefully, kill it
+            process.kill()
+            process.wait()
 
-def test_output_files_have_correct_schemas(output_path: Path):
-    files = list(output_path.rglob("*.parquet"))
-    assert len(files) == 3, f"Expected 3 files, got {len(files)}"
-    for file in files:
-        assert pq.read_schema(file).equals(pa_schema)
-
-
-def test_toploc_proofs(output_path: Path):
-    for file in output_path.rglob("*.parquet"):
-        table = pq.read_table(file)
-
-        # Assert number of proofs
-        proofs: list[bytes] = table.column("proofs").to_pylist()
-        output_tokens: list[list[int]] = table.column("output_tokens").to_pylist()
-        assert len(proofs) == len(output_tokens)
-
-        # Assert proof lengths
-        for proof, output_token in zip(proofs, output_tokens):
-            assert len(proof) % 258 == 0
-            assert len(proof) // 258 == (len(output_token) + 31) // 32
+        assert process.returncode is not None, "Process did not terminate properly"
