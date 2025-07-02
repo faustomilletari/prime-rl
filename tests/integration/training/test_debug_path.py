@@ -73,9 +73,9 @@ def output_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="module")
 def train_process(
     run_process: Callable[[Command, Environment], ProcessResult],
-    fake_rollout_dir: Callable[[list[int], int, int], Path],
+    fake_rollout_dir: Callable[[list[int], int, int, int], Path],
 ):
-    rollout_path = fake_rollout_dir(steps=list(range(1, 6)), batch_size=16, micro_batch_size=8, seq_len=16)
+    rollout_path = fake_rollout_dir(list(range(1, 6)), 16, 8, 16)
     return run_process(CMD + ["--data.path", rollout_path.as_posix(), "--data.fake", "None"], {})
 
 

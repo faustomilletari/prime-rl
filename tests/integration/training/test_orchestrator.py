@@ -20,7 +20,7 @@ CMD = [
 def orchestrator_process(
     vllm_server: str, run_process: Callable[[Command, Environment], ProcessResult]
 ) -> ProcessResult:
-    return run_process(CMD, {}, timeout=300)
+    return run_process(CMD, {})
 
 
 def test_no_error(orchestrator_process: ProcessResult):

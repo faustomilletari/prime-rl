@@ -59,7 +59,7 @@ class ProcessResult:
         self.pid = pid
 
 
-def run_subprocess(command: Command, env: Environment, timeout: int = TIMEOUT) -> ProcessResult:
+def run_subprocess(command: Command, env: Environment, timeout: int = TIMEOUT) -> ProcessResult | None:
     """Run a subprocess with given command and environment with a timeout"""
     try:
         process = subprocess.Popen(command, env={**os.environ, **env})
@@ -111,7 +111,7 @@ VLLM_SERVER_CMD = ["uv", "run", "infer", "@configs/inference/reverse_text.toml"]
 
 
 @pytest.fixture(scope="session")
-def vllm_server() -> Generator[str, None, None]:
+def vllm_server() -> Generator[None, None, None]:
     """Start a vLLM server for integration and e2e tests"""
     import asyncio
     import time

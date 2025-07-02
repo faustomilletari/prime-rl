@@ -40,7 +40,6 @@ def train_process(vllm_server: str, run_process: Callable[[Command, Environment]
     return run_process(
         TRAINING_CMD + ["--monitor.wandb.project", project, "--monitor.wandb.name", run_name],
         {},
-        timeout=600,
     )
 
 
