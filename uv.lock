@@ -3341,39 +3341,33 @@ name = "zeroband"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "beartype" },
+    { name = "cydifflib" },
     { name = "datasets" },
     { name = "google-cloud-storage" },
+    { name = "jaxtyping" },
+    { name = "liger-kernel" },
     { name = "loguru" },
     { name = "numpy" },
+    { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyext" },
+    { name = "pylatexenc" },
     { name = "pynvml" },
+    { name = "reasoning-gym" },
+    { name = "shardcast" },
     { name = "tomli" },
     { name = "torch" },
     { name = "transformers" },
+    { name = "uvloop" },
+    { name = "vllm" },
     { name = "wandb" },
 ]
 
 [package.optional-dependencies]
-infer = [
-    { name = "uvloop" },
-    { name = "vllm" },
-]
-orchestrator = [
-    { name = "openai" },
-]
-rewards = [
-    { name = "cydifflib" },
-    { name = "pyext" },
-    { name = "pylatexenc" },
-    { name = "reasoning-gym" },
-]
-train = [
-    { name = "beartype" },
+fa = [
     { name = "flash-attn" },
-    { name = "jaxtyping" },
-    { name = "liger-kernel" },
-    { name = "shardcast" },
 ]
 
 [package.dev-dependencies]
@@ -3387,31 +3381,31 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "beartype", marker = "extra == 'train'", specifier = ">=0.21.0" },
-    { name = "cydifflib", marker = "extra == 'rewards'", specifier = ">=1.2.0" },
+    { name = "beartype", specifier = ">=0.21.0" },
+    { name = "cydifflib", specifier = ">=1.2.0" },
     { name = "datasets", specifier = ">=3.6.0" },
-    { name = "flash-attn", marker = "extra == 'train'", specifier = ">=2.8.0" },
+    { name = "flash-attn", marker = "extra == 'fa'", specifier = ">=2.8.0" },
     { name = "google-cloud-storage", specifier = ">=3.1.1" },
-    { name = "jaxtyping", marker = "extra == 'train'", specifier = ">=0.3.2" },
-    { name = "liger-kernel", marker = "extra == 'train'", specifier = ">=0.5.10" },
+    { name = "jaxtyping", specifier = ">=0.3.2" },
+    { name = "liger-kernel", specifier = ">=0.5.10" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.2.6" },
-    { name = "openai", marker = "extra == 'orchestrator'", specifier = ">=1.92.2" },
+    { name = "openai", specifier = ">=1.93.0" },
     { name = "pydantic", specifier = ">=1.10.13" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "pyext", marker = "extra == 'rewards'", git = "https://github.com/justusmattern27/PyExt.git" },
-    { name = "pylatexenc", marker = "extra == 'rewards'", specifier = ">=2.10" },
+    { name = "pyext", git = "https://github.com/justusmattern27/PyExt.git" },
+    { name = "pylatexenc", specifier = ">=2.10" },
     { name = "pynvml", specifier = ">=12.0.0" },
-    { name = "reasoning-gym", marker = "extra == 'rewards'", git = "https://github.com/open-thought/reasoning-gym.git" },
-    { name = "shardcast", marker = "extra == 'train'", specifier = ">=0.3.2" },
+    { name = "reasoning-gym", git = "https://github.com/open-thought/reasoning-gym.git" },
+    { name = "shardcast", specifier = ">=0.3.2" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
-    { name = "uvloop", marker = "extra == 'infer'", specifier = ">=0.21.0" },
-    { name = "vllm", marker = "extra == 'infer'", specifier = ">=0.9.1" },
+    { name = "uvloop", specifier = ">=0.21.0" },
+    { name = "vllm", specifier = ">=0.9.1" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
-provides-extras = ["train", "infer", "orchestrator", "rewards"]
+provides-extras = ["fa"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -1,4 +1,4 @@
-max_steps = 20
+max_steps = 50
 
 [model]
 name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
