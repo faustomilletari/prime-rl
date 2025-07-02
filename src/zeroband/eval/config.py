@@ -5,15 +5,17 @@ from pydantic import Field
 
 from zeroband.training.orchestrator.config import (
     ClientConfig,
-    EvalConfig,
     LogConfig,
     SamplingConfig,
+)
+from zeroband.training.orchestrator.config import (
+    EvalConfig as OrchestratorEvalConfig,
 )
 from zeroband.utils.config import ModelConfig, MultiMonitorConfig
 from zeroband.utils.pydantic_config import BaseSettings
 
 
-class Config(BaseSettings):
+class EvalConfig(BaseSettings):
     """Configures evaluation."""
 
     # The client configuration
@@ -26,7 +28,7 @@ class Config(BaseSettings):
     sampling: Annotated[SamplingConfig, Field(default=SamplingConfig())]
 
     # The evaluation configuration
-    eval: Annotated[EvalConfig, Field(default=EvalConfig())]
+    eval: Annotated[OrchestratorEvalConfig, Field(default=OrchestratorEvalConfig())]
 
     # The monitor configuration
     monitor: Annotated[MultiMonitorConfig, Field(default=MultiMonitorConfig())]

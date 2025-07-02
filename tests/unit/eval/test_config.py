@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from zeroband.inference.config import InferenceConfig
+from zeroband.eval.config import EvalConfig
 from zeroband.utils.pydantic_config import parse_argv
 
 
@@ -12,8 +12,8 @@ def get_all_toml_files(directory) -> list[str]:
     return [file.as_posix() for file in config_files]
 
 
-@pytest.mark.parametrize("config_file", get_all_toml_files("configs/inference"))
-def test_load_inference_configs(config_file: str):
+@pytest.mark.parametrize("config_file", get_all_toml_files("configs/eval"))
+def test_load_eval_configs(config_file: str):
     sys.argv = ["@" + config_file]
-    config = parse_argv(InferenceConfig)
+    config = parse_argv(EvalConfig)
     assert config is not None

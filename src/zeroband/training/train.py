@@ -17,7 +17,7 @@ from zeroband.training.ckpt import (
     save_full_checkpoint,
     save_weight_checkpoint,
 )
-from zeroband.training.config import Config as TrainingConfig
+from zeroband.training.config import TrainingConfig
 from zeroband.training.data import DataLoader, FakeDataLoader
 from zeroband.training.logger import setup_logger
 from zeroband.training.loss import compute_logprobs, entropy_loss, grpo_loss

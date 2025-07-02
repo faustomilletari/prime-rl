@@ -169,7 +169,7 @@ class DataLoaderConfig(BaseConfig):
     fake: Annotated[FakeDataLoaderConfig | None, Field(default=None)]
 
 
-class Config(BaseSettings):
+class TrainingConfig(BaseSettings):
     """Configures training"""
 
     # The orchestrator configuration

@@ -18,7 +18,7 @@ CMD = [
 
 @pytest.fixture(scope="module")
 def eval_process(vllm_server, run_process: Callable[[Command, Environment], ProcessResult]) -> ProcessResult:
-    return run_process(CMD, {}, timeout=300)
+    return run_process(CMD, {})
 
 
 def test_no_error(eval_process: ProcessResult):
