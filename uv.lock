@@ -3383,6 +3383,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "setuptools" },
 ]
 
 [package.metadata]
@@ -3420,6 +3421,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "ruff", specifier = ">=0.12.1" },
+    { name = "setuptools", specifier = ">=79.0.1" },
 ]
 
 [[package]]

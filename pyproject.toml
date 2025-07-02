@@ -72,6 +72,7 @@ dev = [
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "ruff>=0.12.1",
+    "setuptools>=79.0.1",
 ]
 
 
