@@ -210,7 +210,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Finished orchestrator step {step} in {step_time:.2f}s (Avg. Reward: {np.mean(rewards):.2f}, Throughput: {throughput:.1f} tokens/s, Avg. Seq. Length: {avg_seq_length:.1f} tokens/sample)"
+        step_message = f"Finished orchestrator step {step} in {step_time:.2f}s (Avg. Reward: {np.mean(rewards):.2f}, Avg. Advantage: {np.mean(advantages):.2f}, Throughput: {throughput:.1f} tokens/s, Avg. Seq. Length: {avg_seq_length:.1f} tokens/sample)"
         logger.success(step_message)
 
         # Log progress metrics to monitor
@@ -232,7 +232,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         monitor.log(perf_metrics)
 
         # Log rewards metrics to monitor
-        reward_metrics = {"reward/mean": np.mean(rewards), "step": step}
+        reward_metrics = {"reward/mean": np.mean(rewards), "reward/advantage_mean": np.mean(advantages), "step": step}
         monitor.log(reward_metrics)
 
         # Log time metrics to monitor
