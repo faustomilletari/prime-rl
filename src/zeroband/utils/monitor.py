@@ -178,6 +178,8 @@ class WandbMonitor(Monitor):
         assert self.tokenizer is not None, "Tokenizer is required for sample logging"
         assert self.last_log_step < step, "Step must be greater than last logged step"
             
+        self.logger.debug(f"Logging {self.config.log_samples.num_samples} samples to W&B table at step {step}")
+        start_time = time.time()
         batch_size = len(input_tokens)
         num_samples = min(self.config.log_samples.num_samples, batch_size)
             
@@ -203,6 +205,7 @@ class WandbMonitor(Monitor):
         table = wandb.Table(dataframe=df)
         wandb.log({"completions": table}, step=step)
         self.last_log_step = step
+        self.logger.debug(f"Logged {len(indices)} samples to W&B table in {time.time() - start_time:.2f}s")
 
 
 MonitorType = Literal["file", "socket", "api", "wandb"]
