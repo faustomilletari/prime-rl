@@ -36,10 +36,6 @@ from zeroband.utils.monitor import setup_monitor
 from zeroband.utils.pydantic_config import parse_argv
 from zeroband.utils.utils import clean_exit
 
-# TODO: Log samples to wandb
-# TODO: Add reward, seqlen, task specific reward to wandb
-
-
 @clean_exit
 async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = None):
     # Initialize the logger

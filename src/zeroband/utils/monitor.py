@@ -144,7 +144,7 @@ class WandbMonitor(Monitor):
         )
         
         # Optionally, initialize sample logging attributes
-        if config.samples:
+        if config.log_samples:
             assert tokenizer is not None, "Tokenizer is required for sample logging"
             self.tokenizer = tokenizer
             self.last_log_step = -1
@@ -172,14 +172,14 @@ class WandbMonitor(Monitor):
             task_rewards: Optional list of task-specific rewards
             step: Current training step
         """
-        if not self.config.samples or step % self.config.samples.interval != 0:
+        if not self.config.log_samples or step % self.config.log_samples.interval != 0:
             # Do not log samples if not enabled or not log interval step
             return
         assert self.tokenizer is not None, "Tokenizer is required for sample logging"
         assert self.last_log_step < step, "Step must be greater than last logged step"
             
         batch_size = len(input_tokens)
-        num_samples = min(self.config.samples.num_samples, batch_size)
+        num_samples = min(self.config.log_samples.num_samples, batch_size)
             
         # Randomly select and log samples
         indices = random.sample(range(batch_size), num_samples)

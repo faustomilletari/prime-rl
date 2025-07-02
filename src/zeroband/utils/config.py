@@ -137,7 +137,7 @@ class WandbMonitorConfig(BaseConfig):
 
     offline: Annotated[bool, Field(default=False, description="Whether to run W&B in offline mode.")]
     
-    samples: Annotated[
+    log_samples: Annotated[
         SampleLoggingConfig | None,
         Field(
             default=None,

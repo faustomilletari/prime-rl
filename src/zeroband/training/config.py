@@ -233,7 +233,8 @@ class TrainingConfig(BaseSettings):
             self.orchestrator.max_steps = self.max_steps
             self.orchestrator.model.name = self.model.name
             self.orchestrator.async_level = self.async_level
-            self.orchestrator.monitor.wandb = deepcopy(self.monitor.wandb)
+            self.orchestrator.monitor.wandb.project = self.monitor.wandb.project
+            self.orchestrator.monitor.wandb.group = self.monitor.wandb.group
             if self.monitor.wandb and self.monitor.wandb.group:
                 self.monitor.wandb.name = f"{self.monitor.wandb.group}-train"
                 self.orchestrator.monitor.wandb.name = f"{self.monitor.wandb.group}-orchestrator"
