@@ -140,7 +140,7 @@ class WandbMonitorConfig(BaseConfig):
     log_samples: Annotated[
         SampleLoggingConfig | None,
         Field(
-            default=SampleLoggingConfig(),
+            default=None,
             description="Configuration for logging prompt/response samples to W&B tables. If None, no samples are logged.",
         ),
     ]
