@@ -114,7 +114,7 @@ def train(config: TrainingConfig):
 
         # Offload the logprob model to CPU
         tensor_offloaded_repository: dict[int, OffloadedTensor] = {}
-        tensor_offloaded_repository[0] = offload_model_to_cpu(logprob_model)
+        tensor_offloaded_repository[1] = offload_model_to_cpu(logprob_model)
 
     # Set up the optimizer
     optimizer = torch.optim.AdamW(
@@ -163,8 +163,8 @@ def train(config: TrainingConfig):
         if config.recompute_logprobs:
             logger.debug("Recomputing logprobs")
             compute_logprobs_start_time = time.time()
-            og_infer_step = progress.step - 1 - config.async_level  # -1 because we haven't updated the model yet
-            infer_step = max(og_infer_step, 0)
+            og_infer_step = progress.step - config.async_level
+            infer_step = max(og_infer_step, 1)
 
             # Wake up the logprob model from CPU
             wake_up_model_from_cpu(logprob_model, tensor_offloaded_repository[infer_step])
