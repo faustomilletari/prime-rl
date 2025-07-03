@@ -243,9 +243,9 @@ def train(config: TrainingConfig):
             logger.debug(f"Backward pass on micro batch {micro_step} / {num_micro_batches}")
             loss.backward()
 
-            loss_metrics["loss/loss"] += loss.detach().clone()
-            loss_metrics["loss/entropy"] += entropy.detach().clone()
-            loss_metrics["loss/clip_ratio"] += clip_ratio.detach().clone()
+            loss_metrics["loss/loss"] += loss.detach().clone() / num_micro_batches
+            loss_metrics["loss/entropy"] += entropy.detach().clone() / num_micro_batches
+            loss_metrics["loss/clip_ratio"] += clip_ratio.detach().clone() / num_micro_batches
 
             logger.debug(
                 f"Finished training on micro batch {micro_step} / {num_micro_batches} (loss: {loss.item():.2f}, entropy: {entropy.item():.2f}, clip_ratio: {clip_ratio.item():.2f})"
