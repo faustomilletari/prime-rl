@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import multiprocessing as mp
 import os
@@ -9,6 +10,7 @@ import shardcast
 import torch
 from jaxtyping import Float
 from torch._guards import log as torch_log
+import torch.distributed as dist
 
 from zeroband.training import envs
 from zeroband.training.ckpt import (
@@ -21,7 +23,6 @@ from zeroband.training.config import TrainingConfig
 from zeroband.training.data import DataLoader, FakeDataLoader
 from zeroband.training.logger import setup_logger
 from zeroband.training.loss import compute_logprobs, entropy_loss, grpo_loss
-from zeroband.training.metrics import BatchMetrics
 from zeroband.training.model import get_tokenizer, reshard_module, setup_model
 from zeroband.training.orchestrator.orchestrator import run_orchestrator
 from zeroband.training.perf import get_perf_counter
@@ -191,7 +192,7 @@ def train(config: TrainingConfig):
         if config.profile_path and world.rank == 0:
             torch.cuda.memory._record_memory_history()
 
-        batch_metrics = BatchMetrics()
+        losses_per_batch = defaultdict(float)
         num_micro_batches = len(micro_batches)
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
             input_ids = micro_batch["input_ids"].to("cuda")
@@ -242,9 +243,9 @@ def train(config: TrainingConfig):
             logger.debug(f"Backward pass on micro batch {micro_step} / {num_micro_batches}")
             loss.backward()
 
-            batch_metrics.update("loss/loss", loss.detach().clone())
-            batch_metrics.update("loss/entropy", entropy.detach().clone())
-            batch_metrics.update("loss/clip_ratio", clip_ratio.detach().clone())
+            losses_per_batch["loss/loss"] += loss.detach().clone()
+            losses_per_batch["loss/entropy"] += entropy.detach().clone()
+            losses_per_batch["loss/clip_ratio"] += clip_ratio.detach().clone()
 
             logger.debug(
                 f"Finished training on micro batch {micro_step} / {num_micro_batches} (loss: {loss.item():.2f}, entropy: {entropy.item():.2f}, clip_ratio: {clip_ratio.item():.2f})"
@@ -254,7 +255,9 @@ def train(config: TrainingConfig):
 
         # Synchronize the batch metrics across all ranks
         logger.debug("Synchronizing batch metrics across all ranks")
-        batch_metrics.sync()
+        for key, value in losses_per_batch.items():
+            dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
+            losses_per_batch[key] = value.item()
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients with max norm {config.loss.max_norm}")
