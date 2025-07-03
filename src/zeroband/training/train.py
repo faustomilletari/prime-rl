@@ -151,6 +151,12 @@ def train(config: TrainingConfig):
                     logger.error(f"Orchestrator process died with exit code {orchestrator.exitcode}")
                     raise RuntimeError(f"Orchestrator process died with exit code {orchestrator.exitcode}")
 
+        # Update the CPU logprob model to updated model
+        if config.recompute_logprobs and progress.step > 1:
+            logger.debug("Offloading updated model to CPU")
+            reshard_module(logprob_model)
+            tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
+
         # Load the training batch
         logger.debug("Loading training batch")
         load_data_start_time = time.time()
@@ -307,12 +313,6 @@ def train(config: TrainingConfig):
             save_ckpt_start_time = time.time()
             save_full_checkpoint(model, [optimizer], progress, config.ckpt.path)
             save_ckpt_time = time.time() - save_ckpt_start_time
-
-        # Update the CPU logprob model to updated model
-        if config.recompute_logprobs:
-            logger.debug("Offloading updated model to CPU")
-            reshard_module(logprob_model)
-            tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
 
         # Compute step metrics
         num_local_tokens = micro_batch_size * seq_len * num_micro_batches
