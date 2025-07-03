@@ -237,6 +237,12 @@ class TrainingConfig(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def async_level_check(self):
+        if self.orchestrator:
+            self.orchestrator.async_level = self.async_level
+        return self
+
+    @model_validator(mode="after")
     def check_model_name_orchestrator(self):
         if self.orchestrator:
             self.orchestrator.model.name = self.model.name
