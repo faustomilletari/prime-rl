@@ -192,7 +192,7 @@ def train(config: TrainingConfig):
         if config.profile_path and world.rank == 0:
             torch.cuda.memory._record_memory_history()
 
-        losses_per_batch = defaultdict(float)
+        loss_metrics = defaultdict(float)
         num_micro_batches = len(micro_batches)
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
             input_ids = micro_batch["input_ids"].to("cuda")
@@ -243,9 +243,9 @@ def train(config: TrainingConfig):
             logger.debug(f"Backward pass on micro batch {micro_step} / {num_micro_batches}")
             loss.backward()
 
-            losses_per_batch["loss/loss"] += loss.detach().clone()
-            losses_per_batch["loss/entropy"] += entropy.detach().clone()
-            losses_per_batch["loss/clip_ratio"] += clip_ratio.detach().clone()
+            loss_metrics["loss/loss"] += loss.detach().clone()
+            loss_metrics["loss/entropy"] += entropy.detach().clone()
+            loss_metrics["loss/clip_ratio"] += clip_ratio.detach().clone()
 
             logger.debug(
                 f"Finished training on micro batch {micro_step} / {num_micro_batches} (loss: {loss.item():.2f}, entropy: {entropy.item():.2f}, clip_ratio: {clip_ratio.item():.2f})"
@@ -255,14 +255,14 @@ def train(config: TrainingConfig):
 
         # Synchronize the batch metrics across all ranks
         logger.debug("Synchronizing batch metrics across all ranks")
-        for key, value in losses_per_batch.items():
+        for key, value in loss_metrics.items():
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
-            losses_per_batch[key] = value.item()
+            loss_metrics[key] = value.item()
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients with max norm {config.loss.max_norm}")
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.loss.max_norm).full_tensor()
-        batch_metrics.update("loss/grad_norm", grad_norm.detach().clone())
+        loss_metrics["loss/grad_norm"] += grad_norm.detach().clone()
 
         # Update the model parameters
         logger.debug("Updating model")
@@ -324,7 +324,7 @@ def train(config: TrainingConfig):
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0
-        loss_metrics = {key: value.item() for key, value in batch_metrics.items()}
+        loss_metrics = {key: value for key, value in loss_metrics.items()}
 
         # Log step metrics
         step_time = time.time() - step_start_time
