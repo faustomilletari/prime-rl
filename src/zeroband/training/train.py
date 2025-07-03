@@ -257,8 +257,7 @@ def train(config: TrainingConfig):
         logger.debug("Synchronizing batch metrics across all ranks")
         for key, value in loss_metrics.items():
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
-            loss_metrics[key] = value.item()
-
+            loss_metrics[key] = value
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients with max norm {config.loss.max_norm}")
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.loss.max_norm).full_tensor()
@@ -324,7 +323,7 @@ def train(config: TrainingConfig):
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0
-        loss_metrics = {key: value for key, value in loss_metrics.items()}
+        loss_metrics = {key: value.item() for key, value in loss_metrics.items()}
 
         # Log step metrics
         step_time = time.time() - step_start_time
