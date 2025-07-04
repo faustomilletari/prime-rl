@@ -93,10 +93,14 @@ def setup_orchestrator_sidecar(config: OrchestratorConfig) -> mp.Process:
         get_logger().success("Orchestrator setup complete, continuing with training")
     else:
         raise RuntimeError(f"Unexpected signal from orchestrator: {signal}")
-    return orchestrator
+    return orchestrator  # type: ignore[return-value]
 
 
 class ServerWithEnv:
+    """
+    Wrap a function to set environment variables and redirect stdout and stderr to devnull.
+    """
+
     def __init__(self, config, env_vars, fn):
         self.config = config
         self.env_vars = env_vars
@@ -104,7 +108,20 @@ class ServerWithEnv:
 
     def __call__(self, *args, **kwargs):
         os.environ.update(self.env_vars)
-        self.fn(self.config, vllm_args=[])
+        # Redirect stdout and stderr to devnull at file descriptor level
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        old_stdout_fd = os.dup(1)
+        old_stderr_fd = os.dup(2)
+        try:
+            os.dup2(devnull_fd, 1)  # Redirect stdout
+            os.dup2(devnull_fd, 2)  # Redirect stderr
+            self.fn(self.config, vllm_args=[])
+        finally:
+            os.dup2(old_stdout_fd, 1)  # Restore stdout
+            os.dup2(old_stderr_fd, 2)  # Restore stderr
+            os.close(devnull_fd)
+            os.close(old_stdout_fd)
+            os.close(old_stderr_fd)
 
 
 def setup_inference_sidecar(config: InferenceConfig) -> mp.Process:
@@ -131,7 +148,7 @@ def setup_inference_sidecar(config: InferenceConfig) -> mp.Process:
     inference = ctx.Process(target=ServerWithEnv(config, env_vars, server), daemon=False)
     inference.start()
 
-    return inference
+    return inference  # type: ignore[return-value]
 
 
 def terminate_sidecar(sidecar: mp.Process, name: str):
