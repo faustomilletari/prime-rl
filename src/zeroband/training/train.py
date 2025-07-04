@@ -24,6 +24,7 @@ from zeroband.training.data import DataLoader, FakeDataLoader
 from zeroband.training.logger import setup_logger
 from zeroband.training.loss import compute_logprobs, entropy_loss, grpo_loss
 from zeroband.training.model import get_tokenizer, reshard_module, setup_model
+from zeroband.training.orchestrator.config import OrchestratorConfig
 from zeroband.training.orchestrator.orchestrator import run_orchestrator
 from zeroband.training.perf import get_perf_counter
 from zeroband.training.utils import (
@@ -36,6 +37,28 @@ from zeroband.training.world import get_world
 from zeroband.utils.monitor import setup_monitor
 from zeroband.utils.pydantic_config import parse_argv
 from zeroband.utils.utils import clean_exit
+from zeroband.utils.logger import get_logger
+
+
+def setup_orchestrator_sidecar(config: OrchestratorConfig) -> mp.Process:
+    config.num_train_workers = get_world().world_size
+
+    get_logger().info("Starting orchestrator in a separate process")
+
+    # Create a queue for orchestrator to signal when setup is complete
+    ctx = mp.get_context("spawn")
+    setup_queue = ctx.Queue()
+    orchestrator = ctx.Process(target=run_orchestrator, args=(config, setup_queue), daemon=True)
+    orchestrator.start()
+
+    # Wait for orchestrator to signal that setup is complete
+    get_logger().info("Waiting for orchestrator to complete setup...")
+    signal = setup_queue.get()
+    if signal == "ready":
+        get_logger().success("Orchestrator setup complete, continuing with training")
+    else:
+        raise RuntimeError(f"Unexpected signal from orchestrator: {signal}")
+    return orchestrator
 
 
 @clean_exit
@@ -58,27 +81,7 @@ def train(config: TrainingConfig):
     # Optionally, sidecar the orchestrator
     orchestrator = None
     if config.orchestrator and world.rank == 0:
-        config.orchestrator.num_train_workers = world.world_size
-
-        logger.info("Starting orchestrator in a separate process")
-
-        # Create a queue for orchestrator to signal when setup is complete
-        ctx = mp.get_context("spawn")
-        setup_queue = ctx.Queue()
-        orchestrator = ctx.Process(
-            target=run_orchestrator,
-            args=(config.orchestrator, setup_queue),
-            daemon=True,
-        )
-        orchestrator.start()
-
-        # Wait for orchestrator to signal that setup is complete
-        logger.info("Waiting for orchestrator to complete setup...")
-        signal = setup_queue.get()
-        if signal == "ready":
-            logger.success("Orchestrator setup complete, continuing with training")
-        else:
-            raise RuntimeError(f"Unexpected signal from orchestrator: {signal}")
+        orchestrator = setup_orchestrator_sidecar(config.orchestrator)
 
     # Optionally, clean the checkpoints path
     if config.ckpt.clean:
