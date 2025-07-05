@@ -12,8 +12,8 @@ lr = 1e-6
 
 [orchestrator]
 batch_size = 512
-micro_batch_size = 4
-seq_len = 8192
+micro_batch_size = 16
+seq_len = 2048
 
 [orchestrator.data]
 name = "justus27/math-hendrycks-genesys-format"
