@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 
+import httpx
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
@@ -9,7 +10,20 @@ from zeroband.utils.logger import get_logger
 
 
 def setup_client(client_config: ClientConfig) -> AsyncOpenAI:
-    return AsyncOpenAI(base_url=client_config.base_url, api_key=client_config.api_key)
+    # We use a longer request timeout than default, but if more than 20min, we probably need faster inference deployment
+    timeout = httpx.Timeout(timeout=1200, connect=5.0)
+    # We use as many concurrent connections as possible, but lower than available ports
+    limits = httpx.Limits(
+        max_connections=28000,  # OAI default: 1000
+        max_keepalive_connections=28000,  # OAI default: 100
+    )
+    http_client = httpx.AsyncClient(limits=limits, timeout=timeout)
+    return AsyncOpenAI(
+        base_url=client_config.base_url,
+        api_key=client_config.api_key,
+        max_retries=10,  # OAI default: 2 (does exponential backoff and reasonable timeout in between retries)
+        http_client=http_client,
+    )
 
 
 async def check_health(client: AsyncOpenAI, interval: int = 1, log_interval: int = 10, timeout: int = 60) -> None:
