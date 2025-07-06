@@ -98,7 +98,8 @@ def train(config: TrainingConfig):
             logger.info(f"Initializing shardcast from {envs.SHARDCAST_OUTPUT_DIR}")
             shardcast.initialize(
                 envs.SHARDCAST_OUTPUT_DIR,
-                max_distribution_folders=config.async_level,
+                # +1 to ensure to not delete current checkpoint when async_level=0
+                max_distribution_folders=config.async_level + 1,
             )
 
     # Initialize the model and tokenizer
