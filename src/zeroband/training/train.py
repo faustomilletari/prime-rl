@@ -98,7 +98,7 @@ def train(config: TrainingConfig):
             logger.info(f"Initializing shardcast from {envs.SHARDCAST_OUTPUT_DIR}")
             shardcast.initialize(
                 envs.SHARDCAST_OUTPUT_DIR,
-                max_distribution_folders=config.async_level + 1,
+                max_distribution_folders=config.async_level,
             )
 
     # Initialize the model and tokenizer
@@ -168,7 +168,7 @@ def train(config: TrainingConfig):
         if config.recompute_logprobs:
             logger.debug("Recomputing logprobs")
             compute_logprobs_start_time = time.time()
-            og_infer_step = progress.step - 1 - config.async_level  # -1 because we haven't updated the model yet
+            og_infer_step = progress.step - config.async_level
             infer_step = max(og_infer_step, 0)
 
             # Wake up the logprob model from CPU
@@ -265,7 +265,7 @@ def train(config: TrainingConfig):
         optimizer.zero_grad()
 
         # Save the weight checkpoint
-        step_path = Path(config.weights.path) / f"step_{progress.step}"
+        step_path = Path(config.weights.path) / f"step_{progress.step + 1}"
         save_weights_start_time = time.time()
         model_path = save_weight_checkpoint(model, tokenizer, step_path, async_save=config.weights.save_async)
         active_weight_checkpoint_paths.append(step_path)
@@ -277,8 +277,7 @@ def train(config: TrainingConfig):
             shardcast.broadcast(model_path.as_posix())  # TODO: Is this blocking?
 
         # Optionally, remove old weight checkpoints to save space
-        # +1 to ensure to not delete current checkpoint when async_level=0
-        if len(active_weight_checkpoint_paths) > config.async_level + 1:
+        if len(active_weight_checkpoint_paths) > config.async_level:
             path_to_delete = active_weight_checkpoint_paths.pop(0)
             ckpt_step = int(path_to_delete.name.split("_")[-1])
             should_keep = config.weights.interval and ckpt_step % config.weights.interval == 0
