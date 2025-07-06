@@ -192,25 +192,15 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             mask_truncated_responses=True,  # TODO: make this configurable
             mask_env_responses=True,  # TODO: make this configurable
         )
+        generate_completions_time = time.time() - generate_completions_start_time
 
         prompt_tokens = results["prompt_tokens"]
         prompt_mask = results["prompt_mask"]
         completion_tokens = results["completion_tokens"]
         completion_mask = results["completion_mask"]
+        completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
         rewards = results["reward"]
         # TODO: parse individiual reward functions for logging
-
-        advantages = compute_advantages(rewards, config.sampling.n)
-        generate_completions_time = time.time() - generate_completions_start_time
-
-        # Parse chat completions responses
-        # completions = parse_completions(chat_completions)
-        # output_tokens = parse_output_tokens(chat_completions)
-        # output_logprobs = parse_logprobs(chat_completions)
-        completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
-
-        # TODO: Integrate with async scoring function from verifiers
-        logger.debug(f"Computing advantages for step {step}")
         advantages = compute_advantages(rewards, config.sampling.n)
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
