@@ -170,6 +170,7 @@ def train(config: TrainingConfig):
             compute_logprobs_start_time = time.time()
             og_infer_step = progress.step - config.async_level
             infer_step = max(og_infer_step, 0)
+            print(f"og_infer_step: {og_infer_step}, infer_step: {infer_step} {progress.step=}")
 
             # Wake up the logprob model from CPU
             wake_up_model_from_cpu(logprob_model, tensor_offloaded_repository[infer_step])
