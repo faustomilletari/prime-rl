@@ -111,7 +111,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             epoch += 1
             logger.info(f"Starting epoch {epoch}")
             # Reshuffle dataset at the beginning of each epoch
-            dataset = dataset.shuffle(seed=(config.seed or 0) + epoch - 1)
+            dataset = dataset.shuffle(seed=(config.seed or 0) + epoch)
 
         logger.debug(
             f"Orchestrator step {step} (epoch: {epoch}, epoch_step: {epoch_step}/{steps_per_epoch}, checkpoint step: {ckpt_step})"
