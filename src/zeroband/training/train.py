@@ -308,7 +308,7 @@ def train(config: TrainingConfig):
         if config.recompute_logprobs:
             logger.debug("Offloading updated model to CPU")
             reshard_module(logprob_model)
-            tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
+            tensor_offloaded_repository[progress.step + 1] = copy_model_to_cpu(model)
 
         # Compute step metrics
         num_local_tokens = micro_batch_size * seq_len * num_micro_batches
