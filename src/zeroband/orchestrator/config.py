@@ -149,6 +149,12 @@ class DataConfig(BaseConfig):
     ] = None
 
 
+class EnvironmentConfig(BaseConfig):
+    """Configures the environment to be used for inference."""
+
+    id: Annotated[str, Field(description="ID of the environment to use.")] = "default"
+
+
 class PathConfig(BaseConfig):
     """Configures a path used for input/ output operations"""
 
@@ -218,6 +224,9 @@ class OrchestratorConfig(BaseSettings):
 
     # The data configuration
     data: DataConfig = DataConfig()
+
+    # The environment configuration
+    environment: EnvironmentConfig = EnvironmentConfig()
 
     # The evaluation configuration
     eval: EvalConfig | None = None
