@@ -12,30 +12,24 @@ from zeroband.orchestrator import envs
 import lovely_tensors as lt
 import numpy as np
 import torch
-from datasets import Dataset, load_dataset
 from transformers import AutoTokenizer
 
 from zeroband.eval.utils import run_benchmark
 from zeroband.orchestrator.ckpt import CheckpointManager, Progress
 from zeroband.orchestrator.client import (
+from zeroband.trainer.environments.registry import get_environment
+from zeroband.trainer.orchestrator.client import (
     check_has_model,
     check_health,
-    generate_completion,
     reload_weights,
     reset_weights,
     setup_client,
-    tokenize,
 )
 from zeroband.orchestrator.config import OrchestratorConfig
 from zeroband.orchestrator.data import prepare_batch
 from zeroband.orchestrator.logger import setup_logger
 from zeroband.orchestrator.utils import (
     compute_advantages,
-    compute_rewards,
-    parse_completions,
-    parse_logprobs,
-    parse_output_tokens,
-    print_benchmark,
     wait_for_weight_checkpoint,
 )
 from zeroband.utils.monitor import setup_monitor
@@ -84,21 +78,12 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info("Training from scratch. Resetting weights to base model")
         await reset_weights(client)
 
-    # Load dataset
-    # TODO: Change to verifiers environment
-    logger.info(f"Loading dataset ({config.data})")
-    dataset: Dataset = load_dataset(config.data.name, split=config.data.split)
+    # Load environment and extract dataset
+    vf_env = get_environment(config.environment.id)
+    dataset = vf_env.get_dataset(seed=config.seed)
 
-    # Optionally, filter dataset for samples within difficulty range
-    if config.data.difficulty_filtering:
-        field = config.data.difficulty_filtering.solve_rate_field
-        min_rate = config.data.difficulty_filtering.min_solve_rate
-        max_rate = config.data.difficulty_filtering.max_solve_rate
-        logger.info(f"Filtering dataset for difficulty in [{min_rate}, {max_rate}] at field {field}")
-
-        dataset = dataset.filter(lambda x: x[field] >= min_rate and x[field] <= max_rate)
-
-    dataset = dataset.shuffle(seed=config.seed)
+    # load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(config.model.name)
 
     # Iterate over dataset in batches
     steps_per_epoch = len(dataset) // (config.batch_size // config.sampling.n)
@@ -126,14 +111,6 @@ async def orchestrate(config: OrchestratorConfig):
 
         logger.info(f"Starting orchestrator step {progress.step} ({ckpt_step=}, epoch={progress.epoch}, {epoch_step=})")
         step_start_time = time.time()
-
-        # Get the batch
-        problems_per_batch = config.batch_size // config.sampling.n
-        start_idx = epoch_step * problems_per_batch
-        indices = range(start_idx, start_idx + problems_per_batch)
-        problems = dataset.select(indices).to_list() * config.sampling.n
-        prompts = [problem["prompt"] for problem in problems]
-        batch_messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
 
         # Optionally, wait for the next checkpoint to be available
         wait_for_weight_ckpt_time, reload_weights_time = 0, 0
@@ -181,54 +158,86 @@ async def orchestrate(config: OrchestratorConfig):
             time_eval = time.time() - time_before_evals
             logger.info(f"Evaluated in {time_eval:.2f}s")
 
-        # Get the completions for the batch
-        # TODO: Integrate with async (multi-turn) rollout function from verifiers
-        logger.info(f"Sending {len(batch_messages)} inference requests")
+        # Get the batch
+        problems_per_batch = config.batch_size // config.sampling.n
+        start_idx = epoch_step * problems_per_batch
+        indices = range(start_idx, start_idx + problems_per_batch)
+        problems = dataset.select(indices).to_list() * config.sampling.n
+
+        # prepare inputs for verifiers generation
+        inputs = {
+            "prompt": [problem["prompt"] for problem in problems],
+            "info": [problem["info"] for problem in problems],
+            "task": [problem["task"] for problem in problems],
+            "answer": [problem["answer"] for problem in problems],
+        }
+
+        # generate completions + rewards with verifiers
+        logger.debug(f"Sending {len(problems)} inference requests")
         generate_completions_start_time = time.time()
-        # These calls are intentionally non-concurrent because we found that /tokenize is sometimes returning a httpx.ReadError when calling this endpoint concurrently
-        input_tokens = [await tokenize(client, config.model, messages) for messages in batch_messages]
-        chat_completions = await asyncio.gather(
-            *(
-                generate_completion(client, config.model, config.sampling, messages, len(input_tokens))
-                for messages, input_tokens in zip(batch_messages, input_tokens)
-            )
+        sampling_args = dict(config.sampling)
+        # cols:
+        # - prompt list(list(dict))
+        # - completion: list(list(dict))
+        # - answer: list(str), optional
+        # - info: list(dict)
+        # - task: list(str)
+        # - reward: list(dict)
+        # - state: list(dict)
+        #     - state fields:
+        outputs = await vf_env.a_generate(inputs=inputs, client=client, model=config.model, sampling_args=sampling_args)
+
+        results = vf_env.process_env_results(
+            prompts=outputs["prompt"],
+            completions=outputs["completion"],
+            states=outputs["state"],
+            rewards=outputs["reward"],
+            processing_class=tokenizer,
+            max_completion_tokens=config.sampling.max_tokens,
+            mask_truncated_responses=True,  # TODO: make this configurable
+            mask_env_responses=True,  # TODO: make this configurable
         )
+
+        prompt_tokens = results["prompt_tokens"]
+        prompt_mask = results["prompt_mask"]
+        completion_tokens = results["completion_tokens"]
+        completion_mask = results["completion_mask"]
+        rewards = results["reward"]
+        # TODO: parse individiual reward functions for logging
+
+        advantages = compute_advantages(rewards, config.sampling.n)
         generate_completions_time = time.time() - generate_completions_start_time
         logger.debug(f"Received {len(chat_completions)} inference responses in {generate_completions_time:.2f}s")
 
         # Parse chat completions responses
-        completions = parse_completions(chat_completions)
-        output_tokens = parse_output_tokens(chat_completions)
-        output_logprobs = parse_logprobs(chat_completions)
+        # completions = parse_completions(chat_completions)
+        # output_tokens = parse_output_tokens(chat_completions)
+        # output_logprobs = parse_logprobs(chat_completions)
+        completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
 
-        # Get the rewards for the completions
         # TODO: Integrate with async scoring function from verifiers
-        logger.info("Computing rewards and advantages")
-        compute_rewards_start_time = time.time()
-        task_types = [problem["task_type"] for problem in problems]
-        verification_infos = [json.loads(problem["verification_info"]) for problem in problems]
-        rewards = compute_rewards(completions, task_types, verification_infos)
+        logger.debug(f"Computing advantages")
         advantages = compute_advantages(rewards, config.sampling.n)
-        compute_rewards_time = time.time() - compute_rewards_start_time
         logger.debug(f"Computed rewards and advantages in {compute_rewards_time:.2f}s")
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
 
-        # Compute batch metrics
-        num_input_tokens = sum(completion.usage.prompt_tokens for completion in chat_completions)
-        num_output_tokens = sum(completion.usage.completion_tokens for completion in chat_completions)
-        num_tokens = num_input_tokens + num_output_tokens
+        # compute batch metrics
+        num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
+        num_completion_tokens = sum(len(completion_tokens[i]) for i in range(len(completion_tokens)))
+        num_tokens = num_prompt_tokens + num_completion_tokens
+
         progress.total_tokens += num_tokens
         progress.total_samples += config.batch_size
         progress.total_problems += config.batch_size // config.sampling.n
-        throughput = num_tokens / (generate_completions_time + compute_rewards_time)
+        throughput = num_tokens / (generate_completions_time)
         avg_seq_length = num_tokens / config.batch_size
 
         # Log samples to W&B table if enabled
         if monitor.wandb:
             monitor.wandb.log_samples(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
+                input_tokens=prompt_tokens,
+                output_tokens=completion_tokens,
                 rewards=rewards,
                 advantages=advantages,
                 step=progress.step,
@@ -236,9 +245,11 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Write serialized batch to disk for trainer workers to consume
         all_data_ranks_batches = prepare_batch(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            output_logprobs=output_logprobs,
+            prompt_tokens=prompt_tokens,
+            prompt_mask=prompt_mask,
+            completion_tokens=completion_tokens,
+            completion_mask=completion_mask,
+            completion_logprobs=completion_logprobs,
             advantages=advantages,
             temperature=config.sampling.temperature,
             tokenizer=tokenizer,
@@ -296,7 +307,6 @@ async def orchestrate(config: OrchestratorConfig):
             "time/orchestrator": step_time,
             "time/orchestrator/wait_for_weight_ckpt": wait_for_weight_ckpt_time,
             "time/orchestrator/generate_completions": generate_completions_time,
-            "time/orchestrator/compute_rewards": compute_rewards_time,
             "time/orchestrator/reload_weights": reload_weights_time,
             "time/orchestrator/save_ckpt": save_ckpt_time,
             "time/orchestrator/eval": time_eval,
