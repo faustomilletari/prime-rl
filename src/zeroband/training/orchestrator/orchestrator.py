@@ -110,12 +110,6 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         logger.info("Signaling trainer that orchestrator setup is complete")
         setup_queue.put("ready")
 
-    # Optionally, run evals on base model (only if starting from scratch)
-    if config.eval and not config.ckpt.resume_step:
-        logger.info("Running evals on base model")
-        for benchmark in config.eval.benchmarks:
-            await run_benchmark(client, benchmark, config.model, config.sampling, step=0, use_tqdm=True)
-
     # Load dataset
     # TODO: Change to verifiers environment
     dataset: Dataset = load_dataset(config.data.name, split=config.data.split)
@@ -192,8 +186,8 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         # Optionally, run online evals at the specified interval
         if (
             config.eval
-            and config.eval.online
-            and ckpt_step % config.eval.online.interval == 0
+            and config.eval.interval
+            and ckpt_step % config.eval.interval == 0
             and ckpt_step > last_eval_step
         ):
             last_eval_step = ckpt_step
