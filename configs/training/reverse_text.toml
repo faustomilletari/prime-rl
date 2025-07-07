@@ -10,9 +10,10 @@ lr = 3e-6
 ### Orchestrator ###
 
 [orchestrator]
-batch_size = 64
-micro_batch_size = 8
-seq_len = 1024
+batch_size = 128
+micro_batch_size = 16
+rollouts_per_prompt = 16
+seq_len = 128
 max_steps = 30
 
 [orchestrator.model]
@@ -22,5 +23,4 @@ name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
 id = "reverse-text"
 
 [orchestrator.sampling]
-n = 8
-max_seq_len = 256
+max_tokens = 128
