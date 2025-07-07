@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING, Any
 import os
 
-from zeroband.utils.environ import _ENV_PARSERS as _BASE_ENV_PARSERS, get_env_value, get_dir, set_defaults
+from zeroband.utils.envs import _ENV_PARSERS as _BASE_ENV_PARSERS, get_env_value, get_dir, set_defaults
 
 if TYPE_CHECKING:
     # Enable type checking for shared envs
     # ruff: noqa
-    from zeroband.utils.environ import *
+    from zeroband.utils.envs import *
 
     # Prime
     TRAINING_ENABLE_ACCEPTED_CHECK: bool = False

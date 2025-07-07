@@ -171,16 +171,21 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         logger.debug(f"Sending {len(problems)} inference requests for step {step}")
         generate_completions_start_time = time.time()
         sampling_args = dict(config.sampling)
-        # cols:
-        # - prompt list(list(dict))
-        # - completion: list(list(dict))
-        # - answer: list(str), optional
-        # - info: list(dict)
-        # - task: list(str)
-        # - reward: list(dict)
-        # - state: list(dict)
-        #     - state fields:
-        outputs = await vf_env.a_generate(inputs=inputs, client=client, model=config.model, sampling_args=sampling_args)
+
+        # sanitize for vLLM OpenAI client
+        sampling_args["extra_body"] = {}
+        if "top_k" in sampling_args:
+            sampling_args["extra_body"]["top_k"] = sampling_args.pop("top_k")
+        if "min_p" in sampling_args:
+            sampling_args["extra_body"]["min_p"] = sampling_args.pop("min_p")
+        if "min_tokens" in sampling_args:
+            sampling_args["extra_body"]["min_tokens"] = sampling_args.pop("min_tokens")
+        if "max_seq_len" in sampling_args:
+            sampling_args["max_tokens"] = sampling_args.pop("max_seq_len")
+
+        outputs = await vf_env.a_generate(
+            inputs=inputs, client=client, model=config.model.name, sampling_args=sampling_args
+        )
 
         results = vf_env.process_env_results(
             prompts=outputs["prompt"],
@@ -188,18 +193,18 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             states=outputs["state"],
             rewards=outputs["reward"],
             processing_class=tokenizer,
-            max_completion_tokens=config.sampling.max_tokens,
-            mask_truncated_responses=True,  # TODO: make this configurable
+            max_completion_length=config.sampling.max_seq_len or -1,
+            mask_truncated_completions=True,  # TODO: make this configurable
             mask_env_responses=True,  # TODO: make this configurable
         )
         generate_completions_time = time.time() - generate_completions_start_time
 
-        prompt_tokens = results["prompt_tokens"]
+        prompt_tokens = results["prompt_ids"]
         prompt_mask = results["prompt_mask"]
-        completion_tokens = results["completion_tokens"]
+        completion_tokens = results["completion_ids"]
         completion_mask = results["completion_mask"]
         completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
-        rewards = results["reward"]
+        rewards = results["rewards"]
         # TODO: parse individiual reward functions for logging
         advantages = compute_advantages(rewards, config.sampling.n)
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")

@@ -1,14 +1,14 @@
-import zeroband.training.environ as environ
+import zeroband.training.envs as envs
 
 
 class World:
     """This class stores topology information for distributed training and inference settings by parsing environment variables set by torchrun."""
 
     def __init__(self):
-        self.rank = environ.RANK
-        self.world_size = environ.WORLD_SIZE
-        self.local_rank = environ.LOCAL_RANK
-        self.local_world_size = environ.LOCAL_WORLD_SIZE
+        self.rank = envs.RANK
+        self.world_size = envs.WORLD_SIZE
+        self.local_rank = envs.LOCAL_RANK
+        self.local_world_size = envs.LOCAL_WORLD_SIZE
         self._check_world()
         self.num_nodes = self.world_size // self.local_world_size
 
