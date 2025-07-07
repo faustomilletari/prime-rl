@@ -97,6 +97,19 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
     # Load dataset
     # TODO: Change to verifiers environment
     dataset: Dataset = load_dataset(config.data.name, split=config.data.split)
+
+    # Optionally, filter dataset for samples within difficulty range
+    if config.data.difficulty_filtering:
+        logger.info(
+            f"Filtering dataset for difficulty in [{config.data.difficulty_filtering.min_solve_rate}, {config.data.difficulty_filtering.max_solve_rate}]"
+        )
+        dataset = dataset.filter(
+            lambda x: x[config.data.difficulty_filtering.solve_rate_field]
+            >= config.data.difficulty_filtering.min_solve_rate
+            and x[config.data.difficulty_filtering.solve_rate_field] <= config.data.difficulty_filtering.max_solve_rate
+        )
+        logger.info(f"Filtered dataset to {len(dataset)} samples")
+
     dataset = dataset.shuffle(seed=config.seed)
 
     # Iterate over dataset in batches
