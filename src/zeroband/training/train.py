@@ -247,7 +247,7 @@ def train(config: TrainingConfig):
 
             loss_metrics["loss/loss"] += loss.detach().clone()
             loss_metrics["loss/entropy"] += entropy.detach().clone()
-            loss_metrics["loss/mean_ratio"] += mean_ratio.detach().clone()
+            loss_metrics["loss/importance_sampling_ratio"] += mean_ratio.detach().clone()
 
             del loss, entropy, mean_ratio
 
