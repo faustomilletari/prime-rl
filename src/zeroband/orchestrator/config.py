@@ -159,9 +159,6 @@ class OrchestratorConfig(BaseSettings):
     # The sampling configuration
     sampling: SamplingConfig = SamplingConfig()
 
-    # The data configuration
-    data: DataConfig = DataConfig()
-
     # The environment configuration
     environment: EnvironmentConfig = EnvironmentConfig()
 
