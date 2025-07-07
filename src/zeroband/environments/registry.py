@@ -32,17 +32,15 @@ Provide the final numerical answer inside \\boxed{{...}}."""
 def load_reverse_environment(env_args: dict | None = None) -> Environment:
     train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
         lambda x: {
-            "question": x["text"],
-            "answer": x["text"][::-1],
+            "question": "Reverse the text in quotation marks character-by-character: "
+            + x["text"][:50].strip()
+            + "\n\nPut your final answer in <answer>...</answer> tags.",
+            "answer": x["text"][:50][::-1].strip(),
             "info": {},
             "task": "reverse-text",
         }
     )
-    parser = vf.XMLParser(["think", "answer"], answer_field="answer")
-    system_prompt = f"""Reverse the given text.
-
-    Respond in the following format:
-    {parser.get_format_str()}"""
+    parser = vf.XMLParser(["answer"], answer_field="answer")
 
     def lcs_reward_func(completion, answer, **kwargs) -> float:
         """
@@ -63,14 +61,12 @@ def load_reverse_environment(env_args: dict | None = None) -> Environment:
     rubric = vf.Rubric(
         funcs=[
             lcs_reward_func,
-            parser.get_format_reward_func(),
         ],
-        weights=[1.0, 0.2],
+        weights=[1.0],
     )
 
     vf_env = vf.SingleTurnEnv(
         dataset=train_dataset,
-        system_prompt=system_prompt,
         parser=parser,
         rubric=rubric,
     )
