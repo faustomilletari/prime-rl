@@ -91,7 +91,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
-    steps_per_epoch = len(dataset) // (config.batch_size // config.sampling.n)
+    steps_per_epoch = len(dataset) // (config.batch_size // config.rollouts_per_prompt)
     logger.info(f"Starting training loop (max_steps={max_steps}, steps_per_epoch={steps_per_epoch})")
     total_tokens, total_samples = 0, 0
     ckpt_step = 0
@@ -154,10 +154,10 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
                 )
 
         # Get the batch
-        problems_per_batch = config.batch_size // config.sampling.n
+        problems_per_batch = config.batch_size // config.rollouts_per_prompt
         start_idx = epoch_step * problems_per_batch
         indices = range(start_idx, start_idx + problems_per_batch)
-        problems = dataset.select(indices).to_list() * config.sampling.n
+        problems = dataset.select(indices).to_list() * config.rollouts_per_prompt
 
         # prepare inputs for verifiers generation
         inputs = {
@@ -180,8 +180,6 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             sampling_args["extra_body"]["min_p"] = sampling_args.pop("min_p")
         if "min_tokens" in sampling_args:
             sampling_args["extra_body"]["min_tokens"] = sampling_args.pop("min_tokens")
-        if "max_seq_len" in sampling_args:
-            sampling_args["max_tokens"] = sampling_args.pop("max_seq_len")
 
         outputs = await vf_env.a_generate(
             inputs=inputs, client=client, model=config.model.name, sampling_args=sampling_args
@@ -193,10 +191,13 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             states=outputs["state"],
             rewards=outputs["reward"],
             processing_class=tokenizer,
-            max_completion_length=config.sampling.max_seq_len or -1,
+            max_seq_length=config.seq_len or -1,
             mask_truncated_completions=True,  # TODO: make this configurable
             mask_env_responses=True,  # TODO: make this configurable
         )
+        # TODO: use tokens from vLLM request responses
+        # states = outputs["state"]
+        # responses = [s["responses"] for s in states]
         generate_completions_time = time.time() - generate_completions_start_time
 
         prompt_tokens = results["prompt_ids"]
@@ -206,7 +207,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
         rewards = results["rewards"]
         # TODO: parse individiual reward functions for logging
-        advantages = compute_advantages(rewards, config.sampling.n)
+        advantages = compute_advantages(rewards, config.rollouts_per_prompt)
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
 

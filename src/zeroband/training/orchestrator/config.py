@@ -29,14 +29,6 @@ class ClientConfig(BaseConfig):
 class SamplingConfig(BaseConfig):
     """Configures how tokens are sampled from the model. Largely follows the vLLM sampling parameters (https://docs.vllm.ai/en/latest/api/vllm.sampling_params.html)."""
 
-    n: Annotated[
-        int,
-        Field(
-            ge=1,
-            description="Number of output sequences to return for the given prompt.",
-        ),
-    ] = 1
-
     temperature: Annotated[
         float,
         Field(
@@ -70,17 +62,10 @@ class SamplingConfig(BaseConfig):
         ),
     ] = 0.0
 
-    max_seq_len: Annotated[
-        int | None,
-        Field(
-            description="Maximum number of input and output tokens allowed before aborting a generation. If set, it will dynamically override the `max_tokens` sampling arg based on the number of input tokens of the particular request. The argument is comparable to the `max_model_len` server parameter in vLLM, but moved to the client to allow for dynamic model contexts.",
-        ),
-    ] = None
-
     max_tokens: Annotated[
         int | None,
         Field(
-            description="Maximum number of output tokens to generate per sequence. If None, will generate until maximum context length or EOS token is hit.",
+            description="Maximum number of output tokens to generate per turn. If None, will generate until maximum context length or EOS token is hit.",
         ),
     ] = None
 
@@ -212,6 +197,14 @@ class OrchestratorConfig(BaseSettings):
         ),
     ] = 128
 
+    rollouts_per_prompt: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Number of output sequences to return for the given prompt.",
+        ),
+    ] = 1
+
     seq_len: Annotated[
         int,
         Field(
@@ -258,7 +251,7 @@ class OrchestratorConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_batch_size(self):
-        if self.batch_size % self.sampling.n != 0:
+        if self.batch_size % self.rollouts_per_prompt != 0:
             raise ValueError("Batch size must be divisible by the number of samples per problem")
         if self.batch_size % self.micro_batch_size != 0:
             raise ValueError("Batch size must be divisible by micro batch size")
