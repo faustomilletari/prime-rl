@@ -85,21 +85,6 @@ class SamplingConfig(BaseConfig):
     ] = None
 
 
-# TODO(Mika): Find an elegant way to enable online/ offline difficulty filtering
-# TODO: Change to verifiers environment config
-class DataConfig(BaseConfig):
-    """Configures the data to be used for inference."""
-
-    name: Annotated[
-        str,
-        Field(
-            description="Name of the HF dataset to use.",
-        ),
-    ] = "PrimeIntellect/INTELLECT-2-RL-Dataset"
-
-    split: Annotated[str, Field(description="Split of the dataset to use.")] = "train"
-
-
 class EnvironmentConfig(BaseConfig):
     """Configures the environment to be used for inference."""
 
