@@ -48,9 +48,6 @@ def prepare_sample(
     if total_tokens > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
         # on the inference worker accordingly, e.g. by setting the `max_tokens` parameter.
-        print(f"Prompt tokens: {prompt_tokens}")
-        print(f"Completion tokens: {completion_tokens}")
-        print(f"Sequence length: {seq_len}")
         raise ValueError(
             f"Number of tokens {total_tokens} is greater than sequence length {seq_len}. This should not happen."
         )
