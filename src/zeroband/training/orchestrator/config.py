@@ -129,8 +129,6 @@ class DifficultyFilteringConfig(BaseConfig):
     ] = "solve_rate"
 
 
-# TODO(Mika): Find an elegant way to enable online/ offline difficulty filtering
-# TODO: Change to verifiers environment config
 class DataConfig(BaseConfig):
     """Configures the data to be used for inference."""
 

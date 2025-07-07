@@ -103,12 +103,11 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
         logger.info(
             f"Filtering dataset for difficulty in [{config.data.difficulty_filtering.min_solve_rate}, {config.data.difficulty_filtering.max_solve_rate}]"
         )
-        dataset = dataset.filter(
-            lambda x: x[config.data.difficulty_filtering.solve_rate_field]
-            >= config.data.difficulty_filtering.min_solve_rate
-            and x[config.data.difficulty_filtering.solve_rate_field] <= config.data.difficulty_filtering.max_solve_rate
-        )
-        logger.info(f"Filtered dataset to {len(dataset)} samples")
+        field = config.data.difficulty_filtering.solve_rate_field
+        min_rate = config.data.difficulty_filtering.min_solve_rate
+        max_rate = config.data.difficulty_filtering.max_solve_rate
+
+        dataset = dataset.filter(lambda x: x[field] >= min_rate and x[field] <= max_rate)
 
     dataset = dataset.shuffle(seed=config.seed)
 
