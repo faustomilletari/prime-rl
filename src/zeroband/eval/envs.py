@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, List
 
-from zeroband.utils.environ import (
+from zeroband.utils.envs import (
     _ENV_PARSERS as _BASE_ENV_PARSERS,
     get_env_value,
     get_dir,
@@ -10,7 +10,7 @@ from zeroband.utils.environ import (
 if TYPE_CHECKING:
     # Enable type checking for shared envs
     # ruff: noqa
-    from zeroband.utils.environ import *
+    from zeroband.utils.envs import *
 
     # HF
     HF_HUB_CACHE: str
