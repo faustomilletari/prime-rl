@@ -31,7 +31,12 @@ Provide the final numerical answer inside \\boxed{{...}}."""
 
 def load_reverse_environment(env_args: dict | None = None) -> Environment:
     train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
-        lambda x: {"question": x["text"], "answer": x["text"][::-1]}
+        lambda x: {
+            "question": x["text"],
+            "answer": x["text"][::-1],
+            "info": {},
+            "task": "reverse-text",
+        }
     )
     parser = vf.XMLParser(["think", "answer"], answer_field="answer")
     system_prompt = f"""Reverse the given text.
