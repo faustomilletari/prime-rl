@@ -197,8 +197,8 @@ async def orchestrate(config: OrchestratorConfig):
             rewards=outputs["reward"],
             processing_class=tokenizer,
             max_seq_length=config.seq_len or -1,
-            mask_truncated_completions=True,  # TODO: make this configurable
-            mask_env_responses=True,  # TODO: make this configurable
+            mask_truncated_completions=config.mask_truncated_completions,
+            mask_env_responses=config.mask_env_responses,
         )
         # TODO: use tokens from vLLM request responses
         # states = outputs["state"]

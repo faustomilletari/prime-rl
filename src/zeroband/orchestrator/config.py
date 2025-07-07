@@ -88,7 +88,8 @@ class SamplingConfig(BaseConfig):
 class EnvironmentConfig(BaseConfig):
     """Configures the environment to be used for inference."""
 
-    id: Annotated[str, Field(description="ID of the environment to use.")] = "default"
+    id: Annotated[str, Field(description="ID of the environment to use.")] = "reverse-text"
+    args: Annotated[dict, Field(description="Arguments to pass to the environment.")] = {}
 
 
 class PathConfig(BaseConfig):
@@ -202,6 +203,20 @@ class OrchestratorConfig(BaseSettings):
             description="Sequence length to use for training. If a sample is shorter than this, it will be padded. If a sequence is longer than this, it will be truncated.",
         ),
     ] = 2048
+
+    mask_truncated_completions: Annotated[
+        bool,
+        Field(
+            description="Whether to mask truncated completions from the loss.",
+        ),
+    ] = True
+
+    mask_env_responses: Annotated[
+        bool,
+        Field(
+            description="Whether to mask environment responses from the loss.",
+        ),
+    ] = True
 
     # TODO(Mika): This should be automatic from the number of ZMQ connections
     num_train_workers: Annotated[
