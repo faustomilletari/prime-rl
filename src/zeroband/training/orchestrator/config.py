@@ -161,6 +161,7 @@ class PathConfig(BaseConfig):
         ),
     ] = False
 
+
 class EvalConfig(BaseConfig):
     """Configures evaluation."""
 
@@ -178,6 +179,13 @@ class EvalConfig(BaseConfig):
             description="Interval at which to evaluate the model.",
         ),
     ] = 100
+
+    eval_base_model: Annotated[
+        bool,
+        Field(
+            description="Whether to evaluate the base model we are training on.",
+        ),
+    ] = False
 
 
 class CheckpointConfig(BaseConfig):

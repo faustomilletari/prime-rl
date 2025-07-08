@@ -57,7 +57,8 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
     # Prepare paths to communicate with the trainer
     if config.clean:
         logger.info("Cleaning checkpoint, logs, checkpoint weights and rollout directories")
-        if config.ckpt and not config.ckpt.resume_step:  # Only clean if we don't resume
+
+        if not (config.ckpt and config.ckpt.resume_step):  # Only clean if we don't resume
             logger.debug(f"Cleaning checkpoint path ({config.ckpt.path})")
             shutil.rmtree(config.ckpt.path, ignore_errors=True)
 
@@ -190,16 +191,20 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             and ckpt_step % config.eval.interval == 0
             and ckpt_step > last_eval_step
         ):
-            last_eval_step = ckpt_step
-            logger.info(f"Running evals for checkpoint step {ckpt_step}")
-            for benchmark in config.eval.benchmarks:
-                await run_benchmark(
-                    client,
-                    benchmark,
-                    config.model,
-                    config.sampling,
-                    ckpt_step,
-                )
+            # Only evaluate on step 0 if eval_base_model is set
+            if ckpt_step == 0 and not config.eval.eval_base_model:
+                pass
+            else:
+                last_eval_step = ckpt_step
+                logger.info(f"Running evals for checkpoint step {ckpt_step}")
+                for benchmark in config.eval.benchmarks:
+                    await run_benchmark(
+                        client,
+                        benchmark,
+                        config.model,
+                        config.sampling,
+                        ckpt_step,
+                    )
 
         # Get the completions for the batch
         # TODO: Integrate with async (multi-turn) rollout function from verifiers
