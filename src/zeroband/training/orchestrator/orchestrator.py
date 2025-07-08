@@ -197,6 +197,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             else:
                 last_eval_step = ckpt_step
                 logger.info(f"Running evals for checkpoint step {ckpt_step}")
+                time_before_evals = time.time()
                 for benchmark in config.eval.benchmarks:
                     await run_benchmark(
                         client,
@@ -204,7 +205,10 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
                         config.model,
                         config.sampling,
                         ckpt_step,
+                        monitor=monitor,
                     )
+                time_eval = time.time() - time_before_evals
+                logger.info(f"Evaluated in {time_eval:.2f}s")
 
         # Get the completions for the batch
         # TODO: Integrate with async (multi-turn) rollout function from verifiers
@@ -323,6 +327,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             "time/orchestrator/compute_rewards": compute_rewards_time,
             "time/orchestrator/reload_weights": reload_weights_time,
             "time/orchestrator/save_ckpt": save_ckpt_time,
+            "time/orchestrator/eval": time_eval,
             "step": progress.step,
         }
         monitor.log(time_metrics)

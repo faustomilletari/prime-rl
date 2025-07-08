@@ -15,7 +15,7 @@ from zeroband.training.orchestrator.client import generate_completion, tokenize
 from zeroband.training.orchestrator.config import ModelConfig, SamplingConfig
 from zeroband.training.orchestrator.utils import compute_rewards, parse_completions
 from zeroband.utils.logger import get_logger
-from zeroband.utils.monitor import get_monitor
+from zeroband.utils.monitor import MultiMonitor
 from zeroband.utils.utils import capitalize
 
 
@@ -35,14 +35,11 @@ async def run_benchmark(
     model_config: ModelConfig,
     sampling_config: SamplingConfig,
     step: int,
-    use_tqdm: bool = False,
+    monitor: MultiMonitor,
 ) -> None:
     # Get the logger
     logger = get_logger()
     benchmark_start_time = time.time()
-
-    # Get the monitor
-    monitor = get_monitor()
 
     benchmark_name = get_benchmark_display_name(benchmark)
     logger.info(f"Evaluating {model_config.name} on {benchmark_name} at step {step}")
