@@ -69,7 +69,7 @@ async def run_benchmark(
     # Generate completions
     logger.debug(f"Generating completions for {len(dataset)} problems")
     generate_completions_start_time = time.time()
-    input_tokens = await asyncio.gather(*(tokenize(client, model_config, messages) for messages in batch_messages))
+    input_tokens = [await tokenize(client, model_config, messages) for messages in batch_messages]
     chat_completions = await asyncio.gather(
         *(
             generate_completion(client, model_config, sampling_config, messages, len(input_tokens))
