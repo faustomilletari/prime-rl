@@ -1,15 +1,27 @@
 import verifiers as vf
 from datasets import load_dataset
 from verifiers import Environment
-from verifiers.utils import load_example_dataset
 
 
-def load_gsm8k_environment(env_args: dict | None = None) -> Environment:
-    dataset = load_example_dataset("gsm8k", split="train")
-    parser = vf.ThinkParser()  # uses \boxed{...} to parse the answer
+def load_gsm8k_environment(env_args: dict = {}) -> Environment:
+    from verifiers.utils.data_utils import extract_hash_answer, extract_boxed_answer
+
+    dataset = load_dataset("openai/gsm8k", "main", split="train")
+    dataset = dataset.map(
+        lambda x: {
+            "question": x["question"],
+            "answer": extract_hash_answer(x["answer"]),
+            "info": {},
+            "task": "gsm8k",
+        },
+        remove_columns=dataset.column_names,  # type: ignore
+    )  # type: ignore
+
+    parser = vf.ThinkParser(extract_fn=extract_boxed_answer)  # uses \boxed{...} to parse the answer by default
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
         response = parser.parse_answer(completion) or ""
+        print(response, answer)
         return 1.0 if response == str(answer) else 0.0
 
     rubric = vf.Rubric(
@@ -29,7 +41,7 @@ Provide the final numerical answer inside \\boxed{{...}}."""
     return vf_env
 
 
-def load_reverse_environment(env_args: dict | None = None) -> Environment:
+def load_reverse_environment(env_args: dict = {}) -> Environment:
     train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
         lambda x: {
             "question": "Reverse the text in quotation marks character-by-character: "
@@ -73,17 +85,9 @@ def load_reverse_environment(env_args: dict | None = None) -> Environment:
     return vf_env
 
 
-def load_default_environment(env_args: dict = {}) -> Environment:
-    dataset_name = env_args.get("dataset", "openai/gsm8k")
-    dataset = load_dataset(dataset_name, split="train")
-    vf_env = vf.SingleTurnEnv(dataset=dataset)
-    return vf_env
-
-
 REGISTRY = {
     "gsm8k": load_gsm8k_environment,
     "reverse-text": load_reverse_environment,
-    "default": load_default_environment,
 }
 
 
