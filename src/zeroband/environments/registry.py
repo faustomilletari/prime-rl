@@ -41,59 +41,63 @@ Provide the final numerical answer inside \\boxed{{...}}."""
     return vf_env
 
 
-def load_simple_math_environment(env_args: dict = {}) -> Environment:
+def load_intellect_math_environment(env_args: dict = {}) -> Environment:
     import json
+    from verifiers.utils.data_utils import extract_boxed_answer
+    from zeroband.training.orchestrator.genesys.math import compute_math_reward
 
-    # def get_valid_answers(x: dict) -> list[str]:
-    #     one_or_more_answers = json.loads(x["verification_info"])["ground_truth"]
-    #     if isinstance(one_or_more_answers, str):
-    #         return [one_or_more_answers]
-    #     elif isinstance(one_or_more_answers, list):
-    #         return one_or_more_answers
-    #     else:
-    #         print("Invalid answer format:", one_or_more_answers)
-    #         return []
-    #         # raise ValueError(f"Invalid answer format: {one_or_more_answers}")
-    train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
+    train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
         lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
     )
+    solve_rate_field = env_args.get("solve_rate_field", "solve_rate_qwen_r1_distill_7b")
+    min_solve_rate = env_args.get("min_solve_rate", 0.4)
+    max_solve_rate = env_args.get("max_solve_rate", 0.9)
+    train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate and x[solve_rate_field] <= max_solve_rate)
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
-    from verifiers.utils.data_utils import extract_boxed_answer
-
     parser = vf.ThinkParser(extract_fn=extract_boxed_answer)
-    from zeroband.training.orchestrator.genesys.math import compute_math_reward
-    # def grade_answer(response: str, answers: list[str]) -> float:
-    #     for answer in answers:
-    #         answer_str = str(answer)
-    #         if '\\boxed' in answer_str:
-    #             answer_str = extract_boxed_answer(answer_str)
-    #         if grade_answer_mathd(response, answer_str) or grade_answer_sympy(response, answer_str):
-    #             return 1.0
-    #     return 0.0
 
     def correct_answer_reward_func(completion, info, **kwargs) -> float:
         completion_text = completion[-1]['content']
-        # if '<think>' not in completion_text:
-        #     return 0.0
-        # if '</think>' not in completion_text:
-        #     return 0.0
-        # response = parser.parse_answer(completion)
-        # if response is None:
-        #     return 0.0
-        # is_correct = [grade_answer(response, answer) for answer in info["answers"]]
-        # return max(is_correct)
         return compute_math_reward(completion_text, info)
-
     rubric = vf.Rubric(
         funcs=[
             correct_answer_reward_func,
         ],
         weights=[1.0],
     )
+
     vf_env = vf.SingleTurnEnv(
         dataset=train_dataset,
-        #system_prompt="Give your final answer inside \\boxed{{...}}.",
+        parser=parser,
+        rubric=rubric
+    )
+    return vf_env
+
+def load_hendrycks_math_environment(env_args: dict = {}) -> Environment:
+    import json
+    from verifiers.utils.data_utils import extract_boxed_answer
+    from zeroband.training.orchestrator.genesys.math import compute_math_reward
+
+    train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
+        lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
+    )
+    train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
+
+    parser = vf.ThinkParser(extract_fn=extract_boxed_answer)
+
+    def correct_answer_reward_func(completion, info, **kwargs) -> float:
+        completion_text = completion[-1]['content']
+        return compute_math_reward(completion_text, info)
+    rubric = vf.Rubric(
+        funcs=[
+            correct_answer_reward_func,
+        ],
+        weights=[1.0],
+    )
+
+    vf_env = vf.SingleTurnEnv(
+        dataset=train_dataset,
         parser=parser,
         rubric=rubric
     )
@@ -103,17 +107,6 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
 def load_reverse_environment(env_args: dict = {}) -> Environment:
     import json
 
-    # import re
-    # train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
-    #    lambda x: {
-    #        "question": "Reverse the text in quotation marks character-by-character: "
-    #        + x["text"][:50].strip()
-    #        + "\n\nPut your final answer in <answer>...</answer> tags.",
-    #        "answer": x["text"][:50][::-1].strip(),
-    #        "info": {},
-    #        "task": "reverse-text",
-    #    }
-    # )
     train_dataset = load_dataset("mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train").map(
         lambda x: {
             "question": x["prompt"],
@@ -160,7 +153,8 @@ def load_reverse_environment(env_args: dict = {}) -> Environment:
 REGISTRY = {
     "gsm8k": load_gsm8k_environment,
     "reverse-text": load_reverse_environment,
-    "simple-math": load_simple_math_environment,
+    "hendrycks-math": load_hendrycks_math_environment,
+    "intellect-math": load_intellect_math_environment,
 }
 
 

@@ -78,7 +78,7 @@ async def orchestrate(config: OrchestratorConfig):
         await reset_weights(client)
 
     # Load environment and extract dataset
-    vf_env = get_environment(config.environment.id)
+    vf_env = get_environment(config.environment.id, config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
 
     # load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
