@@ -262,7 +262,6 @@ def rl(config: RLConfig):
     try:
         # Optionally, start inference process
         if config.inference:
-            logger.info("Starting inference process")
             inference_args = list(chain.from_iterable(to_cli("", config.inference.model_dump())))
             inference_cmd = ["uv", "run", "inference", *inference_args]
             inference_gpu_ids = all_gpus[: config.inference_gpus]
