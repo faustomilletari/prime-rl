@@ -22,7 +22,7 @@ mask_truncated_completions = false
 id = "simple-math"
 
 [orchestrator.monitor.wandb.log_samples]
-interval = 50
+interval = 10
 num_samples = 16
 
 [ckpt]

@@ -62,21 +62,27 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
 
     from verifiers.utils.data_utils import extract_boxed_answer
 
-    parser = vf.ThinkParser()
+    parser = vf.ThinkParser(extract_fn=extract_boxed_answer)
     from zeroband.training.orchestrator.genesys.math_utils import grade_answer_mathd, grade_answer_sympy
 
     def grade_answer(response: str, answers: list[str]) -> float:
         for answer in answers:
-            if "\\boxed{" in answer:
-                answer = extract_boxed_answer(answer)
             if grade_answer_mathd(response, answer) or grade_answer_sympy(response, answer):
                 return 1.0
         return 0.0
 
     def correct_answer_reward_func(completion, info, **kwargs) -> float:
-        response = parser.parse_answer(completion) or ""
-        if "\\boxed{" in response:
-            response = extract_boxed_answer(response)
+        completion_text = completion[-1]['content']
+        if '<think>' not in completion_text:
+            print("WARNING: No <think> tag found in completion")
+            return 0.0
+        if '</think>' not in completion_text:
+            return 0.0
+        response = parser.parse_answer(completion)
+        if response is None:
+            #print("WARNING: No response found in completion")
+            return 0.0
+        #print(response, info["answers"])
         is_correct = [grade_answer(response, answer) for answer in info["answers"]]
         return max(is_correct)
 
@@ -86,7 +92,12 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
         ],
         weights=[1.0],
     )
-    vf_env = vf.SingleTurnEnv(dataset=train_dataset, parser=parser, rubric=rubric)
+    vf_env = vf.SingleTurnEnv(
+        dataset=train_dataset,
+        system_prompt="Give your final answer inside \\boxed{{...}}.",
+        parser=parser,
+        rubric=rubric
+    )
     return vf_env
 
 
