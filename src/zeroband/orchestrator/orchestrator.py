@@ -16,9 +16,8 @@ from transformers import AutoTokenizer
 
 from zeroband.eval.utils import run_benchmark
 from zeroband.orchestrator.ckpt import CheckpointManager, Progress
+from zeroband.environments.registry import get_environment
 from zeroband.orchestrator.client import (
-from zeroband.trainer.environments.registry import get_environment
-from zeroband.trainer.orchestrator.client import (
     check_has_model,
     check_health,
     reload_weights,
@@ -179,6 +178,7 @@ async def orchestrate(config: OrchestratorConfig):
         logger.debug(f"Sending {len(problems)} inference requests")
         generate_completions_start_time = time.time()
         sampling_args = dict(config.sampling)
+        sampling_args["logprobs"] = True
 
         # sanitize for vLLM OpenAI client
         sampling_args["extra_body"] = {}
@@ -203,15 +203,18 @@ async def orchestrate(config: OrchestratorConfig):
             mask_truncated_completions=config.mask_truncated_completions,
             mask_env_responses=config.mask_env_responses,
         )
-        # TODO: use tokens from vLLM request responses
+        # TODO: use tokens/logprobs from vLLM request responses?
         # states = outputs["state"]
-        # responses = [s["responses"] for s in states]
+        # responses = [s["responses"][-1] for s in states] #s["responses"] is list of model turns
+        # completion_logprobs = [parse_logprobs(r) for r in responses]
+
         generate_completions_time = time.time() - generate_completions_start_time
 
         prompt_tokens = results["prompt_ids"]
         prompt_mask = results["prompt_mask"]
         completion_tokens = results["completion_ids"]
         completion_mask = results["completion_mask"]
+
         completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
         rewards = results["rewards"]
         # TODO: parse individiual reward functions for logging
