@@ -57,8 +57,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
     # Prepare paths to communicate with the trainer
     if config.clean:
         logger.info("Cleaning checkpoint, logs, checkpoint weights and rollout directories")
-
-        if not (config.ckpt and config.ckpt.resume_step):  # Only clean if we don't resume
+        if config.ckpt and not config.ckpt.resume_step:  # Only clean if we don't resume
             logger.debug(f"Cleaning checkpoint path ({config.ckpt.path})")
             shutil.rmtree(config.ckpt.path, ignore_errors=True)
 
