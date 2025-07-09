@@ -3,7 +3,7 @@ project = "hendrycks-math"
 
 [model]
 name = "willcb/DeepSeek-R1-Distill-Qwen-1.5B"
-reshard = true
+reshard_after_forward = true
 
 [optim]
 lr = 1e-6
