@@ -28,6 +28,7 @@ from zeroband.orchestrator.logger import setup_logger
 from zeroband.orchestrator.utils import (
     compute_advantages,
     wait_for_weight_checkpoint,
+    print_benchmark,
 )
 from zeroband.utils.monitor import setup_monitor
 from zeroband.utils.pydantic_config import parse_argv
@@ -75,10 +76,11 @@ async def orchestrate(config: OrchestratorConfig):
         await reset_weights(client)
 
     # Load environment and extract dataset
+    logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
     vf_env = get_environment(config.environment.id, config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
 
-    # load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
+    # Load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.model.name)
 
     # Iterate over dataset in batches
@@ -171,7 +173,7 @@ async def orchestrate(config: OrchestratorConfig):
         }
 
         # generate completions + rewards with verifiers
-        logger.debug(f"Sending {len(problems)} inference requests")
+        logger.info(f"Sending {len(problems)} requests to environments")
         generate_completions_start_time = time.time()
         sampling_args = dict(config.sampling)
         sampling_args["logprobs"] = True
