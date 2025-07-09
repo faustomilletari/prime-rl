@@ -52,7 +52,7 @@ class RLConfig(BaseSettings):
 
     log: LogConfig = LogConfig()
 
-    train_gpus: Annotated[int, Field(description="The number of GPUs to use for training.")] = 1
+    trainer_gpus: Annotated[int, Field(description="The number of GPUs to use for trainer.")] = 1
     inference_gpus: Annotated[int, Field(description="The number of GPUs to use for inference.")] = 1
 
     clean: Annotated[
@@ -65,9 +65,9 @@ class RLConfig(BaseSettings):
     @model_validator(mode="after")
     def validate_device(self):
         available_gpus = torch.cuda.device_count()
-        if self.train_gpus + self.inference_gpus > available_gpus:
+        if self.trainer_gpus + self.inference_gpus > available_gpus:
             raise ValueError(
-                f"Total number of GPUs ({self.train_gpus + self.inference_gpus}) exceeds available GPUs ({available_gpus})"
+                f"Total number of GPUs ({self.trainer_gpus + self.inference_gpus}) exceeds available GPUs ({available_gpus})"
             )
         if self.inference and self.inference_gpus != self.inference.parallel.dp * self.inference.parallel.tp:
             raise ValueError(
@@ -98,7 +98,7 @@ class RLConfig(BaseSettings):
             if self.trainer.monitor.wandb.group:
                 self.orchestrator.monitor.wandb.group = self.trainer.monitor.wandb.group
 
-                self.trainer.monitor.wandb.name = f"{self.trainer.monitor.wandb.group}-train"
+                self.trainer.monitor.wandb.name = f"{self.trainer.monitor.wandb.group}-trainer"
                 self.orchestrator.monitor.wandb.name = f"{self.trainer.monitor.wandb.group}-orchestrator"
         return self
 
@@ -247,7 +247,7 @@ def rl(config: RLConfig):
     monitor_threads: list[Thread] = []
     error_queue: list[Exception] = []
     stop_events: dict[str, Event] = {}
-    all_gpus = list(range(config.train_gpus + config.inference_gpus))
+    all_gpus = list(range(config.trainer_gpus + config.inference_gpus))
 
     try:
         # Optionally, start inference process
@@ -325,39 +325,39 @@ def rl(config: RLConfig):
         monitor_threads.append(monitor_thread)
 
         # Start training process
-        train_file = get_temp_toml_file()
-        with open(train_file, "wb") as f:
+        trainer_file = get_temp_toml_file()
+        with open(trainer_file, "wb") as f:
             tomli_w.dump(config.trainer.model_dump(exclude_none=True, mode="json"), f)
 
-        training_cmd = [
+        trainer_cmd = [
             "uv",
             "run",
             "torchrun",
             "--nproc-per-node",
-            str(config.train_gpus),
+            str(config.trainer_gpus),
             "src/zeroband/trainer/train.py",
             "@",
-            train_file.as_posix(),
+            trainer_file.as_posix(),
         ]
-        train_gpu_ids = all_gpus[config.inference_gpus :]
-        logger.info(f"Starting training process on GPUs {' '.join(map(str, train_gpu_ids))}")
-        logger.debug(f"Training start command: {' '.join(training_cmd)}")
+        trainer_gpu_ids = all_gpus[config.inference_gpus :]
+        logger.info(f"Starting trainer process on GPUs {' '.join(map(str, trainer_gpu_ids))}")
+        logger.debug(f"Trainer start command: {' '.join(trainer_cmd)}")
         with (
-            open(config.log.path.parent / "training.stderr", "w") as stderr_file,
+            open(config.log.path.parent / "trainer.stderr", "w") as stderr_file,
         ):
-            training_process = Popen(
-                training_cmd,
-                env={**os.environ, "CUDA_VISIBLE_DEVICES": ",".join(map(str, train_gpu_ids))},
-                stdout=None,  # Stream trainer logs to RL
+            trainer_process = subprocess.Popen(
+                trainer_cmd,
+                env={**os.environ, "CUDA_VISIBLE_DEVICES": ",".join(map(str, trainer_gpu_ids))},
+                stdout=None,  # Show trainer stdout
                 stderr=stderr_file,
             )
-        processes.append(training_process)
+        processes.append(trainer_process)
 
         # Start monitoring thread
         stop_event = Event()
-        stop_events["training"] = stop_event
+        stop_events["trainer"] = stop_event
         monitor_thread = Thread(
-            target=monitor_process, args=(training_process, stop_event, error_queue, "training"), daemon=True
+            target=monitor_process, args=(trainer_process, stop_event, error_queue, "trainer"), daemon=True
         )
         monitor_thread.start()
         monitor_threads.append(monitor_thread)
@@ -366,7 +366,7 @@ def rl(config: RLConfig):
         logger.info("Waiting for training to complete...")
 
         # Check for errors from monitor threads
-        while not (stop_events["orchestrator"].is_set() and stop_events["training"].is_set()):
+        while not (stop_events["orchestrator"].is_set() and stop_events["trainer"].is_set()):
             if error_queue:
                 error = error_queue[0]
                 logger.error(f"Error in subprocess: {error}")
