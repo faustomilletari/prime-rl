@@ -57,8 +57,8 @@ async def run_benchmark(
         )
 
     # Format prompts
-    prompts = [item["prompt"] for item in dataset] * sampling_config.n
-    problem_ids = list(range(len(dataset))) * sampling_config.n
+    prompts = [item["prompt"] for item in dataset]  # TODO: Multiply by samples_per_prompt
+    problem_ids = list(range(len(dataset)))  # TODO: Multiply by samples_per_prompt
     batch_messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
     load_data_time = time.time() - load_data_start_time
     logger.debug(f"Loaded dataset in {load_data_time:.2f}s")
