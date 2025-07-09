@@ -10,3 +10,7 @@ id = "hendrycks-math"
 [monitor.wandb.log_samples]
 interval = 10
 num_samples = 16
+
+[eval]
+interval = 50
+benchmarks = ["math500"]

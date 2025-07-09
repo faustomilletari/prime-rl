@@ -139,7 +139,7 @@ On two GPUs, run the following command to run the experiment.
 
 ```bash
 uv run rl \
-  --trainer @ configs/trainer/hendrycks_math.toml \
+  --trainer @ configs/trainer/hendrycks_math/1b.toml \
   --orchestrator @ configs/orchestrator/hendrycks_math.toml \
   --inference @ configs/inference/hendrycks_math/1b.toml \
   --inference.parallel.dp 1
@@ -151,9 +151,9 @@ Train a small model (`willcb/DeepSeek-R1-Distill-Qwen-1.5B`) on complex math que
 
 ```bash
 uv run rl \
-  --trainer @ configs/trainer/intellect_math.toml \
+  --trainer @ configs/trainer/intellect_math/1b.toml \
   --orchestrator @ configs/orchestrator/intellect_math.toml \
-  --inference @ configs/inference/intellect_math.toml 
+  --inference @ configs/inference/intellect_math/1b.toml 
 ```
 
 *NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference with TP=2 and DP=3.*
