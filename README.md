@@ -74,6 +74,7 @@ uv run trainer @ configs/trainer/debug.toml
 ```bash
 uv run inference @ configs/inference/debug.toml
 ```
+
 ```bash
 uv run orchestrator @ configs/orchestrator/debug.toml
 ```
@@ -130,21 +131,32 @@ uv run rl \
 
 *With two small GPUs (e.g. RTX 3090/ 4090), this experiment should finish in less than 5 minutes.*
 
-**Simple Math**
+**Hendrycks Math**
 
-Train a small model (`deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`) on high-school level math questions. It is recommended to have at least 2xA100-80GB GPUs or more for this experiment.
+Train a small model (`willcb/DeepSeek-R1-Distill-Qwen-1.5B`) on high-school level math questions. It is recommended to have at least 2xA100-80GB GPUs or more for this experiment.
 
 On two GPUs, run the following command to run the experiment.
 
 ```bash
 uv run rl \
-  --trainer @ configs/trainer/simple_math.toml \
-  --orchestrator @ configs/orchestrator/simple_math.toml \
-  --inference @ configs/inference/simple_math.toml \
+  --trainer @ configs/trainer/hendrycks_math.toml \
+  --orchestrator @ configs/orchestrator/hendrycks_math.toml \
+  --inference @ configs/inference/hendrycks_math.toml \
   --inference.parallel.dp 1
 ```
 
-*NB: If you have more GPUs available, the best way to speed up the run is to increase the DP size of the inference worker, i.e. adjusting the `--parallel.dp` argument. The default config is designed for a 8 GPU setup*
+**INTELLECT-2 Math**
+
+Train a small model (`willcb/DeepSeek-R1-Distill-Qwen-1.5B`) on complex math questions from the INTELLECT-2 dataset.
+
+```bash
+uv run rl \
+  --trainer @ configs/trainer/intellect_math.toml \
+  --orchestrator @ configs/orchestrator/intellect_math.toml \
+  --inference @ configs/inference/intellect_math.toml 
+```
+
+*NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference with TP=2 and DP=3.*
 
 ### Evals
 
