@@ -169,9 +169,9 @@ async def orchestrate(config: OrchestratorConfig):
         # prepare inputs for verifiers generation
         inputs = {
             "prompt": [problem["prompt"] for problem in problems],
-            "info": [problem["info"] for problem in problems],
+            "info": [problem.get("info", {}) for problem in problems],
             "task": [problem["task"] for problem in problems],
-            "answer": [problem["answer"] for problem in problems],
+            "answer": [problem.get("answer", "") for problem in problems],
         }
 
         # generate completions + rewards with verifiers
