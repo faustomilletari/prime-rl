@@ -4,12 +4,12 @@ import subprocess
 import sys
 import time
 import warnings
-from itertools import chain
 from pathlib import Path
 from subprocess import Popen
 from threading import Event, Thread
 from typing import Annotated
 
+import tomli_w
 import torch
 from loguru import logger as loguru_logger
 from loguru._logger import Logger
@@ -20,7 +20,7 @@ from zeroband.orchestrator.config import OrchestratorConfig
 from zeroband.trainer.config import CheckpointConfig, TrainerConfig
 from zeroband.utils.config import WandbMonitorConfig
 from zeroband.utils.logger import format_message, format_time, get_logger, set_logger, setup_handlers
-from zeroband.utils.pydantic_config import BaseSettings, parse_argv
+from zeroband.utils.pydantic_config import BaseSettings, get_temp_toml_file, parse_argv
 
 
 class LogConfig(BaseSettings):
@@ -209,22 +209,6 @@ def monitor_process(process: Popen, stop_event: Event, error_queue: list, proces
         stop_event.set()
 
 
-def to_cli(prefix, d):
-    for k, v in d.items():
-        path = f"{prefix}.{k}" if prefix else k
-        if isinstance(v, dict):
-            yield from to_cli(path, v)
-        else:
-            if isinstance(v, bool):
-                if v:
-                    yield (f"--{path}",)
-            elif isinstance(v, list):
-                for item in v:
-                    yield f"--{path}", str(item)
-            else:
-                yield f"--{path}", str(v)
-
-
 def rl(config: RLConfig):
     # Setup logger
     logger = setup_logger(config.log)
@@ -265,8 +249,11 @@ def rl(config: RLConfig):
     try:
         # Optionally, start inference process
         if config.inference:
-            inference_args = list(chain.from_iterable(to_cli("", config.inference.model_dump())))
-            inference_cmd = ["uv", "run", "inference", *inference_args]
+            inference_file = get_temp_toml_file()
+            with open(inference_file, "wb") as f:
+                tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
+
+            inference_cmd = ["uv", "run", "inference", "@", inference_file.as_posix()]
             inference_gpu_ids = all_gpus[: config.inference_gpus]
             logger.info(f"Starting inference process on GPUs {' '.join(map(str, inference_gpu_ids))}")
             logger.debug(f"Inference start command: {' '.join(inference_cmd)}")
@@ -296,12 +283,16 @@ def rl(config: RLConfig):
             )
 
         # Start orchestrator process
-        orchestrator_args = list(chain.from_iterable(to_cli("", config.orchestrator.model_dump())))
+        orchestrator_file = get_temp_toml_file()
+        with open(orchestrator_file, "wb") as f:
+            tomli_w.dump(config.orchestrator.model_dump(exclude_none=True, mode="json"), f)
+
         orchestrator_cmd = [
             "uv",
             "run",
             "orchestrator",
-            *orchestrator_args,
+            "@",
+            orchestrator_file.as_posix(),
         ]
         logger.info("Starting orchestrator process")
         logger.debug(f"Orchestrator start command: {' '.join(orchestrator_cmd)}")
@@ -325,7 +316,10 @@ def rl(config: RLConfig):
         monitor_threads.append(monitor_thread)
 
         # Start training process
-        train_args = list(chain.from_iterable(to_cli("", config.trainer.model_dump())))
+        train_file = get_temp_toml_file()
+        with open(train_file, "wb") as f:
+            tomli_w.dump(config.trainer.model_dump(exclude_none=True, mode="json"), f)
+
         training_cmd = [
             "uv",
             "run",
@@ -333,7 +327,8 @@ def rl(config: RLConfig):
             "--nproc-per-node",
             str(config.train_gpus),
             "src/zeroband/trainer/train.py",
-            *train_args,
+            "@",
+            train_file.as_posix(),
         ]
         train_gpu_ids = all_gpus[config.inference_gpus :]
         logger.info(f"Starting training process on GPUs {' '.join(map(str, train_gpu_ids))}")
