@@ -218,6 +218,9 @@ def to_cli(prefix, d):
             if isinstance(v, bool):
                 if v:
                     yield (f"--{path}",)
+            elif isinstance(v, list):
+                for item in v:
+                    yield f"--{path}", str(item)
             else:
                 yield f"--{path}", str(v)
 
