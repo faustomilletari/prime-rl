@@ -190,25 +190,22 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             and config.eval.interval
             and ckpt_step % config.eval.interval == 0
             and ckpt_step > last_eval_step
+            and (ckpt_step == 0 and config.eval.eval_base_model or ckpt_step > 0)
         ):
-            # Only evaluate on step 0 if eval_base_model is set
-            if ckpt_step == 0 and not config.eval.eval_base_model:
-                pass
-            else:
-                last_eval_step = ckpt_step
-                logger.info(f"Running evals for checkpoint step {ckpt_step}")
-                time_before_evals = time.time()
-                for benchmark in config.eval.benchmarks:
-                    await run_benchmark(
-                        client,
-                        benchmark,
-                        config.model,
-                        config.sampling,
-                        ckpt_step,
-                        monitor=monitor,
-                    )
-                time_eval = time.time() - time_before_evals
-                logger.info(f"Evaluated in {time_eval:.2f}s")
+            last_eval_step = ckpt_step
+            logger.info(f"Running evals for checkpoint step {ckpt_step}")
+            time_before_evals = time.time()
+            for benchmark in config.eval.benchmarks:
+                await run_benchmark(
+                    client,
+                    benchmark,
+                    config.model,
+                    config.sampling,
+                    ckpt_step,
+                    monitor=monitor,
+                )
+            time_eval = time.time() - time_before_evals
+            logger.info(f"Evaluated in {time_eval:.2f}s")
 
         # Get the completions for the batch
         # TODO: Integrate with async (multi-turn) rollout function from verifiers
