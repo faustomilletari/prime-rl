@@ -15,6 +15,6 @@ def get_all_toml_files(directory) -> list[str]:
 
 @pytest.mark.parametrize("config_file", get_all_toml_files("configs/orchestrator"))
 def test_load_orchestrator_configs(config_file: str):
-    sys.argv = ["orchestrator.py", "@" + config_file]
+    sys.argv = ["orchestrator.py", "@", config_file]
     config = parse_argv(OrchestratorConfig)
     assert config is not None

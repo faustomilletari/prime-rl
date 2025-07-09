@@ -15,6 +15,6 @@ def get_all_toml_files(directory) -> list[str]:
 
 @pytest.mark.parametrize("config_file", get_all_toml_files("configs/trainer"))
 def test_load_train_configs(config_file: str):
-    sys.argv = ["train.py", "@" + config_file]
+    sys.argv = ["train.py", "@", config_file]
     config = parse_argv(TrainerConfig)
     assert config is not None
