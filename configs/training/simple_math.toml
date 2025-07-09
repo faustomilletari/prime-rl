@@ -1,8 +1,9 @@
 [monitor.wandb]
-project = "math-debug"
+project = "math-debug-wb"
+group = "math-debug-wb"
 
 [model]
-name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+name = "willcb/DeepSeek-R1-Distill-Qwen-1.5B"
 reshard = true
 
 [optim]
