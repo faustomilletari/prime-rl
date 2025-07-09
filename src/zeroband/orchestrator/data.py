@@ -41,7 +41,6 @@ def prepare_sample(
     input_ids = torch.cat([prompt_token_ids, completion_token_ids]).long()
 
     loss_mask = torch.cat([prompt_token_mask, completion_token_mask]).long()
-    # loss_mask = torch.cat([torch.zeros(len(prompt_tokens)), torch.ones(len(completion_tokens))]).long()
     total_tokens = input_ids.shape[0]
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids) - 1), torch.tensor(completion_logprobs)]).float()
     position_ids = torch.arange(total_tokens).long()
