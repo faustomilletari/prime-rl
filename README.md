@@ -141,7 +141,7 @@ On two GPUs, run the following command to run the experiment.
 uv run rl \
   --trainer @ configs/trainer/hendrycks_math.toml \
   --orchestrator @ configs/orchestrator/hendrycks_math.toml \
-  --inference @ configs/inference/hendrycks_math.toml \
+  --inference @ configs/inference/hendrycks_math/1b.toml \
   --inference.parallel.dp 1
 ```
 
