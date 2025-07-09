@@ -85,7 +85,6 @@ async def orchestrate(config: OrchestratorConfig):
     max_steps = config.max_steps or int(1e9)
     steps_per_epoch = len(dataset) // (config.batch_size // config.rollouts_per_prompt)
     logger.info(f"Starting orchestrator loop ({max_steps=}, {steps_per_epoch=})")
-    total_tokens, total_samples = 0, 0
     ckpt_step = 0
     last_eval_step = -1
     while True:
@@ -226,7 +225,7 @@ async def orchestrate(config: OrchestratorConfig):
 
         progress.total_tokens += num_tokens
         progress.total_samples += config.batch_size
-        progress.total_problems += config.batch_size // config.sampling.n
+        progress.total_problems += config.batch_size // config.rollouts_per_prompt
         throughput = num_tokens / (generate_completions_time)
         avg_seq_length = num_tokens / config.batch_size
 
