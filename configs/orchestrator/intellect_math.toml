@@ -15,7 +15,6 @@ max_solve_rate = 0.9
 interval = 50
 num_samples = 16
 
-# TODO: Bring back vf-based evals
-# [eval]
-# interval = 50
-# benchmarks = ["math500"]
+[eval]
+interval = 50
+benchmarks = ["math500"]
