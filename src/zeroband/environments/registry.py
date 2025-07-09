@@ -42,16 +42,29 @@ Provide the final numerical answer inside \\boxed{{...}}."""
 
 
 def load_reverse_environment(env_args: dict = {}) -> Environment:
-    train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
+    import json
+    import re
+
+    # train_dataset = load_dataset("agentlans/wikipedia-paragraphs", split="train").map(
+    #    lambda x: {
+    #        "question": "Reverse the text in quotation marks character-by-character: "
+    #        + x["text"][:50].strip()
+    #        + "\n\nPut your final answer in <answer>...</answer> tags.",
+    #        "answer": x["text"][:50][::-1].strip(),
+    #        "info": {},
+    #        "task": "reverse-text",
+    #    }
+    # )
+    train_dataset = load_dataset("mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train").map(
         lambda x: {
-            "question": "Reverse the text in quotation marks character-by-character: "
-            + x["text"][:50].strip()
-            + "\n\nPut your final answer in <answer>...</answer> tags.",
-            "answer": x["text"][:50][::-1].strip(),
+            "question": x["prompt"],
+            "answer": json.loads(x["verification_info"])["ground_truth"],
             "info": {},
-            "task": "reverse-text",
+            "task": x["task_type"],
         }
     )
+    train_dataset = train_dataset.remove_columns(["prompt", "verification_info", "task_type"])
+
     parser = vf.XMLParser(["answer"], answer_field="answer")
 
     def lcs_reward_func(completion, answer, **kwargs) -> float:
@@ -67,7 +80,10 @@ def load_reverse_environment(env_args: dict = {}) -> Environment:
 
             return SequenceMatcher(None, x, y).ratio()
 
-        response = parser.parse_answer(completion) or ""
+        answer_text = re.search(r"<answer>(.*?)</answer>", completion[-1]["content"], re.DOTALL)
+        if not answer_text:
+            return 0
+        response = answer_text.group(1).strip()
         return lcs_ratio(response, answer)
 
     rubric = vf.Rubric(

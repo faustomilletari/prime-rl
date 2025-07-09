@@ -14,6 +14,8 @@ micro_batch_size = 16
 rollouts_per_prompt = 16
 seq_len = 128
 max_steps = 30
+mask_truncated_completions = false
+mask_env_responses = true
 
 [orchestrator.model]
 name = "willcb/Qwen2.5-0.5B-Reverse-SFT"
