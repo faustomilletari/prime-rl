@@ -5,7 +5,7 @@ seq_len = 2048
 mask_truncated_completions = false
 
 [environment]
-id = "simple-math"
+id = "hendrycks-math"
 
 [monitor.wandb.log_samples]
 interval = 10
