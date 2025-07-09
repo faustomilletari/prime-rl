@@ -93,7 +93,7 @@ uv run rl \
 
 ## Entrypoints
 
-We provide a convenience endpoint `rl` for single-node RL experiments. It configures and startsthe trainer, orchestrator and, optionally, an inference server. It enforces correctly setting shared configs (e.g. the model name or async level should be the same across all modules) and dispatches and monitors subprocesses. To stream the logs from each module, we use file logging which can be automatically viewed from a `tmux` layout defined in `.tmuxinator.yaml`. The recommended workflow is:
+We provide a convenience endpoint `rl` for single-node RL experiments. It configures and starts the trainer, orchestrator and, optionally, an inference server. It enforces correctly setting shared configs (e.g. the model name or async level should be the same across all modules) and dispatches and monitors subprocesses. To stream the logs from each module, we use file logging which can be automatically viewed from a `tmux` layout defined in `.tmuxinator.yaml`. The recommended workflow is:
 
 1. Start a pre-layouted `tmux` session using `tmuxinator`
 
@@ -107,7 +107,7 @@ tmuxinator
 uv run inference @ configs/inference/reverse_text.toml
 ```
 
-3. Start the trainer and orcheestrator in the `RL` pane.
+3. Start the trainer and orchestrator in the `RL` pane.
 
 ```bash
 uv run rl \
