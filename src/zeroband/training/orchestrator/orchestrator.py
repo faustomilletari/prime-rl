@@ -184,6 +184,7 @@ async def orchestrate(config: OrchestratorConfig, setup_queue: Queue | None = No
             logger.debug(f"Reloaded weights in {reload_weights_time:.2f}s")
 
         # Optionally, run online evals at the specified interval
+        time_eval = 0
         if (
             config.eval
             and config.eval.interval
