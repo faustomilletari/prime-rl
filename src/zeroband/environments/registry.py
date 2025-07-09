@@ -44,47 +44,46 @@ Provide the final numerical answer inside \\boxed{{...}}."""
 def load_simple_math_environment(env_args: dict = {}) -> Environment:
     import json
 
-    def get_valid_answers(x: dict) -> list[str]:
-        one_or_more_answers = json.loads(x["verification_info"])["ground_truth"]
-        if isinstance(one_or_more_answers, str):
-            return [one_or_more_answers]
-        elif isinstance(one_or_more_answers, list):
-            return one_or_more_answers
-        else:
-            print("Invalid answer format:", one_or_more_answers)
-            return []
-            # raise ValueError(f"Invalid answer format: {one_or_more_answers}")
-
+    # def get_valid_answers(x: dict) -> list[str]:
+    #     one_or_more_answers = json.loads(x["verification_info"])["ground_truth"]
+    #     if isinstance(one_or_more_answers, str):
+    #         return [one_or_more_answers]
+    #     elif isinstance(one_or_more_answers, list):
+    #         return one_or_more_answers
+    #     else:
+    #         print("Invalid answer format:", one_or_more_answers)
+    #         return []
+    #         # raise ValueError(f"Invalid answer format: {one_or_more_answers}")
     train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
-        lambda x: {"question": x["prompt"], "info": {"answers": get_valid_answers(x)}, "task": "simple-math"}
+        lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
     )
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
     from verifiers.utils.data_utils import extract_boxed_answer
 
     parser = vf.ThinkParser(extract_fn=extract_boxed_answer)
-    from zeroband.training.orchestrator.genesys.math_utils import grade_answer_mathd, grade_answer_sympy
-
-    def grade_answer(response: str, answers: list[str]) -> float:
-        for answer in answers:
-            if grade_answer_mathd(response, answer) or grade_answer_sympy(response, answer):
-                return 1.0
-        return 0.0
+    from zeroband.training.orchestrator.genesys.math import compute_math_reward
+    # def grade_answer(response: str, answers: list[str]) -> float:
+    #     for answer in answers:
+    #         answer_str = str(answer)
+    #         if '\\boxed' in answer_str:
+    #             answer_str = extract_boxed_answer(answer_str)
+    #         if grade_answer_mathd(response, answer_str) or grade_answer_sympy(response, answer_str):
+    #             return 1.0
+    #     return 0.0
 
     def correct_answer_reward_func(completion, info, **kwargs) -> float:
         completion_text = completion[-1]['content']
-        if '<think>' not in completion_text:
-            print("WARNING: No <think> tag found in completion")
-            return 0.0
-        if '</think>' not in completion_text:
-            return 0.0
-        response = parser.parse_answer(completion)
-        if response is None:
-            #print("WARNING: No response found in completion")
-            return 0.0
-        #print(response, info["answers"])
-        is_correct = [grade_answer(response, answer) for answer in info["answers"]]
-        return max(is_correct)
+        # if '<think>' not in completion_text:
+        #     return 0.0
+        # if '</think>' not in completion_text:
+        #     return 0.0
+        # response = parser.parse_answer(completion)
+        # if response is None:
+        #     return 0.0
+        # is_correct = [grade_answer(response, answer) for answer in info["answers"]]
+        # return max(is_correct)
+        return compute_math_reward(completion_text, info)
 
     rubric = vf.Rubric(
         funcs=[
@@ -94,7 +93,7 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
     )
     vf_env = vf.SingleTurnEnv(
         dataset=train_dataset,
-        system_prompt="Give your final answer inside \\boxed{{...}}.",
+        #system_prompt="Give your final answer inside \\boxed{{...}}.",
         parser=parser,
         rubric=rubric
     )
