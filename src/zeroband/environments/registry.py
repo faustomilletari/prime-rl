@@ -51,7 +51,9 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
         elif isinstance(one_or_more_answers, list):
             return one_or_more_answers
         else:
-            raise ValueError(f"Invalid answer format: {one_or_more_answers}")
+            print("Invalid answer format:", one_or_more_answers)
+            return []
+            # raise ValueError(f"Invalid answer format: {one_or_more_answers}")
 
     train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
         lambda x: {"question": x["prompt"], "info": {"answers": get_valid_answers(x)}, "task": "simple-math"}
@@ -61,7 +63,7 @@ def load_simple_math_environment(env_args: dict = {}) -> Environment:
     from verifiers.utils.data_utils import extract_boxed_answer
 
     parser = vf.ThinkParser()
-    from src.zeroband.training.orchestrator.genesys.math_utils import grade_answer_mathd, grade_answer_sympy
+    from zeroband.training.orchestrator.genesys.math_utils import grade_answer_mathd, grade_answer_sympy
 
     def grade_answer(response: str, answers: list[str]) -> float:
         for answer in answers:
@@ -148,6 +150,7 @@ def load_reverse_environment(env_args: dict = {}) -> Environment:
 REGISTRY = {
     "gsm8k": load_gsm8k_environment,
     "reverse-text": load_reverse_environment,
+    "simple-math": load_simple_math_environment,
 }
 
 
