@@ -18,6 +18,7 @@ from zeroband.eval.utils import run_benchmark
 from zeroband.orchestrator.ckpt import CheckpointManager, Progress
 from zeroband.environments.registry import get_environment
 from zeroband.orchestrator.client import (
+    tokenize,
     check_has_model,
     check_health,
     reload_weights,
@@ -28,6 +29,7 @@ from zeroband.orchestrator.config import OrchestratorConfig
 from zeroband.orchestrator.data import prepare_batch
 from zeroband.orchestrator.logger import setup_logger
 from zeroband.orchestrator.utils import (
+    process_env_results,
     compute_advantages,
     wait_for_weight_checkpoint,
     print_benchmark,
@@ -182,7 +184,7 @@ async def orchestrate(config: OrchestratorConfig):
         sampling_args["logprobs"] = True
 
         # sanitize for vLLM OpenAI client
-        sampling_args["extra_body"] = {}
+        sampling_args["extra_body"] = {"return_tokens_as_token_ids": True}
         if "top_k" in sampling_args:
             sampling_args["extra_body"]["top_k"] = sampling_args.pop("top_k")
         if "min_p" in sampling_args:
@@ -193,32 +195,18 @@ async def orchestrate(config: OrchestratorConfig):
         outputs = await vf_env.a_generate(
             inputs=inputs, client=client, model=config.model.name, sampling_args=sampling_args
         )
-
-        results = vf_env.process_env_results(
-            prompts=outputs["prompt"],
-            completions=outputs["completion"],
-            states=outputs["state"],
-            rewards=outputs["reward"],
-            processing_class=tokenizer,
-            max_seq_length=config.seq_len or -1,
-            mask_truncated_completions=config.mask_truncated_completions,
-            mask_env_responses=config.mask_env_responses,
-        )
-        # TODO: use tokens/logprobs from vLLM request responses?
-        # states = outputs["state"]
-        # responses = [s["responses"][-1] for s in states] #s["responses"] is list of model turns
-        # completion_logprobs = [parse_logprobs(r) for r in responses]
-
         generate_completions_time = time.time() - generate_completions_start_time
 
-        prompt_tokens = results["prompt_ids"]
-        prompt_mask = results["prompt_mask"]
-        completion_tokens = results["completion_ids"]
-        completion_mask = results["completion_mask"]
+        # TODO: Switch parsing prompt+completion tokens/ masks to vf_env.process_env_results once it supports parsing directly from vLLM. For now, this only works for single-turn output results
+        results = await process_env_results(outputs, client=client, config=config)
+        prompt_tokens = results["prompt_tokens"]
+        completion_tokens = results["completion_tokens"]
+        completion_logprobs = results["completion_logprobs"]
+        prompt_masks = results["prompt_masks"]
+        completion_masks = results["completion_masks"]
+        rewards = outputs["reward"]  # TODO: Align naming between prime-rl <> verifiers
 
-        completion_logprobs = [[0.0] * len(completion_tokens[i]) for i in range(len(completion_tokens))]
-        rewards = results["rewards"]
-        # TODO: parse individiual reward functions for logging
+        # Compute advantages
         advantages = compute_advantages(rewards, config.rollouts_per_prompt)
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
@@ -246,12 +234,12 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Write serialized batch to disk for trainer workers to consume
         all_data_ranks_batches = prepare_batch(
-            prompt_tokens=prompt_tokens,
-            prompt_mask=prompt_mask,
-            completion_tokens=completion_tokens,
-            completion_mask=completion_mask,
-            completion_logprobs=completion_logprobs,
-            advantages=advantages,
+            prompt_tokens,
+            prompt_masks,
+            completion_tokens,
+            completion_masks,
+            completion_logprobs,
+            advantages,
             temperature=config.sampling.temperature,
             tokenizer=tokenizer,
             batch_size=config.batch_size,
