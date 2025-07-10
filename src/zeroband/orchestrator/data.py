@@ -62,7 +62,9 @@ def prepare_sample(
         logprobs = torch.cat([logprobs, torch.zeros(num_padding_tokens)]).float()
         advantages = torch.cat([advantages, torch.zeros(num_padding_tokens)]).float()
 
-    assert len(input_ids) == len(advantages) == len(loss_mask) == len(position_ids) == len(logprobs) + 1
+    assert len(input_ids) == len(advantages) == len(loss_mask) == len(position_ids) == len(logprobs) + 1, (
+        f"input_ids: {len(input_ids)}, advantages: {len(advantages)}, loss_mask: {len(loss_mask)}, position_ids: {len(position_ids)}, logprobs: {len(logprobs)}"
+    )
     return {
         "input_ids": input_ids,
         "advantages": advantages,
@@ -87,9 +89,9 @@ def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
 
 def prepare_batch_padding(
     prompt_tokens: list[list[int]],
-    prompt_mask: list[list[int]],
+    prompt_masks: list[list[int]],
     completion_tokens: list[list[int]],
-    completion_mask: list[list[int]],
+    completion_masks: list[list[int]],
     completion_logprobs: list[list[float]],
     advantages: list[float],
     temperature: float,
@@ -100,9 +102,9 @@ def prepare_batch_padding(
     num_train_workers: int,
 ) -> list[list[MicroBatch]]:
     prompt_tokens = copy.deepcopy(prompt_tokens)
-    prompt_mask = copy.deepcopy(prompt_mask)
+    prompt_masks = copy.deepcopy(prompt_masks)
     completion_tokens = copy.deepcopy(completion_tokens)
-    completion_mask = copy.deepcopy(completion_mask)
+    completion_masks = copy.deepcopy(completion_masks)
     completion_logprobs = copy.deepcopy(completion_logprobs)
     advantages = copy.deepcopy(advantages)
 
@@ -112,9 +114,9 @@ def prepare_batch_padding(
     """
     assert (
         len(prompt_tokens)
-        == len(prompt_mask)
+        == len(prompt_masks)
         == len(completion_tokens)
-        == len(completion_mask)
+        == len(completion_masks)
         == len(completion_logprobs)
         == len(advantages)
     ), (
@@ -133,9 +135,9 @@ def prepare_batch_padding(
             for _ in range(micro_batch_size):
                 sample = prepare_sample(
                     prompt_tokens.pop(),
-                    prompt_mask.pop(),
+                    prompt_masks.pop(),
                     completion_tokens.pop(),
-                    completion_mask.pop(),
+                    completion_masks.pop(),
                     completion_logprobs.pop(),
                     advantages.pop(),
                     seq_len,
@@ -200,9 +202,9 @@ def prepare_micro_batch_packing(samples: list[Sample], max_seq_len: int, tempera
 
 def prepare_batch_packing(
     prompt_tokens: list[list[int]],
-    prompt_mask: list[list[int]],
+    prompt_masks: list[list[int]],
     completion_tokens: list[list[int]],
-    completion_mask: list[list[int]],
+    completion_masks: list[list[int]],
     completion_logprobs: list[list[float]],
     advantages: list[float],
     temperature: float,
@@ -213,9 +215,9 @@ def prepare_batch_packing(
     num_train_workers: int,
 ) -> list[list[MicroBatch]]:
     prompt_tokens = copy.deepcopy(prompt_tokens)
-    prompt_mask = copy.deepcopy(prompt_mask)
+    prompt_masks = copy.deepcopy(prompt_masks)
     completion_tokens = copy.deepcopy(completion_tokens)
-    completion_mask = copy.deepcopy(completion_mask)
+    completion_masks = copy.deepcopy(completion_masks)
     completion_logprobs = copy.deepcopy(completion_logprobs)
     advantages = copy.deepcopy(advantages)
 
@@ -225,9 +227,9 @@ def prepare_batch_packing(
     """
     assert (
         len(prompt_tokens)
-        == len(prompt_mask)
+        == len(prompt_masks)
         == len(completion_tokens)
-        == len(completion_mask)
+        == len(completion_masks)
         == len(completion_logprobs)
         == len(advantages)
     ), (
@@ -249,7 +251,7 @@ def prepare_batch_packing(
             pad=False,
         )
         for prompt_token, prompt_mask, completion_token, completion_mask, completion_logprob, advantage in zip(
-            prompt_tokens, prompt_mask, completion_tokens, completion_mask, completion_logprobs, advantages
+            prompt_tokens, prompt_masks, completion_tokens, completion_masks, completion_logprobs, advantages
         )
     ]
 
@@ -284,9 +286,9 @@ def prepare_batch_packing(
 
 def prepare_batch(
     prompt_tokens: list[list[int]],
-    prompt_mask: list[list[int]],
+    prompt_masks: list[list[int]],
     completion_tokens: list[list[int]],
-    completion_mask: list[list[int]],
+    completion_masks: list[list[int]],
     completion_logprobs: list[list[float]],
     advantages: list[float],
     temperature: float,
@@ -304,9 +306,9 @@ def prepare_batch(
         case "padding":
             return prepare_batch_padding(
                 prompt_tokens,
-                prompt_mask,
+                prompt_masks,
                 completion_tokens,
-                completion_mask,
+                completion_masks,
                 completion_logprobs,
                 advantages,
                 temperature,
@@ -319,9 +321,9 @@ def prepare_batch(
         case "packing":
             return prepare_batch_packing(
                 prompt_tokens,
-                prompt_mask,
+                prompt_masks,
                 completion_tokens,
-                completion_mask,
+                completion_masks,
                 completion_logprobs,
                 advantages,
                 temperature,
