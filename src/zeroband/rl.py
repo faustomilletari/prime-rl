@@ -343,7 +343,7 @@ def rl(config: RLConfig):
         logger.info(f"Starting trainer process on GPUs {' '.join(map(str, trainer_gpu_ids))}")
         logger.debug(f"Trainer start command: {' '.join(trainer_cmd)}")
         with (
-            open(config.log.path.parent / "trainer.stderr", "w") as stderr_file,
+            open(config.log.path.parent / "trainer.logs", "w") as stderr_file,
         ):
             trainer_process = subprocess.Popen(
                 trainer_cmd,
