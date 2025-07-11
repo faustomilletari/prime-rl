@@ -51,12 +51,13 @@ def load_intellect_math_environment(env_args: dict = {}) -> Environment:
     train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
         lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
     )
-    solve_rate_field = env_args.get("solve_rate_field", "solve_rate_qwen_r1_distill_7b")
-    min_solve_rate = env_args.get("min_solve_rate", 0.4)
-    max_solve_rate = env_args.get("max_solve_rate", 0.9)
-    train_dataset = train_dataset.filter(
-        lambda x: x[solve_rate_field] >= min_solve_rate and x[solve_rate_field] <= max_solve_rate
-    )
+    solve_rate_field = env_args.get("solve_rate_field", None)
+    if not solve_rate_field:
+        min_solve_rate = env_args["min_solve_rate"]
+        max_solve_rate = env_args["max_solve_rate"]
+        train_dataset = train_dataset.filter(
+            lambda x: x[solve_rate_field] >= min_solve_rate and x[solve_rate_field] <= max_solve_rate
+        )
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
     parser = vf.ThinkParser(extract_fn=extract_boxed_answer)
