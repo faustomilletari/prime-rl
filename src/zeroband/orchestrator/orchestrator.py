@@ -84,8 +84,6 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info("Training from scratch. Resetting weights to base model")
         await reset_weights(client)
 
-    raise
-
     # Load dataset
     # TODO: Change to verifiers environment
     logger.info(f"Loading dataset ({config.data})")
