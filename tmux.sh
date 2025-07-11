@@ -71,9 +71,13 @@ done' C-m
         tmux select-pane -t "$SESSION_NAME:Monitor.1" -T "CPU"
         tmux send-keys -t "$SESSION_NAME:Monitor.1" "htop" C-m
         
-        # Enable pane titles
-        tmux set -t "$SESSION_NAME" pane-border-status top
-        tmux set -t "$SESSION_NAME" pane-border-format "#{pane_index}: #{pane_title}"
+        # Enable pane titles for all windows
+        tmux set-option -t "$SESSION_NAME" -g pane-border-status top
+        tmux set-option -t "$SESSION_NAME" -g pane-border-format " #{pane_title} "
+        
+        # Also set for each window explicitly
+        tmux set-window-option -t "$SESSION_NAME:RL" pane-border-status top
+        tmux set-window-option -t "$SESSION_NAME:Monitor" pane-border-status top
         
         # Select first window and first pane
         tmux select-window -t "$SESSION_NAME:RL"
@@ -136,9 +140,13 @@ done' C-m
         tmux select-pane -t "$SESSION_NAME:Monitor.1" -T "CPU"
         tmux send-keys -t "$SESSION_NAME:Monitor.1" "htop" C-m
         
-        # Enable pane titles
-        tmux set -t "$SESSION_NAME" pane-border-status top
-        tmux set -t "$SESSION_NAME" pane-border-format "#{pane_index}: #{pane_title}"
+        # Enable pane titles for all windows
+        tmux set-option -t "$SESSION_NAME" -g pane-border-status top
+        tmux set-option -t "$SESSION_NAME" -g pane-border-format " #{pane_title} "
+        
+        # Also set for each window explicitly
+        tmux set-window-option -t "$SESSION_NAME:RL" pane-border-status top
+        tmux set-window-option -t "$SESSION_NAME:Monitor" pane-border-status top
         
         # Select first window and first pane
         tmux select-window -t "$SESSION_NAME:RL"
