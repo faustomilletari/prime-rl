@@ -159,6 +159,13 @@ uv run rl \
 
 *NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference with TP=2 and DP=3.*
 
+
+Note: you may need to increase the number of open files limit to 32000 if you encounter errors like `Too many open files`.
+
+```bash
+ulimit -n 32000
+```
+
 ### Evals
 
 *TBD*
