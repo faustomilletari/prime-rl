@@ -262,8 +262,8 @@ def rl(config: RLConfig):
             logger.debug(f"Inference start command: {' '.join(inference_cmd)}")
             # If we don't log stdout, the server hangs
             with (
-                open(config.log.path.parent / "inference.stdout", "w") as stdout_file,
-                open(config.log.path.parent / "inference.stderr", "w") as stderr_file,
+                open(config.log.path.parent / "inference.logs", "w") as stdout_file,
+                open(config.log.path.parent / "inference.logs", "w") as stderr_file,
             ):
                 inference_process = Popen(
                     inference_cmd,
@@ -303,8 +303,8 @@ def rl(config: RLConfig):
         logger.info("Starting orchestrator process")
         logger.debug(f"Orchestrator start command: {' '.join(orchestrator_cmd)}")
         with (
-            open(config.log.path.parent / "orchestrator.stdout", "w") as stdout_file,
-            open(config.log.path.parent / "orchestrator.stderr", "w") as stderr_file,
+            open(config.log.path.parent / "orchestrator.logs", "w") as stdout_file,
+            open(config.log.path.parent / "orchestrator.logs", "w") as stderr_file,
         ):
             orchestrator_process = Popen(
                 orchestrator_cmd,
