@@ -42,7 +42,7 @@ def setup_handlers(logger: Logger, format: str, config: LogConfig, rank: int) ->
 
     # Install new handler on the main rank
     if rank == 0:
-        logger.add(sys.stdout, format=format, level=config.level.upper(), enqueue=True, backtrace=True, diagnose=True)
+        logger.add(sys.stdout, format=format, level=config.level.upper())
 
     # Install file handler on all ranks, erase file by default
     if config.path:
@@ -52,10 +52,6 @@ def setup_handlers(logger: Logger, format: str, config: LogConfig, rank: int) ->
             config.path,
             format=format,
             level=config.level.upper(),
-            enqueue=True,
-            backtrace=True,
-            diagnose=True,
-            colorize=True,
         )
 
     # Disable critical logging
