@@ -199,9 +199,9 @@ def monitor_process(process: Popen, stop_event: Event, error_queue: list, proces
         process.wait()
 
         if process.returncode != 0:
-            err_msg = f"{process_name} process failed with exit code {process.returncode}"
+            err_msg = f"{process_name.capitalize()} failed with exit code {process.returncode}"
             if process.stderr:
-                err_msg += f"\nStderr: {process.stderr.read().decode('utf-8')}"
+                err_msg += f"\n{process.stderr.read().decode('utf-8')}"
             error_queue.append(RuntimeError(err_msg))
         stop_event.set()
     except Exception as e:
@@ -372,8 +372,8 @@ def rl(config: RLConfig):
         while not (stop_events["orchestrator"].is_set() and stop_events["training"].is_set()):
             if error_queue:
                 error = error_queue[0]
-                logger.error(f"Error in subprocess: {error}")
-                logger.error("One or more processes failed, terminating all processes...")
+                logger.error(f"Error: {error}")
+                logger.error("Terminating all processes...")
                 cleanup_threads(monitor_threads)
                 cleanup_processes(processes)
                 sys.exit(1)
