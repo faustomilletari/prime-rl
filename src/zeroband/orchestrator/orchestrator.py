@@ -1,7 +1,7 @@
 import asyncio
 import json
-import shutil
 import time
+from loguru import logger
 from multiprocessing.queues import Queue
 from pathlib import Path
 
@@ -44,6 +44,7 @@ from zeroband.utils.utils import clean_exit, to_col_format
 
 
 @clean_exit
+@logger.catch(reraise=True)
 async def orchestrate(config: OrchestratorConfig):
     # Initialize the logger
     logger = setup_logger(config.log)
@@ -82,6 +83,8 @@ async def orchestrate(config: OrchestratorConfig):
     else:
         logger.info("Training from scratch. Resetting weights to base model")
         await reset_weights(client)
+
+    raise
 
     # Load dataset
     # TODO: Change to verifiers environment
