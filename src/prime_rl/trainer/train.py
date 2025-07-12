@@ -249,7 +249,7 @@ def train(config: TrainerConfig):
 
             loss_metrics["loss/loss"] += loss.detach().clone()
             loss_metrics["loss/entropy"] += entropy.detach().clone()
-            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().clone()
+            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().clone().float()
 
             logger.debug(
                 f"Completed micro batch {micro_step}/{num_micro_batches} (loss={loss.item() * num_micro_batches:.2f}, entropy={entropy.item() * num_micro_batches:.2f}, importance_ratio={importance_ratio.item() * num_micro_batches:.2f})"
