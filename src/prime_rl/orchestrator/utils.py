@@ -109,8 +109,7 @@ def compute_rewards(
     return rewards
 
 
-def compute_advantages(rewards: list[float], samples_per_problem: int) -> list[float]:
-    per_problem_rewards = [rewards[i : i + samples_per_problem] for i in range(0, len(rewards), samples_per_problem)]
+def compute_advantages(per_problem_rewards: list[list[float]]) -> list[float]:
     advantages = []
     for problem_rewards in per_problem_rewards:
         reward_array = np.array(problem_rewards)

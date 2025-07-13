@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Dict
 
 from pydantic import Field, model_validator
 
@@ -145,6 +145,16 @@ class CheckpointConfig(BaseConfig):
             description="Step to resume orchestrator from. If None, will start from scratch.",
         ),
     ] = None
+            
+        
+class DifficultyAdjustedPrioritizationConfig(BaseConfig):
+    enabled: bool = False
+    priority_data_field: str | None = None
+    low_priority_batch_fraction: float = 0.1
+    
+    
+class DataLoadingConfig(BaseConfig):
+    difficulty_adjusted_prioritization: DifficultyAdjustedPrioritizationConfig = DifficultyAdjustedPrioritizationConfig()
 
 
 class OrchestratorConfig(BaseSettings):
@@ -164,6 +174,9 @@ class OrchestratorConfig(BaseSettings):
 
     # The evaluation configuration
     eval: EvalConfig | None = None
+    
+    # Dynamic Data Loading
+    data_loading: DataLoadingConfig = DataLoadingConfig()
 
     # The logging configuration
     log: LogConfig = LogConfig()

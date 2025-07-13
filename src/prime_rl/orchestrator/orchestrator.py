@@ -25,7 +25,7 @@ from prime_rl.orchestrator.client import (
     setup_client,
 )
 from prime_rl.orchestrator.config import OrchestratorConfig
-from prime_rl.orchestrator.data import prepare_batch
+from prime_rl.orchestrator.data import DataPool, prepare_batch
 from prime_rl.orchestrator.logger import setup_logger
 from prime_rl.orchestrator.utils import (
     process_env_results,
@@ -49,7 +49,6 @@ async def orchestrate(config: OrchestratorConfig):
     logger.info(f"Initializing OpenAI client ({config.client.base_url})")
     client = setup_client(config.client)
 
-    # Load tokenizer
     logger.info(f"Initializing tokenizer for {config.model.name}")
     tokenizer = AutoTokenizer.from_pretrained(config.model.name)
 
@@ -83,14 +82,14 @@ async def orchestrate(config: OrchestratorConfig):
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
     vf_env = get_environment(config.environment.id, config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
-
+    datapool = DataPool(dataset, config.data_loading)
+    
     # Load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.model.name)
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
-    steps_per_epoch = len(dataset) // (config.batch_size // config.rollouts_per_prompt)
-    logger.info(f"Starting orchestrator loop ({max_steps=}, {steps_per_epoch=})")
+    logger.info(f"Starting orchestrator loop ({max_steps=})")
     ckpt_step = 0
     last_eval_step = -1
     while True:
@@ -106,14 +105,7 @@ async def orchestrate(config: OrchestratorConfig):
         if config.max_steps and progress.step >= config.max_steps:
             break
 
-        # Check if we need to start a new epoch
-        epoch_step = progress.step % steps_per_epoch
-        if epoch_step == 0:
-            progress.epoch += 1
-            # Reshuffle dataset at the beginning of each epoch
-            dataset = dataset.shuffle(seed=(config.seed or 0) + progress.epoch)
-
-        logger.info(f"Starting orchestrator step {progress.step} ({ckpt_step=}, epoch={progress.epoch}, {epoch_step=})")
+        logger.info(f"Starting orchestrator step {progress.step} ({ckpt_step=})")
         step_start_time = time.time()
 
         # Optionally, wait for the next checkpoint to be available
@@ -164,10 +156,8 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Get the batch
         problems_per_batch = config.batch_size // config.rollouts_per_prompt
-        start_idx = epoch_step * problems_per_batch
-        indices = range(start_idx, start_idx + problems_per_batch)
-        problems = dataset.select(indices).to_list() * config.rollouts_per_prompt
-
+        problems = datapool.sample_batch(problems_per_batch).to_list() * config.rollouts_per_prompt
+        
         # prepare inputs for verifiers generation
         inputs = {
             "prompt": [problem["prompt"] for problem in problems],
@@ -206,9 +196,19 @@ async def orchestrate(config: OrchestratorConfig):
         rewards = outputs["reward"]  # TODO: Align naming between prime-rl <> verifiers
 
         # Compute advantages
-        advantages = compute_advantages(rewards, config.rollouts_per_prompt)
+        per_problem_rewards = [rewards[i : i + config.rollouts_per_prompt] for i in range(0, len(rewards), config.rollouts_per_prompt)]
+        advantages = compute_advantages(per_problem_rewards)
+        per_problem_advantages = [advantages[i : i + config.rollouts_per_prompt] for i in range(0, len(advantages), config.rollouts_per_prompt)]
+        
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
+
+        # Remove samples that have been solved (all rollouts got reward 1)
+        all_uids = [problem["prime_rl_data_uid"] for problem in problems]
+        per_problem_uids = [all_uids[i] for i in range(0, len(all_uids), config.rollouts_per_prompt)]  # Take first UID from each group
+        
+        # postprocessing (difficulty re-prioritization etc.)
+        datapool.maybe_postprocess(per_problem_uids, per_problem_rewards, per_problem_advantages)
 
         # compute batch metrics
         num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
@@ -266,7 +266,6 @@ async def orchestrate(config: OrchestratorConfig):
         progress_metrics = {
             "progress/orchestrator/total_tokens": progress.total_tokens,
             "progress/orchestrator/total_samples": progress.total_samples,
-            "progress/orchestrator/epoch": progress.epoch,
             "progress/orchestrator/step": ckpt_step,  # Shared W&B axis
             "step": progress.step,
         }
