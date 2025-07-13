@@ -152,9 +152,9 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     import json
     import re
     from types import ModuleType
-    from pydantic import BaseModel
-    from typing import List, Dict, Union, Type, Optional, Callable
+    from typing import Callable, Dict, List, Optional, Type, Union
 
+    from pydantic import BaseModel
     from verifiers.parsers import Parser
 
     # Environment Helper Functions
