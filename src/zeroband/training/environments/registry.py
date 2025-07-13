@@ -1,7 +1,3 @@
-import re
-import json
-import difflib
-
 import verifiers as vf
 from datasets import load_dataset
 from verifiers import Environment
@@ -90,6 +86,9 @@ def load_reverse_environment(env_args: dict = {}) -> Environment:
 
 
 def load_unscramble_environment(env_args: dict = {}) -> Environment:
+    import re
+    import json
+
     # Load the unscramble dataset
     dataset = load_dataset("kalomaze/unscramble-mix-it2", split="train")
 
@@ -168,6 +167,9 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
 
 
 def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
+    import json
+    import difflib
+
     # Load the ASCII tree dataset
     dataset = load_dataset("kalomaze/ascii-tree-mix-it1", split="train")
 
