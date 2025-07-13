@@ -220,8 +220,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     class PydanticParser(Parser):
         """
         Parser for JSON responses that validates against Pydantic models.
-        
-        Direct port of prime-rl's pydantic_json_adherance functionality.
         """
         
         def __init__(
@@ -290,8 +288,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
     dataset = dataset.remove_columns(["prompt", "verification_info"])
 
-    system_prompt = ""
-
     parser = PydanticParser(
         extract_fn=extract_last_json
     )
@@ -314,7 +310,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
     vf_env = vf.SingleTurnEnv(
         dataset=dataset,
-        system_prompt=system_prompt,
         parser=parser,
         rubric=rubric,
     )
