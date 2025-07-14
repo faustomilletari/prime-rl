@@ -64,7 +64,7 @@ class PerfCounter:
                 return 989e12
         if "B200" in device_name:
             # data from https://nvdam.widen.net/s/wwnsxrhm2w/blackwell-datasheet-3384703
-            return 4.5e15
+            return 2.25e15
         # Default to A100
         else:
             return 312e12
