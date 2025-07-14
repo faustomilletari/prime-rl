@@ -366,12 +366,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
         ],
         weights=[1.0],
     )
-    rubric = vf.Rubric(
-        funcs=[
-            pydantic_adherence_reward_func,
-        ],
-        weights=[1.0],
-    )
 
     vf_env = vf.SingleTurnEnv(
         dataset=dataset,
