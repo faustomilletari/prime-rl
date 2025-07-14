@@ -21,7 +21,6 @@ def load_gsm8k_environment(env_args: dict = {}) -> Environment:
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
         response = parser.parse_answer(completion) or ""
-        print(response, answer)
         return 1.0 if response == str(answer) else 0.0
 
     rubric = vf.Rubric(
