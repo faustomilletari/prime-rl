@@ -51,7 +51,7 @@ no-build-isolation-package = ["flash-attn"]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-verifiers = { git = "https://github.com/willccbb/verifiers", rev = "8363357" }
+verifiers = { git = "https://github.com/willccbb/verifiers", rev = "9136da4" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
