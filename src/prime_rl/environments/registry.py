@@ -329,8 +329,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
                 model = _load_model_from_code(verification_info["pydantic_config"], verification_info["model_name"])
 
-                model = _load_model_from_code(verification_info["pydantic_config"], verification_info["model_name"])
-
                 try:
                     model.model_validate(parsed)
                     return 1.0
@@ -345,13 +343,9 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     dataset = dataset.map(
         lambda x: {"question": x["prompt"], "answer": json.loads(x["verification_info"]), "task": "pydantic-adherence"}
     )
-    dataset = dataset.map(
-        lambda x: {"question": x["prompt"], "answer": json.loads(x["verification_info"]), "task": "pydantic-adherence"}
-    )
 
     dataset = dataset.remove_columns(["prompt", "verification_info"])
 
-    parser = PydanticParser(extract_fn=extract_last_json)
     parser = PydanticParser(extract_fn=extract_last_json)
 
     format_reward_func = parser.get_format_reward_func()
