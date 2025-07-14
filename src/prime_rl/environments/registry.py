@@ -339,8 +339,6 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
             return format_reward_func
 
-            return format_reward_func
-
     dataset = load_dataset("justus27/pydantic-adherance-test", split="train")
 
     # Preprocess the dataset to parse verification_info and map prompt to question
