@@ -1,5 +1,7 @@
 import copy
 from typing import Literal, TypedDict
+from dataclasses import dataclass
+from typing import Any, List
 
 import torch
 import uuid
@@ -7,10 +9,18 @@ from jaxtyping import Float, Int
 from transformers import AutoTokenizer
 from datasets import Dataset
 import numpy as np
-
 from prime_rl.orchestrator.config import DataLoadingConfig
 from prime_rl.trainer.data import MicroBatch
 
+@dataclass
+class GeneratedSample:
+    prompt_tokens: List[int]
+    completion_tokens: List[int]
+    completion_logprobs: List[float]
+    prompt_masks: List[int]
+    completion_masks: List[int]
+    rewards: List[float]
+    advantages: List[float]
 
 class Sample(TypedDict):
     input_ids: Int[torch.Tensor, "seq"]
@@ -28,16 +38,17 @@ class DataPool:
         self.dataset = dataset.add_column("prime_rl_data_uid", uuids, new_fingerprint="added_uid")
         self.sample_info = {}
         self.data_loading_config = data_loading_config
+        self.buffer = []
                             
         for i, uid in enumerate(uuids):
             self.sample_info[uid] = {"dataset_index": i, "already_sampled_current_epoch": False, "num_sampled": 0}
             
-            if not data_loading_config.difficulty_adjusted_prioritization.enabled:
+            if not data_loading_config.difficulty_prioritization_strategy.enabled:
                 continue
             
-            if data_loading_config.difficulty_adjusted_prioritization.priority_data_field:
-                priority = self.dataset[i][data_loading_config.difficulty_adjusted_prioritization.priority_data_field]
-                assert priority in ["low", "high"], f"sampling priority pool value most be 'low' or 'high', found {priority} in column {data_loading_config.difficulty_adjusted_prioritization.priority_data_field}"
+            if data_loading_config.difficulty_prioritization_strategy.priority_data_field:
+                priority = self.dataset[i][data_loading_config.difficulty_prioritization_strategy.priority_data_field]
+                assert priority in ["low", "high", "discarded"], f"sampling priority pool value most be 'low' or 'high', found {priority} in column {data_loading_config.difficulty_prioritization_strategy.priority_data_field}"
                 
                 self.sample_info[uid]["priority"] = priority
     
@@ -46,13 +57,13 @@ class DataPool:
         
         
     def maybe_postprocess(self, per_problem_uids: list[str], per_problem_rewards: list[list[float]], per_problem_advantages: list[list[float]]):
-        if self.data_loading_config.difficulty_adjusted_prioritization.enabled:
+        if self.data_loading_config.difficulty_prioritization_strategy.enabled:
             self._postprocess_difficulty_prioritization(per_problem_uids, per_problem_rewards, per_problem_advantages)
         
         
     def sample_batch(self, n: int):
                 
-        if self.data_loading_config.difficulty_adjusted_prioritization.enabled:
+        if self.data_loading_config.difficulty_prioritization_strategy.enabled:
             sampled_uids = self._sample_batch_priority_aware(n)
         else:
             sampled_uids = self._sample_batch_normal(n)
@@ -89,13 +100,22 @@ class DataPool:
             }
             
             # Set priority if provided or if difficulty prioritization is enabled
-            if self.data_loading_config.difficulty_adjusted_prioritization.enabled:
+            if self.data_loading_config.difficulty_prioritization_strategy.enabled:
                 if priorities:
                     self.sample_info[uid]["priority"] = priorities[i]
                 else:
                     self.sample_info[uid]["priority"] = "high"
-                
+         
+                    
+    def empty_buffer(self):
+        self.buffer = []
+    
+    def add_to_buffer(self, generated_samples):
+        self.buffer.extend(generated_samples)
         
+    def get_buffered_samples(self):
+        return self.buffer
+    
     def _postprocess_difficulty_prioritization(self, per_problem_uids: list[str], per_problem_rewards: list[list[float]], per_problem_advantages: list[list[float]]):
         EPSILON = 1e-6
         
@@ -114,7 +134,7 @@ class DataPool:
     def _sample_batch_priority_aware(self, n: int):
         uids = list(self.sample_info.keys())
         
-        n_low = int(n * self.data_loading_config.difficulty_adjusted_prioritization.low_priority_batch_fraction)  
+        n_low = int(n * self.data_loading_config.difficulty_prioritization_strategy.low_priority_batch_fraction)  
         n_high = n - n_low
         
         high_priority_uids = [uid for uid in uids if self.sample_info[uid]["priority"] == "high"]

@@ -147,14 +147,23 @@ class CheckpointConfig(BaseConfig):
     ] = None
             
         
-class DifficultyAdjustedPrioritizationConfig(BaseConfig):
+class DifficultyPrioritizationStrategy(BaseConfig):
     enabled: bool = False
     priority_data_field: str | None = None
     low_priority_batch_fraction: float = 0.1
     
     
+class OnlineDifficultyFilteringStrategy(BaseConfig):
+    enabled: bool = False
+    min_avg_reward: float = 0.01
+    max_avg_reward = 0.99
+    oversampling_factor: float = 1.5
+    max_sample_tries: int = 3
+    
+    
 class DataLoadingConfig(BaseConfig):
-    difficulty_adjusted_prioritization: DifficultyAdjustedPrioritizationConfig = DifficultyAdjustedPrioritizationConfig()
+    online_difficulty_filtering_strategy: OnlineDifficultyFilteringStrategy = OnlineDifficultyFilteringStrategy()
+    difficulty_prioritization_strategy: DifficultyPrioritizationStrategy = DifficultyPrioritizationStrategy()
 
 
 class OrchestratorConfig(BaseSettings):
