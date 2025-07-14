@@ -9,7 +9,7 @@ from prime_rl.environments.registry import REGISTRY, load_environment
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", "-e", type=str, default="pydantic-adherence", choices=list(REGISTRY.keys()))
+    parser.add_argument("--env", "-e", type=str, default="gsm8k", choices=list(REGISTRY.keys()))
     parser.add_argument("--model", "-m", type=str, default="gpt-4.1-mini")
     parser.add_argument("--api-key-var", "-k", type=str, default="OPENAI_API_KEY")
     parser.add_argument("--api-base-url", "-b", type=str, default="https://api.openai.com/v1")
