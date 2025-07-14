@@ -1,5 +1,5 @@
 import argparse
-import os
+
 import numpy as np
 from openai import OpenAI
 from verifiers.utils.logging_utils import print_prompt_completions_sample
@@ -24,13 +24,13 @@ if __name__ == "__main__":
         "temperature": args.temperature,
     }
     results = vf_env.evaluate(
-        client=client, 
-        model=args.model, 
+        client=client,
+        model=args.model,
         num_examples=args.num_examples,
         rollouts_per_example=args.rollouts_per_example,
     )
-    rewards = {k: v for k, v in results.items() if 'reward' in k}
-    print(f"--- Evaluation ---")
+    rewards = {k: v for k, v in results.items() if "reward" in k}
+    print("--- Evaluation ---")
     print(f"Environment: {args.env}")
     print(f"Model: {args.model}")
     print(f"Provider: {args.api_base_url}")
@@ -38,15 +38,15 @@ if __name__ == "__main__":
     print(f"Rollouts per example: {args.rollouts_per_example}")
 
     print("--- Example ---")
-    print_prompt_completions_sample(results['prompt'], results['completion'], rewards, step=0)
+    print_prompt_completions_sample(results["prompt"], results["completion"], rewards, step=0)
     print("--- All ---")
     print("Rewards:")
     for k, v in results.items():
-        if 'reward' in k:
+        if "reward" in k:
             print(f"{k}: avg - {sum(v) / len(v):.3f}, std - {np.std(v):.3f}")
             n = args.num_examples
             r = args.rollouts_per_example
             for i in range(r):
-                trials = [v[(i*r)+j] for j in range(n)]
-                out = f"r{i+1}: {trials}"
+                trials = [v[(i * r) + j] for j in range(n)]
+                out = f"r{i + 1}: {trials}"
                 print(out)
