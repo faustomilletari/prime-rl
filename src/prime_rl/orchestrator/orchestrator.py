@@ -251,7 +251,7 @@ async def orchestrate(config: OrchestratorConfig):
                 group_size = config.rollouts_per_prompt
                 generated_samples = flatten_keep(generated_samples, keep_indices, group_size)
 
-                if len(all_generated_samples) + keep_indices >= problems_per_batch:
+                if len(all_generated_samples) + len(keep_indices) >= problems_per_batch:
                     generated_samples, remaining_generated_samples = generated_samples[:problems_per_batch], generated_samples[problems_per_batch:]
                     all_generated_samples.extend(generated_samples)
                     datapool.add_to_buffer(remaining_generated_samples)  # TODO: Implement buffer functionality in DataPool
