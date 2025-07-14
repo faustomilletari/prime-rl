@@ -157,7 +157,7 @@ async def orchestrate(config: OrchestratorConfig):
         # Get the batch
         problems_per_batch = config.batch_size // config.rollouts_per_prompt
         problems = datapool.sample_batch(problems_per_batch).to_list() * config.rollouts_per_prompt
-        
+                
         # prepare inputs for verifiers generation
         inputs = {
             "prompt": [problem["prompt"] for problem in problems],

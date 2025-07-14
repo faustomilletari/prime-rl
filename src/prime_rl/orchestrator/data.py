@@ -25,11 +25,10 @@ class Sample(TypedDict):
 class DataPool:
     def __init__(self, dataset: Dataset, data_loading_config: DataLoadingConfig):   
         uuids = [str(uuid.uuid4()) for _ in dataset]
-        dataset.add_column("prime_rl_data_uid", uuids, new_fingerprint="")
-        self.dataset = dataset
+        self.dataset = dataset.add_column("prime_rl_data_uid", uuids, new_fingerprint="added_uid")
         self.sample_info = {}
         self.data_loading_config = data_loading_config
-                    
+                            
         for i, uid in enumerate(uuids):
             self.sample_info[uid] = {"dataset_index": i, "already_sampled_current_epoch": False, "num_sampled": 0}
             
