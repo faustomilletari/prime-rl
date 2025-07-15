@@ -354,6 +354,7 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
         """
         Validate JSON output against a per-sample Pydantic schema.
 
+
         Args:
             completion: Model output (string or message list)
             answer: Dict containing 'pydantic_config' and 'model_name' for this sample

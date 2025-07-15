@@ -1360,21 +1360,22 @@ wheels = [
 
 [[package]]
 name = "mistral-common"
-version = "1.7.0"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
     { name = "numpy" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "pydantic-extra-types", extra = ["pycountry"] },
     { name = "requests" },
     { name = "sentencepiece" },
     { name = "tiktoken" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/4c/1814cc9b28dd4310c465abf21b3cbcacc83ba94c6a9a7543e262cfb357fa/mistral_common-1.7.0.tar.gz", hash = "sha256:42ffe538152bb8b2eb00eb1f8927816df1cf48405a99f884436e4176c5d8fe26", size = 6307663, upload-time = "2025-07-09T16:15:09.31Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/c6/d7e2bbbe3274b6b3fb02fa7ea679db062bd4af14f7dc4665b7b0652eb7d3/mistral_common-1.8.0.tar.gz", hash = "sha256:b3ad5d59208e0bb1d1260ccdb9c4bb5dc06eca1532822559e12bbb263033835d", size = 6318077, upload-time = "2025-07-15T09:36:29.69Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/0c/33ddc230e6d7ef9f268b2250d2eae45d2516dbb42e09cf3fb61185c87824/mistral_common-1.7.0-py3-none-any.whl", hash = "sha256:d3a3497e162f5a365064d74d7cb24607649fb864b852b563a05345e30f53640b", size = 6495773, upload-time = "2025-07-09T16:15:06.937Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/c2/df0228507783cdc2b75629e2274884ffda98320836f1ac7441c5dc00b2e9/mistral_common-1.8.0-py3-none-any.whl", hash = "sha256:afb5eb5542c561756a59d71dc8c21ce312fff63b0ea14ab6e19a5ea91970d181", size = 6504001, upload-time = "2025-07-15T09:36:26.7Z" },
 ]
 
 [package.optional-dependencies]
@@ -2086,7 +2087,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9136da4" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=784e1ee" },
     { name = "vllm", specifier = ">=0.9.1" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -2327,6 +2328,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/6a/adf5734ffd52bf86d865093ad70b2ce543415e0e356f6cacabbc0d9ad910/pydantic_core-2.33.2-cp312-cp312-win32.whl", hash = "sha256:9cb1da0f5a471435a7bc7e439b8a728e8b61e59784b2af70d7c169f8dd8ae290", size = 1892628, upload-time = "2025-04-23T18:31:47.819Z" },
     { url = "https://files.pythonhosted.org/packages/43/e4/5479fecb3606c1368d496a825d8411e126133c41224c1e7238be58b87d7e/pydantic_core-2.33.2-cp312-cp312-win_amd64.whl", hash = "sha256:f941635f2a3d96b2973e867144fde513665c87f13fe0e193c158ac51bfaaa7b2", size = 1955866, upload-time = "2025-04-23T18:31:49.635Z" },
     { url = "https://files.pythonhosted.org/packages/0d/24/8b11e8b3e2be9dd82df4b11408a67c61bb4dc4f8e11b5b0fc888b38118b5/pydantic_core-2.33.2-cp312-cp312-win_arm64.whl", hash = "sha256:cca3868ddfaccfbc4bfb1d608e2ccaaebe0ae628e1416aeb9c4d88c001bb45ab", size = 1888894, upload-time = "2025-04-23T18:31:51.609Z" },
+]
+
+[[package]]
+name = "pydantic-extra-types"
+version = "2.10.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7e/ba/4178111ec4116c54e1dc7ecd2a1ff8f54256cdbd250e576882911e8f710a/pydantic_extra_types-2.10.5.tar.gz", hash = "sha256:1dcfa2c0cf741a422f088e0dbb4690e7bfadaaf050da3d6f80d6c3cf58a2bad8", size = 138429, upload-time = "2025-06-02T09:31:52.713Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/1a/5f4fd9e7285f10c44095a4f9fe17d0f358d1702a7c74a9278c794e8a7537/pydantic_extra_types-2.10.5-py3-none-any.whl", hash = "sha256:b60c4e23d573a69a4f1a16dd92888ecc0ef34fb0e655b4f305530377fa70e7a8", size = 38315, upload-time = "2025-06-02T09:31:51.229Z" },
+]
+
+[package.optional-dependencies]
+pycountry = [
+    { name = "pycountry" },
 ]
 
 [[package]]
@@ -3152,7 +3171,7 @@ wheels = [
 [[package]]
 name = "verifiers"
 version = "0.1.1"
-source = { git = "https://github.com/willccbb/verifiers?rev=9136da4#9136da451db7bce67d33cd110deaddf9c5b97d24" }
+source = { git = "https://github.com/willccbb/verifiers?rev=784e1ee#784e1ee74ec828d7c1e7cffb8df7bf6584cc847c" }
 dependencies = [
     { name = "datasets" },
     { name = "openai" },
