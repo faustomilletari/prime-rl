@@ -385,7 +385,8 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
 
 def load_reasoning_gym_environment(task_name: str, num_samples: int = 1000, seed: int = 0, **kwargs) -> Environment:
-    from verifiers.envs.reasoning_gym_env import ReasoningGymEnv
+    # requires `reasoning-gym`
+    from verifiers.envs.reasoning_gym_env import ReasoningGymEnv  # type: ignore
 
     vf_env = ReasoningGymEnv(gym=task_name, num_samples=num_samples, seed=seed)
     return vf_env
