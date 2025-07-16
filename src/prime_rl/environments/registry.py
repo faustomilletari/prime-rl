@@ -499,7 +499,6 @@ In each turn, give only your guess inside <guess>...</guess> tags."""
 
 ### Eval Environments ###
 
-
 def load_acebench_environment(**kwargs) -> Environment:
     raise NotImplementedError("Acebench environment not implemented")
 
@@ -508,17 +507,17 @@ def load_bfcl_v3_environment(**kwargs) -> Environment:
     raise NotImplementedError("BFCL v3 environment not implemented")
 
 
-def load_gpqa_environment(use_think: bool = True, **kwargs) -> Environment:
+def load_gpqa_environment(use_think: bool = False, **kwargs) -> Environment:
     from verifiers.utils.data_utils import load_example_dataset
 
-    eval_dataset = load_example_dataset("gpqa_main", "test")
+    eval_dataset = load_example_dataset("gpqa_main", "train")
     if use_think:
         system_prompt = (
             """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
         )
         parser = vf.ThinkParser()
     else:
-        system_prompt = """Give only the letter of the correct answer."""
+        system_prompt = """Give only the letter of the correct answer. /no_think"""
         parser = vf.Parser()
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
@@ -533,7 +532,7 @@ def load_gpqa_environment(use_think: bool = True, **kwargs) -> Environment:
 def load_gpqa_diamond_environment(use_think: bool = True, **kwargs) -> Environment:
     from verifiers.utils.data_utils import load_example_dataset
 
-    eval_dataset = load_example_dataset("gpqa_diamond", "test")
+    eval_dataset = load_example_dataset("gpqa_diamond", "train")
     if use_think:
         system_prompt = (
             """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
