@@ -1,7 +1,7 @@
-max_steps = 200
+max_steps = 500
 batch_size = 256
 micro_batch_size = 4
-seq_len = 2048
+seq_len = 1024
 rollouts_per_prompt = 16
 mask_truncated_completions = false
 
@@ -16,7 +16,7 @@ id = "wordle-nothink"
 [environment.args]
 
 [sampling]
-max_tokens = 16
+max_tokens = 20
 
 [monitor.wandb.log_samples]
 interval = 10

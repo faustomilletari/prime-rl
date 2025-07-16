@@ -53,7 +53,7 @@ prerelease = "allow"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-verifiers = { git = "https://github.com/willccbb/verifiers", rev = "ab61425" }
+verifiers = { git = "https://github.com/willccbb/verifiers", rev = "f9e10da" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
