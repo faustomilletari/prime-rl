@@ -1,0 +1,25 @@
+max_steps = 200
+batch_size = 256
+micro_batch_size = 8
+seq_len = 2048
+rollouts_per_prompt = 16
+mask_truncated_completions = false
+
+[model]
+name = "willcb/Qwen3-1.7B-Wordle"
+
+[monitor.wandb]
+
+[environment]
+id = "wordle-nothink"
+
+[environment.args]
+
+[sampling]
+max_tokens = 16
+
+[monitor.wandb.log_samples]
+interval = 10
+num_samples = 16
+
+[ckpt]

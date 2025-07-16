@@ -448,29 +448,40 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
     return vf_env
 
 
-def load_wordle_think_environment(env_args: dict = {}) -> Environment:
+def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen2.5-7B-Wordle-SFT
     from verifiers.envs.textarena_env import TextArenaEnv
 
     vf_env = TextArenaEnv(
         game="Wordle-v0",
-        num_samples=env_args.get("num_samples", 2000),
-        num_eval_samples=env_args.get("num_eval_samples", 20),
+        num_train_examples=num_train_examples,
+        num_eval_examples=num_eval_examples,
     )
+    vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-think"] * len(vf_env.dataset))  # type: ignore
+    vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-think"] * len(vf_env.eval_dataset))  # type: ignore
     return vf_env
 
 
-def load_wordle_nothink_environment(env_args: dict = {}) -> Environment:
+def load_wordle_nothink_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen3-1.7B-Wordle
     from verifiers.envs.textarena_env import TextArenaEnv
 
+    NOTHINK_WORDLE_SYSTEM_PROMPT = """You are a competitive game player. \
+Make sure you read the game instructions carefully, and always follow the required format.
+
+In each turn, give only your guess inside <guess>...</guess> tags."""
     vf_env = TextArenaEnv(
         game="Wordle-v0",
-        num_samples=env_args.get("num_samples", 2000),
-        num_eval_samples=env_args.get("num_eval_samples", 20),
+        num_train_examples=num_train_examples,
+        num_eval_examples=num_eval_examples,
+        system_prompt=NOTHINK_WORDLE_SYSTEM_PROMPT,
+        parser=vf.XMLParser(fields=["guess"], answer_field="guess"),
     )
+    vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-nothink"] * len(vf_env.dataset))  # type: ignore
+    vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-nothink"] * len(vf_env.eval_dataset))  # type: ignore
+
     return vf_env
 
 

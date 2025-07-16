@@ -1,0 +1,10 @@
+
+[monitor.wandb]
+
+[model]
+name = "willcb/Qwen3-1.7B-Wordle"
+
+[optim]
+lr = 1e-6
+
+[ckpt]
