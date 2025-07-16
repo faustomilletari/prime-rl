@@ -14,7 +14,7 @@ from transformers import AutoTokenizer
 
 from prime_rl.eval.utils import run_benchmark
 from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
-from prime_rl.environments.registry import get_environment
+from prime_rl.environments.registry import load_environment
 from prime_rl.orchestrator.client import (
     check_has_model,
     check_health,
@@ -50,7 +50,7 @@ async def orchestrate(config: OrchestratorConfig):
         )
 
     # Setup client
-    logger.info(f"Initializing OpenAI client ({config.client.base_url})")
+    logger.info(f"Initializing OpenAI client ({config.client.host}:{config.client.port})")
     client = setup_client(config.client)
 
     # Load tokenizer
@@ -85,7 +85,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
-    vf_env = get_environment(config.environment.id, config.environment.args)
+    vf_env = load_environment(config.environment.id, config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
 
     # Load tokenizer -- placeholder until reworking verifiers to use vLLM tokenizer
@@ -175,7 +175,7 @@ async def orchestrate(config: OrchestratorConfig):
         problems_per_batch = config.batch_size // config.rollouts_per_prompt
         start_idx = epoch_step * problems_per_batch
         indices = range(start_idx, start_idx + problems_per_batch)
-        problems = dataset.select(indices).to_list() * config.rollouts_per_prompt
+        problems = [problem for problem in dataset.select(indices).to_list() for _ in range(config.rollouts_per_prompt)]
 
         # prepare inputs for verifiers generation
         inputs = {
@@ -295,6 +295,7 @@ async def orchestrate(config: OrchestratorConfig):
             "reward/reward_std": np.std(rewards),
             "reward/advantage": np.mean(advantages),
             "reward/advantage_std": np.std(advantages),
+            "reward/advantage_zero_ratio": np.mean(np.array(advantages) == 0.0),
             "step": progress.step,
         }
         monitor.log(reward_metrics)

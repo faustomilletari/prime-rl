@@ -13,6 +13,8 @@ PRIME-RL: Decentralized RL Training at Scale
 
 ## Installation
 
+> *`prime-rl` is developed and tested on NVIDIA A100, H100, H200, and B200; likely compatible with other Ampere, Hopper and Blackwell-class GPUs. AMD only available via pre-built Docker image. If your installation fails, please create an [issue](https://github.com/PrimeIntellect-ai/prime-rl/issues).*
+
 **Quick Installation (Recommended)**
 
 ```bash
@@ -92,9 +94,7 @@ uv run rl \
 </details>
 
 
-## Entrypoints
-
-### Setup
+## Additional Setup
 
 1. If you want to log your runs to W&B (`wandb`), log in
 
@@ -116,9 +116,19 @@ uv run huggingface-cli login
 ulimit -n 32000
 ```
 
-### RL
+4.  We provide a convenient tmux layout script to start a run and view logs. To start the session simply run
 
-We provide a convenience endpoint `rl` for single-node RL experiments. It configures and starts the trainer, orchestrator and, optionally, an inference server. It enforces correctly setting shared configs (e.g. the model name or async level should be the same across all modules) and dispatches and monitors subprocesses. To stream the logs from each module, we use file logging, by default only the trainer logs will be displayed on the main process. 
+```bash
+bash scripts/tmux.sh
+```
+
+Then, paste the experiment entrypoints detailed below in the `Trainer` pane to start your run!
+
+## RL
+
+### Single Node Training
+
+We provide a convenience endpoint `rl` for single-node RL experiments. It configures and starts the trainer, orchestrator and, optionally, an inference server. It enforces correctly setting shared configs (e.g. the model name or async level should be the same across all modules) and dispatches and monitors subprocesses. To stream the logs from each module we use file logging. By default, only the trainer logs will be displayed on the main process (*use the tmux layout script to conveniently view all logs*).
 
 To check all available configuration options, run `uv run rl --help`.
 
@@ -139,15 +149,17 @@ uv run rl \
 
 Train a small model (`willcb/DeepSeek-R1-Distill-Qwen-1.5B`) on high-school level math questions. It is recommended to have at least 2xA100-80GB GPUs or more for this experiment.
 
-On two GPUs, run the following command to run the experiment.
+On eight GPUs, run the following command to run the experiment.
 
 ```bash
 uv run rl \
   --trainer @ configs/trainer/hendrycks_math/1b.toml \
   --orchestrator @ configs/orchestrator/hendrycks_math/1b.toml \
   --inference @ configs/inference/hendrycks_math/1b.toml \
-  --inference.parallel.dp 1
+  --trainer-gpus 2 --inference-gpus 6
 ```
+
+*NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference.*
 
 **INTELLECT-2 Math**
 
@@ -161,59 +173,49 @@ uv run rl \
   --trainer-gpus 2 --inference-gpus 6
 ```
 
-*NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference with TP=2 and DP=3.*
+*NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference.*
 
+### Multi-Node Training
 
-### Tmux Layout
+*TBD*
 
-We provide a convenient tmux layout script to start a run and view all the logs at the same time. The recommended workflow is:
+### Multiple Experiments per Node
 
-1. Start a pre-layouted tmux session using the tmux script
+For small models/ quick ablations, it can be more efficient to parallelize experiments within a node (e.g. split your GPUs to run two experiments in parallel). Because the trainer communicates with the orchestrator via a shared file system, and the orchestrator communicates with the inference engine via an OAI-compatible API, the connection points have to be uniquely set. For example, if you have access to 4 GPUs you can run two 2 GPU training runs in parallel as follows:
+
+Start the first experiment as normal, but specify a unique experiment identifier (*will use the first 2 GPUs*)
 
 ```bash
-./tmux.sh
+bash scripts/tmux.sh exp-1
 ```
 
-2. Start the trainer and orchestrator in the `Trainer` pane.
-
 ```bash
+# Start the first experiment
 uv run rl \
   --trainer @ configs/trainer/reverse_text.toml \
   --orchestrator @ configs/orchestrator/reverse_text.toml \
-  --inference @ configs/inference/reverse_text.toml
+  --inference @ configs/inference/reverse_text.toml \
+  --exp-id exp-1
 ```
 
-#### Standalone Inference Server
-You can optionally start the inference server individually to avoid the long vllm warmup at each run restart. Useful for development.
-
-1. Start the pre-layouted tmux session using the tmux script
+For the second experiment, configure a new server port for the inference engine and orchestrator and choose a new experiment identifier (*will use the first 2 GPUs*)
 
 ```bash
-./tmux.sh
+bash scripts/tmux.sh exp-2
 ```
 
-2. Start the inference server in the `Inference` pane.
-
 ```bash
-uv run inference @ configs/inference/reverse_text.toml
-```
-
-3. You can now start the trainer and orchestrator in the `Trainer` pane.
-
-```bash
-uv run rl \
+# Start the second experiment
+CUDA_VISIBLE_DEVICES=3,4 uv run rl \
   --trainer @ configs/trainer/reverse_text.toml \
-  --orchestrator @ configs/orchestrator/reverse_text.toml
+  --orchestrator @ configs/orchestrator/reverse_text.toml \
+  --inference @ configs/inference/reverse_text.toml \
+  --inference.server.port 8001 \
+  --orchestrator.client.port 8001 \
+  --exp-id exp-2
 ```
 
-To kill the tmux session when you're done:
-
-```bash
-./tmux.sh kill
-```
-
-
-### Evals
+## Evals
 
 We provide a convenience endpoint for running a full evaluation suite of common benchmarks such as AIME, MATH-500 or LiveCodeBench against your model using the `eval` entrypoint.
 
@@ -276,6 +278,36 @@ PRIME_MODEL__NAME=Qwen/Qwen3-4B uv run inference @qwen8b.toml @qwen14b.toml --mo
 
 In this example, the CLI argument `--model.name Qwen/Qwen3-32B` will take precendence and the script will use `Qwen/Qwen3-32B` as the model name. If the CLI argument wasn't set, then the second config file would take precedence and the script would use `Qwen/Qwen-14B` as the model name. If the second config file wasn't set, then the first config file would take precedence and the script would use `Qwen/Qwen3-8B` as the model name. Finally, if the first config file wasn't set, then the environment variable would take precedence and the script would use `Qwen/Qwen-4B` as the model name. If the environment variable wasn't set, then the default value would be used and the script would use `Qwen/Qwen3-0.6B` as the model name.
 
+### Persistent Inference Server
+
+For development purposes it is useful start the inference server once and keep it alive across experiments to avoid suffering the vLLM startup time repeatedly. The recommended workflow is as follows:
+
+1. Start the pre-layouted tmux session using the tmux script
+
+```bash
+bash scripts/tmux.sh
+```
+
+2. Start the inference server in the `Inference` pane.
+
+```bash
+uv run inference @ configs/inference/reverse_text.toml
+```
+
+3. Start the trainer and orchestrator in the `Trainer` pane.
+
+```bash
+uv run rl \
+  --trainer @ configs/trainer/reverse_text.toml \
+  --orchestrator @ configs/orchestrator/reverse_text.toml
+```
+
+To kill the tmux session when you're done:
+
+```bash
+bash scripts/tmux.sh kill
+```
+
 ### Checkpointing
 
 Our codebase supports checkpointing. Because of the trainer/ orchestrator design, as well as the natural asynchrony checkpointing is non-standard.
@@ -322,7 +354,6 @@ Because we save progress information, resuming from a checkpoint is fully W&B co
 ```bash
 CUDA_VISIBLE_DEVICES=1 uv run trainer @ configs/trainer/reverse_text.toml \
   --monitor.wandb.project <project> \
-  --monitor.wandb.group <group> \
   --ckpt.resume-step 10 \
   --monitor.wandb.id <trainer-run-id> \
   --orchestrator.monitor.wandb.id <orchestrator-run-id>
@@ -356,14 +387,13 @@ uv run trainer @ configs/trainer/reverse_text.toml --bench --data.fake "{'micro_
 
 **RL**
 
-Often it will be most convenient to benchmark the full RL run. This will automatically set the training batch configuration to match the way the orchestrator would have written it. Also, if W&B is configured for this project, it will synchronize the benchmark results to the project name, but suffixed with `-bench`.
+Often it will be most convenient to benchmark the full RL run. This will automatically set the training batch configuration to match the way the orchestrator would have written it.
 
 ```bash
 uv run rl   \
   --trainer @ configs/trainer/reverse_text.toml  \
   --orchestrator @ configs/orchestrator/reverse_text.toml \
-  --inference @ configs/inference/reverse_text.toml \
-  --bench
+  --inference @ configs/inference/reverse_text.toml
 ```
 
 ### Tests

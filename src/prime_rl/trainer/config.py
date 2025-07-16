@@ -129,10 +129,6 @@ class GRPOLossConfig(BaseConfig):
 
     max_norm: Annotated[float, Field(ge=0, description="Maximum gradient norm to clip.")] = 1.0
 
-    normalize_to_token_count: Annotated[bool, Field(description="Whether to normalize the batch to token count.")] = (
-        True
-    )
-
 
 class FakeDataLoaderConfig(BaseConfig):
     """Configures a fake data loader sampling random micro batches for debugging."""
@@ -219,7 +215,7 @@ class TrainerConfig(BaseSettings):
     @model_validator(mode="after")
     def auto_setup_bench(self):
         if self.bench:
-            self.max_steps = 6  # 1 Warmup + 5 Benchmark
+            self.max_steps = 4  # 1 Warmup + 3 Benchmark
             if not self.data.fake:
                 self.data.fake = FakeDataLoaderConfig()
         return self
