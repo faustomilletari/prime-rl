@@ -160,6 +160,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
         verification_info = json.loads(example["verification_info"])
         example["answer"] = verification_info["ground_truth"]
         example["prompt"] = [{"role": "user", "content": example["prompt"]}]
+        example["task"] = example["task_type"]
         return example
 
     dataset = dataset.map(process_dataset)
@@ -225,7 +226,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
         weights=[1.0],
     )
 
-    vf_env = vf.SingleTurnEnv(eval_dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
+    vf_env = vf.SingleTurnEnv(dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
 
     return vf_env
 
@@ -241,6 +242,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
         verification_info = json.loads(example["verification_info"])
         example["answer"] = verification_info["ground_truth"]
         example["prompt"] = [{"role": "user", "content": example["prompt"]}]
+        example["task"] = example["task_type"]
         return example
 
     dataset = dataset.map(process_dataset)
@@ -298,7 +300,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
         weights=[0.3, 0.7],
     )
 
-    vf_env = vf.SingleTurnEnv(eval_dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
+    vf_env = vf.SingleTurnEnv(dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
 
     return vf_env
 
