@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import warnings
+from copy import deepcopy
 from pathlib import Path
 from subprocess import Popen
 from threading import Event, Thread
@@ -17,10 +18,11 @@ from pydantic import Field, model_validator
 
 from prime_rl.inference.config import InferenceConfig
 from prime_rl.orchestrator.config import OrchestratorConfig
-from prime_rl.trainer.config import CheckpointConfig, TrainerConfig
+from prime_rl.trainer.config import CheckpointConfig, FakeDataLoaderConfig, TrainerConfig
 from prime_rl.utils.config import WandbMonitorConfig
 from prime_rl.utils.logger import format_message, format_time, get_logger, set_logger, setup_handlers
 from prime_rl.utils.pydantic_config import BaseSettings, get_temp_toml_file, parse_argv
+from prime_rl.utils.utils import get_cuda_visible_devices, get_free_port
 
 
 class LogConfig(BaseSettings):
@@ -52,8 +54,18 @@ class RLConfig(BaseSettings):
 
     log: LogConfig = LogConfig()
 
+    exp_id: Annotated[str | None, Field(description="The experiment ID. If set, will be used to identify shared resources, like log files, weight and rollout directories, etc.")] = "rl" # This value has to match the `DEFAULT_EXPERIMENT_ID` in `tmux.sh`
+
     trainer_gpus: Annotated[int, Field(description="The number of GPUs to use for trainer.")] = 1
+
     inference_gpus: Annotated[int, Field(description="The number of GPUs to use for inference.")] = 1
+
+    bench: Annotated[
+        bool,
+        Field(
+            description="Whether to run in benchmark mode. It will automatically set the trainer and orchestrator to benchmark mode and, if present, configure the W&B project by suffixing the project with `-bench`.",
+        ),
+    ] = False
 
     clean: Annotated[
         bool,
@@ -76,14 +88,27 @@ class RLConfig(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def auto_setup_bench(self):
+        if self.bench:
+            # Set trainer and orchestrator to benchmark mode
+            self.trainer.bench = True
+            self.orchestrator.bench = True
+
+            # Configure the trainer fake data to match the orchestrator config
+            self.trainer.data.fake = FakeDataLoaderConfig(
+                micro_batch_size=self.orchestrator.micro_batch_size,
+                batch_size=self.orchestrator.batch_size,
+                seq_len=self.orchestrator.seq_len,
+            )
+
+        return self
+
+    @model_validator(mode="after")
     def auto_setup_logs(self):
         # Copy log level
         self.trainer.log.level = self.log.level
         self.orchestrator.log.level = self.log.level
 
-        # Copy log path
-        self.trainer.log.path = self.log.path / "trainer"
-        self.orchestrator.log.path = self.log.path / "orchestrator"
         return self
 
     @model_validator(mode="after")
@@ -94,12 +119,11 @@ class RLConfig(BaseSettings):
                 self.orchestrator.monitor.wandb = WandbMonitorConfig()
             self.orchestrator.monitor.wandb.project = self.trainer.monitor.wandb.project
 
-            # If group is set, use it and auto-generate run names
-            if self.trainer.monitor.wandb.group:
-                self.orchestrator.monitor.wandb.group = self.trainer.monitor.wandb.group
-
-                self.trainer.monitor.wandb.name = f"{self.trainer.monitor.wandb.group}-trainer"
-                self.orchestrator.monitor.wandb.name = f"{self.trainer.monitor.wandb.group}-orchestrator"
+            # If name is set on trainer, copy it and add suffixes
+            if self.trainer.monitor.wandb.name:
+                run_name = deepcopy(self.trainer.monitor.wandb.name)
+                self.trainer.monitor.wandb.name = f"{run_name}-trainer"
+                self.orchestrator.monitor.wandb.name = f"{run_name}-orchestrator"
         return self
 
     @model_validator(mode="after")
@@ -127,6 +151,15 @@ class RLConfig(BaseSettings):
     def auto_setup_async_level(self):
         # Use trainer async level on orchestrator
         self.orchestrator.async_level = self.trainer.async_level
+        return self
+
+    @model_validator(mode="after")
+    def auto_setup_exp(self):
+        if self.exp_id:
+            self.log.path = self.log.path / self.exp_id
+            self.trainer.data.path = self.trainer.data.path / self.exp_id
+            self.trainer.weights.path = self.trainer.weights.path / self.exp_id
+            # Note: Will be shared to orchestrator via `auto_setup_paths`
         return self
 
     @model_validator(mode="after")
@@ -176,8 +209,6 @@ def setup_logger(log_config: LogConfig) -> Logger:
 
     # Setup the logger handlers
     format = format_time(log_config) + format_message()
-    log_config.path = log_config.path / "rl.loguru"
-
     logger = setup_handlers(loguru_logger, format, log_config, rank=0)
     set_logger(logger)
 
@@ -227,8 +258,8 @@ def rl(config: RLConfig):
 
         # Cleaning logs
         logger.info(f"Cleaning logs ({config.log.path})")
-        for log_file in config.log.path.glob("*.log|*.log"):
-            log_file.unlink(missing_ok=True)
+        shutil.rmtree(config.log.path, ignore_errors=True)
+        config.log.path.mkdir(parents=True, exist_ok=True)
 
         # Cleaning checkpoints
         if config.trainer.ckpt and not config.trainer.ckpt.resume_step:  # Only clean if we don't resume
@@ -251,7 +282,9 @@ def rl(config: RLConfig):
     monitor_threads: list[Thread] = []
     error_queue: list[Exception] = []
     stop_events: dict[str, Event] = {}
-    all_gpus = list(range(config.trainer_gpus + config.inference_gpus))
+    all_devices = get_cuda_visible_devices()
+    devices = all_devices[: config.trainer_gpus + config.inference_gpus]
+    logger.info(f"Available GPUs: {', '.join(map(str, all_devices))} (using: {', '.join(map(str, devices))})")
 
     try:
         # Optionally, start inference process
@@ -261,11 +294,11 @@ def rl(config: RLConfig):
                 tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
 
             inference_cmd = ["uv", "run", "inference", "@", inference_file.as_posix()]
-            inference_gpu_ids = all_gpus[: config.inference_gpus]
-            logger.info(f"Starting inference process on GPUs {' '.join(map(str, inference_gpu_ids))}")
+            inference_gpu_ids = devices[: config.inference_gpus]
+            logger.info(f"Starting inference process on GPU(s) {' '.join(map(str, inference_gpu_ids))}")
             logger.debug(f"Inference start command: {' '.join(inference_cmd)}")
             # If we don't log stdout, the server hangs
-            with open(config.log.path.parent / "inference.stdout", "w") as log_file:
+            with open(config.log.path / "inference.log", "w") as log_file:
                 inference_process = Popen(
                     inference_cmd,
                     env={**os.environ, "CUDA_VISIBLE_DEVICES": ",".join(map(str, inference_gpu_ids))},
@@ -303,11 +336,15 @@ def rl(config: RLConfig):
         ]
         logger.info("Starting orchestrator process")
         logger.debug(f"Orchestrator start command: {' '.join(orchestrator_cmd)}")
-        with open(config.log.path.parent / "orchestrator.stdout", "w") as log_file:
+        with open(config.log.path / "orchestrator.log", "w") as log_file:
             orchestrator_process = Popen(
                 orchestrator_cmd,
                 stdout=log_file,
                 stderr=log_file,
+                env={
+                    **os.environ,
+                    "LOGURU_FORCE_COLORS": "1",
+                },
             )
         processes.append(orchestrator_process)
 
@@ -331,19 +368,25 @@ def rl(config: RLConfig):
             "uv",
             "run",
             "torchrun",
+            f"--rdzv-endpoint=localhost:{get_free_port()}",
+            f"--rdzv-id={config.exp_id}",
             "--nproc-per-node",
             str(config.trainer_gpus),
             "src/prime_rl/trainer/train.py",
             "@",
             trainer_file.as_posix(),
         ]
-        train_gpu_ids = all_gpus[config.inference_gpus :]
-        logger.info(f"Starting trainer process on GPUs {' '.join(map(str, train_gpu_ids))}")
+        train_gpu_ids = devices[config.inference_gpus :]
+        logger.info(f"Starting trainer process on GPU(s) {' '.join(map(str, train_gpu_ids))}")
         logger.debug(f"Training start command: {' '.join(trainer_cmd)}")
-        with open(config.log.path.parent / "trainer.stdout", "w") as log_file:
+        with open(config.log.path / "trainer.log", "w") as log_file:
             trainer_process = Popen(
                 trainer_cmd,
-                env={**os.environ, "CUDA_VISIBLE_DEVICES": ",".join(map(str, train_gpu_ids))},
+                env={
+                    **os.environ,
+                    "CUDA_VISIBLE_DEVICES": ",".join(map(str, train_gpu_ids)),
+                    "LOGURU_FORCE_COLORS": "1",
+                },
                 stdout=log_file,
                 stderr=log_file,
             )
@@ -361,7 +404,7 @@ def rl(config: RLConfig):
         # Monitor all processes for failures
         logger.success("Startup complete. Showing trainer logs...")
 
-        tail_process = Popen(["tail", "-F", "logs/trainer.loguru"])
+        tail_process = Popen(["tail", "-F", config.log.path / "trainer.log"])
         processes.append(tail_process)
 
         # Check for errors from monitor threads

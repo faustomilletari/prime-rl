@@ -11,12 +11,19 @@ from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 class ClientConfig(BaseConfig):
     """Configures the client to be used for inference."""
 
-    base_url: Annotated[
+    host: Annotated[
         str,
         Field(
-            description="Base URL of the OpenAI API. By default, it is set to a local inference server.",
+            description="Host to use for the OpenAI API. By default, it is set to a local inference server.",
         ),
-    ] = "http://localhost:8000/v1"
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            description="Port to use for the OpenAI API. By default, it is set to a local inference server.",
+        ),
+    ] = 8000
 
     api_key: Annotated[
         str,
@@ -128,7 +135,7 @@ class EvalConfig(BaseConfig):
         Field(
             description="Whether to evaluate the base model we are training on.",
         ),
-    ] = False
+    ] = True
 
 
 class CheckpointConfig(BaseConfig):
@@ -250,7 +257,7 @@ class OrchestratorConfig(BaseSettings):
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
 
-    collate_mode: Annotated[Literal["packing", "padding"], Field(description="Collate mode to use.")] = "padding"
+    collate_mode: Annotated[Literal["packing", "padding"], Field(description="Collate mode to use.")] = "packing"
 
     batch_size: Annotated[int, Field(ge=1, description="Number of samples to train on per step.")] = 128
 
@@ -346,9 +353,13 @@ class OrchestratorConfig(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def validate_bench(self):
+    def auto_setup_bench(self):
         if self.bench:
-            self.max_steps = 6  # Run for 1 warmup step + 5 evaluation steps
+            self.max_steps = 4  # Run for 1 warmup step + 3 evaluation steps
             self.async_level = 1e9  # Never wait for RL weight checkpoints
+
+            # Disable evaluation
+            self.eval = None
+            self.monitor.wandb.log_samples = None
 
         return self

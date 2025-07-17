@@ -94,7 +94,7 @@ class WeightCheckpointConfig(BaseConfig):
         Field(
             description="Whether to save the weights asynchronously.",
         ),
-    ] = False
+    ] = True
 
 
 class BaseGRPOVariantConfig(BaseConfig):
@@ -128,10 +128,6 @@ class GRPOLossConfig(BaseConfig):
     variant: GRPOVariantsConfig = RatioConfig()
 
     max_norm: Annotated[float, Field(ge=0, description="Maximum gradient norm to clip.")] = 1.0
-
-    normalize_to_token_count: Annotated[bool, Field(description="Whether to normalize the batch to token count.")] = (
-        True
-    )
 
 
 class FakeDataLoaderConfig(BaseConfig):
@@ -208,3 +204,18 @@ class TrainerConfig(BaseSettings):
             description="Whether to recompute the logprobs. If True, will always recompute logprobs and overwrite those found in the training batch.",
         ),
     ] = True
+
+    bench: Annotated[
+        bool,
+        Field(
+            description="Whether to run in benchmark mode. It will automatically set the maximum number of steps to run to 5 and use fake data.",
+        ),
+    ] = False
+
+    @model_validator(mode="after")
+    def auto_setup_bench(self):
+        if self.bench:
+            self.max_steps = 4  # 1 Warmup + 3 Benchmark
+            if not self.data.fake:
+                self.data.fake = FakeDataLoaderConfig()
+        return self

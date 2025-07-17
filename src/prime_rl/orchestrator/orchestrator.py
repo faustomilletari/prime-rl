@@ -1,7 +1,6 @@
-import json
+import asyncio
 import time
 from loguru import logger
-from multiprocessing.queues import Queue
 from pathlib import Path
 
 # Import environment before any other imports
@@ -15,9 +14,8 @@ from transformers import AutoTokenizer
 
 from prime_rl.eval.utils import run_benchmark
 from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
-from prime_rl.environments.registry import get_environment
+from prime_rl.environments.registry import load_environment
 from prime_rl.orchestrator.client import (
-    tokenize,
     check_has_model,
     check_health,
     reload_weights,
@@ -38,7 +36,7 @@ from prime_rl.orchestrator.utils import (
 )
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
-from prime_rl.utils.utils import clean_exit, to_col_format
+from prime_rl.utils.utils import clean_exit, to_col_format, format_num
 
 
 @clean_exit
@@ -48,8 +46,14 @@ async def orchestrate(config: OrchestratorConfig):
     logger = setup_logger(config.log)
     logger.info("Starting orchestrator")
 
+    # Print warning if running in benchmark mode
+    if config.bench:
+        logger.warning(
+            f"Running in benchmark mode (max_steps={config.max_steps}, async_level={format_num(config.async_level, precision=0)})"
+        )
+
     # Setup client
-    logger.info(f"Initializing OpenAI client ({config.client.base_url})")
+    logger.info(f"Initializing OpenAI client ({config.client.host}:{config.client.port})")
     client = setup_client(config.client)
 
     logger.info(f"Initializing tokenizer for {config.model.name}")
@@ -83,7 +87,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
-    vf_env = get_environment(config.environment.id, config.environment.args)
+    vf_env = load_environment(config.environment.id, config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
     datapool = DataPool(dataset, config.data_loading)
     
@@ -146,21 +150,26 @@ async def orchestrate(config: OrchestratorConfig):
             last_eval_step = ckpt_step
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             time_before_evals = time.time()
-            for benchmark in config.eval.benchmarks:
-                await run_benchmark(
-                    client,
-                    benchmark,
-                    config.model,
-                    config.sampling,
-                    ckpt_step,
-                    monitor=monitor,
-                )
+            await asyncio.gather(
+                *[
+                    run_benchmark(
+                        client,
+                        benchmark,
+                        config.model,
+                        config.sampling,
+                        ckpt_step=ckpt_step,
+                        monitor=monitor,
+                        step=progress.step,
+                    )
+                    for benchmark in config.eval.benchmarks
+                ]
+            )
             time_eval = time.time() - time_before_evals
             logger.info(f"Evaluated in {time_eval:.2f}s")
 
         # Get the batch
         problems_per_batch = config.batch_size // config.rollouts_per_prompt
-                        
+
         generate_completions_start_time = time.time()
         
         all_generated_samples = datapool.get_buffered_samples()
@@ -333,6 +342,7 @@ async def orchestrate(config: OrchestratorConfig):
             "progress/orchestrator/total_tokens": progress.total_tokens,
             "progress/orchestrator/total_samples": progress.total_samples,
             "progress/orchestrator/step": ckpt_step,  # Shared W&B axis
+            "progress/ckpt_step": ckpt_step,  # Shared W&B axis
             "step": progress.step,
         }
         monitor.log(progress_metrics)
@@ -351,6 +361,7 @@ async def orchestrate(config: OrchestratorConfig):
             "reward/reward_std": np.std(rewards),
             "reward/advantage": np.mean(advantages),
             "reward/advantage_std": np.std(advantages),
+            "reward/advantage_zero_ratio": np.mean(np.array(advantages) == 0.0),
             "step": progress.step,
         }
         monitor.log(reward_metrics)

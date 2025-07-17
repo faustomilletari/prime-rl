@@ -25,8 +25,6 @@ dependencies = [
     "uvloop>=0.21.0",
     "vllm>=0.9.1",
     "wandb>=0.20.1",
-    "pyext",
-    "reasoning_gym",
     "lovely-tensors>=0.1.18",
     "rich>=14.0.0",
     "tomli-w",
@@ -45,21 +43,19 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.optional-dependencies]
-# Entrypoint-specific dependencies
 fa = ["flash-attn>=2.8.0"]
 
 [tool.uv]
 no-build-isolation-package = ["flash-attn"]
+prerelease = "allow"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-pyext = { git = "git+https://github.com/justusmattern27/PyExt.git" }
-reasoning_gym = { git = " git+https://github.com/open-thought/reasoning-gym.git" }
-verifiers = { git = "https://github.com/willccbb/verifiers", rev = "8363357" }
+verifiers = { git = "https://github.com/willccbb/verifiers", rev = "784e1ee" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/test/cu128"
 explicit = true
 
 [dependency-groups]

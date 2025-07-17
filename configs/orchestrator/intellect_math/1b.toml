@@ -1,13 +1,14 @@
+max_steps = 1000
 batch_size = 2048
 micro_batch_size = 1
 seq_len = 8192
 rollouts_per_prompt = 16
+mask_truncated_completions = false
 
 [model]
 name = "willcb/DeepSeek-R1-Distill-Qwen-1.5B"
 
 [monitor.wandb]
-project = "intellect-math"
 
 [environment]
 id = "intellect-math"
@@ -23,4 +24,6 @@ num_samples = 16
 
 [eval]
 interval = 50
-benchmarks = ["math500"]
+benchmarks = ["math500", "aime24", "aime25"]
+
+[ckpt]

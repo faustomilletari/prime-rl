@@ -34,15 +34,18 @@ async def run_benchmark(
     benchmark: Benchmark,
     model_config: ModelConfig,
     sampling_config: SamplingConfig,
-    step: int,
+    ckpt_step: int,
     monitor: MultiMonitor,
+    step: int | None = None,
 ) -> None:
     # Get the logger
     logger = get_logger()
     benchmark_start_time = time.time()
 
     benchmark_name = get_benchmark_display_name(benchmark)
-    logger.info(f"Evaluating {model_config.name} on {benchmark_name} at step {step}")
+    logger.info(
+        f"Evaluating {model_config.name} on {benchmark_name} {f'for checkpoint {ckpt_step}' if ckpt_step > 0 else ''}"
+    )
 
     # Initializing the benchmark dataset
     logger.debug(f"Loading benchmark dataset ({benchmark})")
@@ -82,8 +85,7 @@ async def run_benchmark(
 
     # Collect rewards
     rows = []
-    for problem_id, prompt, completion, reward in zip(problem_ids, prompts, completions, rewards):
-        logger.debug(f"Problem ID: {problem_id}\n{prompt}\n{completion}")
+    for problem_id, reward in zip(problem_ids, rewards):
         row = {"problem_id": problem_id, "reward": reward}
         rows.append(row)
 
@@ -111,10 +113,15 @@ async def run_benchmark(
     logger.success(message + ")")
 
     # Log statistics to monitor
-    eval_metrics = {"step": step, "score": sample_stats.reward.mean()}
+    eval_metrics = {"score": sample_stats.reward.mean()}
     if could_be_binary:
         eval_metrics.update(pass_rates.mean().to_dict())
-        monitor.log(eval_metrics, wandb_prefix=f"eval/{benchmark}")
+    eval_metrics = {**{f"eval/{benchmark}/{k}": v for k, v in eval_metrics.items()}}
+    if step is None:
+        step = ckpt_step
+    eval_metrics.update({"progress/ckpt_step": ckpt_step, "step": step})
+
+    monitor.log(eval_metrics)
 
     # Log timing metrics to monitor
     time_metrics = {

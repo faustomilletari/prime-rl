@@ -28,7 +28,7 @@ async def eval(config: EvalConfig):
     monitor = setup_monitor(config.monitor, None, run_config=config)
 
     # Setup client
-    logger.info(f"Initializing OpenAI client ({config.client.base_url})")
+    logger.info(f"Initializing OpenAI client ({config.client.host}:{config.client.port})")
     client = setup_client(config.client)
 
     # Check health of the client
@@ -43,15 +43,19 @@ async def eval(config: EvalConfig):
 
     # Run benchmarks on base model
     logger.info(f"Running evals on base model {config.model.name}")
-    for benchmark in config.benchmarks:
-        await run_benchmark(
-            client,
-            benchmark,
-            config.model,
-            config.sampling,
-            step=0,
-            monitor=monitor,
-        )
+    await asyncio.gather(
+        *[
+            run_benchmark(
+                client,
+                benchmark,
+                config.model,
+                config.sampling,
+                ckpt_step=0,
+                monitor=monitor,
+            )
+            for benchmark in config.benchmarks
+        ]
+    )
 
     logger.info("Evaluation finished!")
 
