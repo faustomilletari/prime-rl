@@ -358,7 +358,7 @@ CUDA_VISIBLE_DEVICES=1 uv run trainer @ configs/trainer/reverse_text.toml \
   --monitor.wandb.id <trainer-run-id> \
 ```
 
-you also need to restart the orchestrator from a checkpoint, the api is the same as the trainer, e.g.
+You also need to restart the orchestrator from a checkpoint, the api is the same as the trainer, e.g.
 
 ```bash
 uv run orchestrator @ configs/orchestrator/reverse_text.toml \
