@@ -140,10 +140,14 @@ class DataPool:
         
         high_priority_uids = [uid for uid in uids if self.sample_info[uid]["priority"] == "high"]
         high_priority_uids_not_sampled = [uid for uid in high_priority_uids if not self.sample_info[uid]["already_sampled_current_epoch"]]
-        sampled_high_priority_uids = self._sample_epoch_aware(n_high, high_priority_uids, high_priority_uids_not_sampled)
         
         low_priority_uids = [uid for uid in uids if self.sample_info[uid]["priority"] == "low"]
         low_priority_uids_not_sampled = [uid for uid in uids if not self.sample_info[uid]["already_sampled_current_epoch"]]
+        
+        if len(low_priority_uids) < n_low:
+            n_high = n_high + n_low - len(low_priority_uids)
+    
+        sampled_high_priority_uids = self._sample_epoch_aware(n_high, high_priority_uids, high_priority_uids_not_sampled)
         sampled_low_priority_uids = self._sample_epoch_aware(n_low, low_priority_uids, low_priority_uids_not_sampled)
         
         return sampled_high_priority_uids + sampled_low_priority_uids
