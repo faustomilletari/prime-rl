@@ -141,7 +141,7 @@ async def orchestrate(config: OrchestratorConfig):
             and config.eval.interval
             and ckpt_step % config.eval.interval == 0
             and ckpt_step > last_eval_step
-            and (ckpt_step == 0 and config.eval.eval_base_model or ckpt_step > 0)
+            and ((ckpt_step == 0 and config.eval.eval_base_model) or ckpt_step > 0)
         ):
             last_eval_step = ckpt_step
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
@@ -165,20 +165,23 @@ async def orchestrate(config: OrchestratorConfig):
         
         all_generated_samples = datapool.get_buffered_samples()
         
-        if len(all_generated_samples) >= problems_per_batch:
-            all_generated_samples, samples_to_buffer = all_generated_samples[:problems_per_batch], all_generated_samples[problems_per_batch:]
+        if len(all_generated_samples) >= config.batch_size:
+            all_generated_samples, samples_to_buffer = all_generated_samples[:config.batch_size], all_generated_samples[config.batch_size:]
             datapool.add_to_buffer(samples_to_buffer)
         
         else:
             for sampling_iteration in range(config.data_loading.online_difficulty_filtering_strategy.max_sample_tries):
                 
                 if config.data_loading.online_difficulty_filtering_strategy.enabled:
-                    num_outputs_to_generate = int(problems_per_batch*config.data_loading.online_difficulty_filtering_strategy.oversampling_factor)
+                    num_problems_to_sample = int(problems_per_batch*config.data_loading.online_difficulty_filtering_strategy.oversampling_factor)
                 else:
-                    num_outputs_to_generate = problems_per_batch
+                    num_problems_to_sample = problems_per_batch
                     
-                problems = datapool.sample_batch(num_outputs_to_generate).to_list() * config.rollouts_per_prompt
-
+                problems = [
+                    problem for problem in datapool.sample_batch(num_problems_to_sample).to_list()
+                    for _ in range(config.rollouts_per_prompt)
+                ]
+                
                 # prepare inputs for verifiers generation
                 inputs = {
                     "prompt": [problem["prompt"] for problem in problems],
@@ -244,7 +247,7 @@ async def orchestrate(config: OrchestratorConfig):
                 
                 if sampling_iteration == config.data_loading.online_difficulty_filtering_strategy.max_sample_tries - 1:
                     all_generated_samples.extend(generated_samples)
-                    all_generated_samples, remaining_generated_samples = all_generated_samples[:problems_per_batch], all_generated_samples[problems_per_batch:]
+                    all_generated_samples, remaining_generated_samples = all_generated_samples[:config.batch_size], all_generated_samples[config.batch_size:]
                     break
                 
                 keep_indices = [i for i, rewards_ in enumerate(per_problem_rewards) if config.data_loading.online_difficulty_filtering_strategy.min_avg_reward < np.mean(rewards_) < config.data_loading.online_difficulty_filtering_strategy.max_avg_reward]
@@ -252,7 +255,7 @@ async def orchestrate(config: OrchestratorConfig):
                 generated_samples = flatten_keep(generated_samples, keep_indices, group_size)
 
                 if len(all_generated_samples) + len(keep_indices) >= problems_per_batch:
-                    generated_samples, remaining_generated_samples = generated_samples[:problems_per_batch], generated_samples[problems_per_batch:]
+                    generated_samples, remaining_generated_samples = generated_samples[:config.batch_size], generated_samples[config.batch_size:]
                     all_generated_samples.extend(generated_samples)
                     datapool.add_to_buffer(remaining_generated_samples)  # TODO: Implement buffer functionality in DataPool
                     

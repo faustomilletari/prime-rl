@@ -19,7 +19,7 @@ class GeneratedSample:
     completion_logprobs: List[float]
     prompt_masks: List[int]
     completion_masks: List[int]
-    rewards: List[float]
+    reward: List[float]
     advantages: List[float]
 
 class Sample(TypedDict):
@@ -114,7 +114,9 @@ class DataPool:
         self.buffer.extend(generated_samples)
         
     def get_buffered_samples(self):
-        return self.buffer
+        buffered_samples = self.buffer
+        self.buffer = []
+        return buffered_samples
     
     def _postprocess_difficulty_prioritization(self, per_problem_uids: list[str], per_problem_rewards: list[list[float]], per_problem_advantages: list[list[float]]):
         EPSILON = 1e-6

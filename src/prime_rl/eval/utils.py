@@ -114,7 +114,7 @@ async def run_benchmark(
     eval_metrics = {"step": step, "score": sample_stats.reward.mean()}
     if could_be_binary:
         eval_metrics.update(pass_rates.mean().to_dict())
-    monitor.log(eval_metrics, wandb_prefix=f"eval/{benchmark}")
+        monitor.log(eval_metrics, wandb_prefix=f"eval/{benchmark}")
 
     # Log timing metrics to monitor
     time_metrics = {

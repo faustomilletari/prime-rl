@@ -189,7 +189,7 @@ def create_generated_samples(
             completion_logprobs=cl,
             prompt_masks=pm,
             completion_masks=cm,
-            rewards=r,
+            reward=r,
             advantages=a,
         ) for (pt, ct, cl, pm, cm, r, a) in zip(
             prompt_tokens, 
@@ -212,6 +212,6 @@ def unpack_generated_samples(
         "completion_logprobs": [gs.completion_logprobs for gs in generated_samples],
         "prompt_masks":        [gs.prompt_masks        for gs in generated_samples],
         "completion_masks":    [gs.completion_masks    for gs in generated_samples],
-        "rewards":             [gs.rewards             for gs in generated_samples],
+        "reward":             [gs.reward              for gs in generated_samples],
         "advantages":          [gs.advantages          for gs in generated_samples],
     }

@@ -148,17 +148,71 @@ class CheckpointConfig(BaseConfig):
             
         
 class DifficultyPrioritizationStrategy(BaseConfig):
-    enabled: bool = False
-    priority_data_field: str | None = None
-    low_priority_batch_fraction: float = 0.1
-    
-    
+    enabled: Annotated[
+        bool,
+        Field(
+            description="Whether to enable difficulty-based prioritization for training samples.",
+        ),
+    ] = False
+
+    priority_data_field: Annotated[
+        str | None,
+        Field(
+            description="Field name in the dataset that contains priority information. If None, all samples are treated as high priority by default.",
+        ),
+    ] = None
+
+    low_priority_batch_fraction: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Fraction of the batch that should consist of low priority samples.",
+        ),
+    ] = 0.1
+
+
 class OnlineDifficultyFilteringStrategy(BaseConfig):
-    enabled: bool = False
-    min_avg_reward: float = 0.01
-    max_avg_reward = 0.99
-    oversampling_factor: float = 1.5
-    max_sample_tries: int = 3
+    enabled: Annotated[
+        bool,
+        Field(
+            description="Whether to enable online filtering of samples based on difficulty.",
+        ),
+    ] = False
+
+    min_avg_reward: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Minimum average reward threshold for sample filtering.",
+        ),
+    ] = 0.01
+
+    max_avg_reward: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Maximum average reward threshold for sample filtering.",
+        ),
+    ] = 0.99
+
+    oversampling_factor: Annotated[
+        float,
+        Field(
+            gt=0,
+            description="Factor by which to oversample during filtering to ensure sufficient samples.",
+        ),
+    ] = 1.5
+
+    max_sample_tries: Annotated[
+        int,
+        Field(
+            gt=0,
+            description="Maximum number of attempts to sample within the reward thresholds.",
+        ),
+    ] = 3
     
     
 class DataLoadingConfig(BaseConfig):
