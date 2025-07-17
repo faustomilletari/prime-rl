@@ -379,7 +379,7 @@ uv run rl \
   --orchestrator.monitor.wandb.id <orchestrator-run-id> 
 ```
 
-you don't need to restart the inference server if started manually, the orchestrator will automatically send the right checkpoint to the inference server when resuming.
+You don't need to restart the inference server if started manually, the orchestrator will automatically send the right checkpoint to the inference server when resuming.
 
 ### Benchmarking
 
