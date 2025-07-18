@@ -260,7 +260,7 @@ def train(config: TrainerConfig):
             loss_metrics["loss/importance_ratio"] += importance_ratio.detach().clone().float()
             loss_metrics["loss/clipped_ratio"] += clip_token_count.detach().clone().float()
 
-            abs_diff_sum = micro_batch.get("abs_logprob_diff_sum", torch.tensor(0.0))
+            abs_diff_recomputed_logprobs_sum = micro_batch.get("abs_logprob_diff_sum", torch.tensor(0.0))
             loss_metrics["loss/logprobs_abs_diff"] += abs_diff_sum.clone().float()
 
             # Scale loss by scale factor before backward pass
