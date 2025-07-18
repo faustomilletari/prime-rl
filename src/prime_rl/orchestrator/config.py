@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal, Dict
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
@@ -152,8 +152,8 @@ class CheckpointConfig(BaseConfig):
             description="Step to resume orchestrator from. If None, will start from scratch.",
         ),
     ] = None
-            
-        
+
+
 class DifficultyPrioritizationStrategy(BaseConfig):
     enabled: Annotated[
         bool,
@@ -220,8 +220,8 @@ class OnlineDifficultyFilteringStrategy(BaseConfig):
             description="Maximum number of attempts to sample within the reward thresholds.",
         ),
     ] = 3
-    
-    
+
+
 class DataLoadingConfig(BaseConfig):
     online_difficulty_filtering_strategy: OnlineDifficultyFilteringStrategy = OnlineDifficultyFilteringStrategy()
     difficulty_prioritization_strategy: DifficultyPrioritizationStrategy = DifficultyPrioritizationStrategy()
@@ -244,7 +244,7 @@ class OrchestratorConfig(BaseSettings):
 
     # The evaluation configuration
     eval: EvalConfig | None = None
-    
+
     # Dynamic Data Loading
     data_loading: DataLoadingConfig = DataLoadingConfig()
 

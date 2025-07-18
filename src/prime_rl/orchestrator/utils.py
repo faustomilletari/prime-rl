@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -8,9 +8,9 @@ from rich.console import Console
 from rich.table import Table
 
 from prime_rl.orchestrator.client import tokenize
+from prime_rl.orchestrator.data import GeneratedSample
 from prime_rl.orchestrator.genesys import TaskType, get_reward_function
 from prime_rl.utils.utils import format_num, format_time, get_weight_ckpt_model_path, wait_for_path
-from prime_rl.orchestrator.data import GeneratedSample
 
 
 def parse_completion_logprobs(chat_completion: ChatCompletion) -> list[float]:
@@ -169,8 +169,9 @@ def print_benchmark(history: dict[str, list[Any]]) -> None:
     # Display table
     console.print(table)
 
+
 def flatten_keep(lst: list, keep_indices: list[int], group_size: int):
-    return [item for i in keep_indices for item in lst[i*group_size:(i+1)*group_size]]
+    return [item for i in keep_indices for item in lst[i * group_size : (i + 1) * group_size]]
 
 
 def create_generated_samples(
@@ -191,14 +192,9 @@ def create_generated_samples(
             completion_masks=cm,
             reward=r,
             advantages=a,
-        ) for (pt, ct, cl, pm, cm, r, a) in zip(
-            prompt_tokens, 
-            completion_tokens, 
-            completion_logprobs, 
-            prompt_masks, 
-            completion_masks, 
-            rewards, 
-            advantages
+        )
+        for (pt, ct, cl, pm, cm, r, a) in zip(
+            prompt_tokens, completion_tokens, completion_logprobs, prompt_masks, completion_masks, rewards, advantages
         )
     ]
 
@@ -207,11 +203,11 @@ def unpack_generated_samples(
     generated_samples: List[GeneratedSample],
 ) -> Dict[str, List[Any]]:
     return {
-        "prompt_tokens":       [gs.prompt_tokens       for gs in generated_samples],
-        "completion_tokens":   [gs.completion_tokens   for gs in generated_samples],
+        "prompt_tokens": [gs.prompt_tokens for gs in generated_samples],
+        "completion_tokens": [gs.completion_tokens for gs in generated_samples],
         "completion_logprobs": [gs.completion_logprobs for gs in generated_samples],
-        "prompt_masks":        [gs.prompt_masks        for gs in generated_samples],
-        "completion_masks":    [gs.completion_masks    for gs in generated_samples],
-        "reward":             [gs.reward              for gs in generated_samples],
-        "advantages":          [gs.advantages          for gs in generated_samples],
+        "prompt_masks": [gs.prompt_masks for gs in generated_samples],
+        "completion_masks": [gs.completion_masks for gs in generated_samples],
+        "reward": [gs.reward for gs in generated_samples],
+        "advantages": [gs.advantages for gs in generated_samples],
     }
