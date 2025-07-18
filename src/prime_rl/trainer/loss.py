@@ -91,14 +91,14 @@ def grpo_loss_clip(
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
-    clip_token_count = _masked_sum(is_clipped, loss_mask)
+    clipped_token_count = _masked_sum(is_clipped, loss_mask)
 
     if highest_entropy_percentage < 1.0:
         loss_mask = highest_entropy_mask(logits, loss_mask, highest_entropy_percentage)
 
     loss = _masked_sum(per_token_loss, loss_mask)
     ratio = _masked_sum(coef_2, loss_mask)
-    return loss, ratio, clip_token_count
+    return loss, ratio, clipped_token_count
 
 
 @jaxtyped(typechecker=typechecker)
