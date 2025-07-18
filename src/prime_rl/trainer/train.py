@@ -190,8 +190,6 @@ def train(config: TrainerConfig):
                     temperature = micro_batch["temperature"]
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
-
-
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
 
             # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
