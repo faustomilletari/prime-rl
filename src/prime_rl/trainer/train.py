@@ -191,14 +191,6 @@ def train(config: TrainerConfig):
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
 
-                    original_logprobs = micro_batch["logprobs"].to(recomputed_logprobs.device)
-
-                    diff_mask = micro_batch["loss_mask"][:, 1:].to(recomputed_logprobs.device)
-
-                    abs_diff = 
-                    abs_diff_recomputed_logprobs_sum = (torch.exp(recomputed_logprobs - original_logprobs).abs()) * diff_mask).sum()
-
-                    micro_batch["abs_logprob_diff_sum"] = abs_diff_sum.to("cpu")
 
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
 
@@ -260,8 +252,6 @@ def train(config: TrainerConfig):
             loss_metrics["loss/importance_ratio"] += importance_ratio.detach().clone().float()
             loss_metrics["loss/clipped_ratio"] += clip_token_count.detach().clone().float()
 
-            abs_diff_recomputed_logprobs_sum = micro_batch.get("abs_logprob_diff_sum", torch.tensor(0.0))
-            loss_metrics["loss/logprobs_abs_diff"] += abs_diff_sum.clone().float()
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
