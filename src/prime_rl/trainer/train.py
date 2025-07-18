@@ -195,8 +195,8 @@ def train(config: TrainerConfig):
 
                     diff_mask = micro_batch["loss_mask"][:, 1:].to(recomputed_logprobs.device)
 
-                    abs_diff = (recomputed_logprobs - original_logprobs).abs()
-                    abs_diff_sum = (torch.exp(abs_diff) * diff_mask).sum()
+                    abs_diff = 
+                    abs_diff_recomputed_logprobs_sum = (torch.exp(recomputed_logprobs - original_logprobs).abs()) * diff_mask).sum()
 
                     micro_batch["abs_logprob_diff_sum"] = abs_diff_sum.to("cpu")
 
