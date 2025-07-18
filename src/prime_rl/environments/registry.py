@@ -39,37 +39,6 @@ Provide the final numerical answer inside \\boxed{{...}}."""
     vf_env = vf.SingleTurnEnv(dataset=dataset, system_prompt=system_prompt, parser=parser, rubric=rubric)
     return vf_env
 
-def load_skywork_math_environment(env_args: dict = {}) -> Environment:
-    import json
-
-    from prime_rl.orchestrator.genesys.math import compute_math_reward
-
-    train_dataset = load_dataset("PrimeIntellect/Skywork-OR1-RL-Data-v1-math-prime-rl-format", split="train").map(
-        lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
-    )
-    solve_rate_field = env_args.get("solve_rate_field", None)
-    if solve_rate_field is not None:
-        min_solve_rate = env_args.get("min_solve_rate", None)
-        max_solve_rate = env_args.get("max_solve_rate", None)
-        if min_solve_rate is not None:
-            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate)
-        if max_solve_rate is not None:
-            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] <= max_solve_rate)
-    train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
-
-    def correct_answer_reward_func(completion, info, **kwargs) -> float:
-        completion_text = completion[-1]["content"]
-        return compute_math_reward(completion_text, info)
-
-    rubric = vf.Rubric(
-        funcs=[
-            correct_answer_reward_func,
-        ],
-        weights=[1.0],
-    )
-
-    vf_env = vf.SingleTurnEnv(dataset=train_dataset, rubric=rubric)
-    return vf_env
 
 def load_intellect_math_environment(env_args: dict = {}) -> Environment:
     import json
@@ -501,7 +470,6 @@ REGISTRY = {
     "reverse-text": load_reverse_environment,
     "hendrycks-math": load_hendrycks_math_environment,
     "intellect-math": load_intellect_math_environment,
-    "skywork-math": load_skywork_math_environment,
     "unscramble": load_unscramble_environment,
     "ascii-tree": load_ascii_tree_environment,
     "pydantic-adherence": load_pydantic_adherence_environment,
