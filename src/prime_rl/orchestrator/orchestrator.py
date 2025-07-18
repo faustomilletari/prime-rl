@@ -277,6 +277,7 @@ async def orchestrate(config: OrchestratorConfig):
         progress_metrics = {
             "progress/total_tokens": progress.total_tokens,
             "progress/total_samples": progress.total_samples,
+            "progress/total_problems": progress.total_problems,
             "progress/epoch": progress.epoch,
             "progress/ckpt_step": ckpt_step,  # Shared W&B axis
             "step": progress.step,
