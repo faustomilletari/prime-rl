@@ -190,6 +190,13 @@ def train(config: TrainerConfig):
                     temperature = micro_batch["temperature"]
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
+                    original_logprobs = micro_batch["logprobs"].to(recomputed_logprobs.device)
+
+                    diff_mask = micro_batch["loss_mask"][:, 1:].to(recomputed_logprobs.device)
+
+                    recomputed_logprob_error = ((torch.exp(recomputed_logprobs - original_logprobs).abs()) * diff_mask).sum()
+
+                    micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
 
             # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
@@ -226,7 +233,7 @@ def train(config: TrainerConfig):
             logits = forward(model, input_ids, position_ids).contiguous()
 
             # Compute loss
-            loss, importance_ratio, clip_token_count = grpo_loss(
+            loss, importance_ratio, clipped_token_count = grpo_loss(
                 logits=logits,
                 input_ids=input_ids,
                 advantages=advantages,
@@ -248,8 +255,10 @@ def train(config: TrainerConfig):
             loss_metrics["loss/loss"] += loss.detach().clone().float()
             loss_metrics["loss/entropy"] += entropy.detach().clone().float()
             loss_metrics["loss/importance_ratio"] += importance_ratio.detach().clone().float()
-            loss_metrics["loss/clipped_ratio"] += clip_token_count.detach().clone().float()
+            loss_metrics["loss/clipped_ratio"] += clipped_token_count.detach().clone().float()
 
+            recomputed_logprob_error = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
+            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.clone().float()
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
@@ -263,7 +272,7 @@ def train(config: TrainerConfig):
             )
 
             del micro_batch, logits, input_ids, position_ids, advantages, logprobs, loss_mask
-            del loss, entropy, importance_ratio, clip_token_count
+            del loss, entropy, importance_ratio, clipped_token_count
 
         # Normalize all loss metrics globally before reporting
         for key, value in loss_metrics.items():
