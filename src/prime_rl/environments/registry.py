@@ -1,3 +1,4 @@
+import pihub
 import verifiers as vf
 from datasets import load_dataset
 from verifiers import Environment
@@ -311,7 +312,7 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     from typing import Callable, Dict, List, Optional, Type, Union
 
     from pydantic import BaseModel
-    from verifiers.parsers import Parser
+    from verifiers.parsers.parser import Parser
 
     # Environment Helper Functions
     def _find_last_json_block(text: str) -> str | None:
@@ -472,7 +473,8 @@ REGISTRY = {
     "intellect-math": load_intellect_math_environment,
     "unscramble": load_unscramble_environment,
     "ascii-tree": load_ascii_tree_environment,
-    "pydantic-adherence": load_pydantic_adherence_environment,
+    # "pydantic-adherence": load_pydantic_adherence_environment,
+    "pydantic-adherence": lambda env_args: pihub.load_environment("johannes-test-account/pydantic-adherance-test"),
 }
 
 
