@@ -147,7 +147,7 @@ def load_intellect_math_vf_environment(
     return vf_env
 
 
-def load_hendrycks_math_environment(env_args: dict = {}) -> Environment:
+def load_hendrycks_math_environment(**kwargs) -> Environment:
     import json
 
     from verifiers.utils.data_utils import extract_boxed_answer
@@ -176,7 +176,7 @@ def load_hendrycks_math_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_reverse_environment(env_args: dict = {}) -> Environment:
+def load_reverse_environment(**kwargs) -> Environment:
     import json
 
     train_dataset = load_dataset("mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train").map(
@@ -222,7 +222,7 @@ def load_reverse_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
+def load_pydantic_adherence_environment(**kwargs) -> Environment:
     import json
     import re
     from types import ModuleType
@@ -392,6 +392,14 @@ def load_reasoning_gym_environment(task_name: str, num_samples: int = 1000, seed
     return vf_env
 
 
+def load_sentence_repeater_environment(**kwargs) -> Environment:
+    vf_env = vf.load_environment(
+        "sentence-repeater",
+        **kwargs,
+    )
+    return vf_env
+
+
 def load_xlam_function_calling_environment(env_args: dict = {}) -> Environment:
     """
     Load the XLAM function calling environment.
@@ -450,13 +458,12 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
 
 def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
-    # model: willcb/Qwen2.5-7B-Wordle-SFT
-    from verifiers.envs.textarena_env import TextArenaEnv
-
-    vf_env = TextArenaEnv(
-        game="Wordle-v0",
+    # model: willcb/Qwen3-{1.7B,4B}-Wordle
+    vf_env = vf.load_environment(
+        "wordle",
         num_train_examples=num_train_examples,
         num_eval_examples=num_eval_examples,
+        use_think=True,
     )
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-think"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-think"] * len(vf_env.eval_dataset))  # type: ignore
@@ -465,39 +472,19 @@ def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examp
 
 def load_wordle_nothink_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
-    # model: willcb/Qwen3-1.7B-Wordle
-    from verifiers.envs.textarena_env import TextArenaEnv
-
-    NOTHINK_WORDLE_SYSTEM_PROMPT = """You are a competitive game player. \
-Make sure you read the game instructions carefully, and always follow the required format.
-
-In each turn, give only your guess inside <guess>...</guess> tags."""
-    vf_env = TextArenaEnv(
-        game="Wordle-v0",
+    vf_env = vf.load_environment(
+        "wordle",
         num_train_examples=num_train_examples,
         num_eval_examples=num_eval_examples,
-        system_prompt=NOTHINK_WORDLE_SYSTEM_PROMPT,
-        parser=vf.XMLParser(fields=["guess"], answer_field="guess"),
+        use_think=False,
     )
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-nothink"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-nothink"] * len(vf_env.eval_dataset))  # type: ignore
-
-    parser = vf_env.parser
-
-    def partial_credit_reward_func(completion, **kwargs) -> float:
-        """Reward function that gives partial credit for the correct guess."""
-        final_env_response = parser.get_user_messages(completion)[-1]["content"].strip()
-        guess, scoring = final_env_response.split("\n")[:2]
-        num_greens = scoring.count("G")
-        num_yellows = scoring.count("Y")
-        return 0.2 * num_greens + 0.1 * num_yellows
-
-    vf_env.rubric.add_reward_func(partial_credit_reward_func)
-
     return vf_env
 
 
 ### Eval Environments ###
+
 
 def load_acebench_environment(**kwargs) -> Environment:
     raise NotImplementedError("Acebench environment not implemented")
@@ -726,6 +713,7 @@ REGISTRY = {
     "reasoning-gym": {"load_fn": load_reasoning_gym_environment, "type": "train", "tags": ["reasoning"]},
     "reverse-text": {"load_fn": load_reverse_environment, "type": "train", "tags": ["instruction-following"]},
     "pydantic-adherence": {"load_fn": load_pydantic_adherence_environment, "type": "train", "tags": ["instruction"]},
+    "sentence-repeater": {"load_fn": load_sentence_repeater_environment, "type": "train", "tags": ["instruction"]},
     "xlam-function-calling": {"load_fn": load_xlam_function_calling_environment, "type": "train", "tags": ["tool-use"]},
     "wordle-think": {"load_fn": load_wordle_think_environment, "type": "train", "tags": ["game", "multi-turn"]},
     "wordle-nothink": {"load_fn": load_wordle_nothink_environment, "type": "train", "tags": ["game", "multi-turn"]},

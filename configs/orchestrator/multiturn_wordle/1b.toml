@@ -1,7 +1,7 @@
 max_steps = 500
-batch_size = 256
-micro_batch_size = 4
-seq_len = 1024
+batch_size = 128
+micro_batch_size = 8
+seq_len = 4096
 rollouts_per_prompt = 16
 mask_truncated_completions = false
 
@@ -11,12 +11,12 @@ name = "willcb/Qwen3-1.7B-Wordle"
 [monitor.wandb]
 
 [environment]
-id = "wordle-nothink"
+id = "wordle"
 
 [environment.args]
 
 [sampling]
-max_tokens = 20
+max_tokens = 1024
 
 [monitor.wandb.log_samples]
 interval = 10

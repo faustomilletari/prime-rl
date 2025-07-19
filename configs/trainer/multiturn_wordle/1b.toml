@@ -1,5 +1,7 @@
 
 [monitor.wandb]
+project = "wordle"
+name = "1b-debug"
 
 [model]
 name = "willcb/Qwen3-1.7B-Wordle"
