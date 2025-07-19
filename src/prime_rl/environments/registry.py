@@ -715,7 +715,7 @@ REGISTRY = {
     "pydantic-adherence": {"load_fn": load_pydantic_adherence_environment, "type": "train", "tags": ["instruction"]},
     "sentence-repeater": {"load_fn": load_sentence_repeater_environment, "type": "train", "tags": ["instruction"]},
     "xlam-function-calling": {"load_fn": load_xlam_function_calling_environment, "type": "train", "tags": ["tool-use"]},
-    "wordle-think": {"load_fn": load_wordle_think_environment, "type": "train", "tags": ["game", "multi-turn"]},
+    "wordle": {"load_fn": load_wordle_think_environment, "type": "train", "tags": ["game", "multi-turn"]},
     "wordle-nothink": {"load_fn": load_wordle_nothink_environment, "type": "train", "tags": ["game", "multi-turn"]},
     # eval
     "gpqa": {"load_fn": load_gpqa_environment, "type": "eval", "tags": ["science", "multiple-choice"]},
