@@ -1,14 +1,7 @@
-<<<<<<< HEAD
 max_steps = 500
 batch_size = 128
 micro_batch_size = 4
 seq_len = 4096
-=======
-max_steps = 200
-batch_size = 256
-micro_batch_size = 8
-seq_len = 2048
->>>>>>> 59b9b074 (multiturn vllm logprobs)
 rollouts_per_prompt = 16
 mask_truncated_completions = false
 
@@ -18,20 +11,12 @@ name = "willcb/Qwen3-1.7B-Wordle"
 [monitor.wandb]
 
 [environment]
-<<<<<<< HEAD
 id = "wordle"
-=======
-id = "wordle-nothink"
->>>>>>> 59b9b074 (multiturn vllm logprobs)
 
 [environment.args]
 
 [sampling]
-<<<<<<< HEAD
 max_tokens = 1024
-=======
-max_tokens = 16
->>>>>>> 59b9b074 (multiturn vllm logprobs)
 
 [monitor.wandb.log_samples]
 interval = 10

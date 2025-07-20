@@ -753,7 +753,22 @@ In each turn, give only your guess inside <guess>...</guess> tags."""
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-nothink"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-nothink"] * len(vf_env.eval_dataset))  # type: ignore
 
+<<<<<<< HEAD
 >>>>>>> 59b9b074 (multiturn vllm logprobs)
+=======
+    parser = vf_env.parser
+
+    def partial_credit_reward_func(completion, **kwargs) -> float:
+        """Reward function that gives partial credit for the correct guess."""
+        final_env_response = parser.get_user_messages(completion)[-1]["content"].strip()
+        guess, scoring = final_env_response.split("\n")[:2]
+        num_greens = scoring.count("G")
+        num_yellows = scoring.count("Y")
+        return 0.2 * num_greens + 0.1 * num_yellows
+
+    vf_env.rubric.add_reward_func(partial_credit_reward_func)
+
+>>>>>>> c62f5cca (wordle 1b test)
     return vf_env
 
 
