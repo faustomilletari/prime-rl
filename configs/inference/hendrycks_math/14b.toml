@@ -1,0 +1,7 @@
+[model]
+name = "Qwen/Qwen3-14B"
+max_model_len = 2048
+
+[parallel]
+dp = 3
+tp = 2
