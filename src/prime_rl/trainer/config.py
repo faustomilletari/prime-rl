@@ -205,7 +205,6 @@ class TrainerConfig(BaseSettings):
         ),
     ] = True
 
-    # NEW CONFIG FLAG
     replace_zero_advantage: Annotated[
         bool,
         Field(
