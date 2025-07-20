@@ -1,7 +1,10 @@
 
 [monitor.wandb]
+<<<<<<< HEAD
 project = "wordle"
 name = "1b-debug"
+=======
+>>>>>>> 59b9b074 (multiturn vllm logprobs)
 
 [model]
 name = "willcb/Qwen3-1.7B-Wordle"
