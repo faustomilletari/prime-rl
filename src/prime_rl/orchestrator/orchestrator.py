@@ -25,9 +25,9 @@ from prime_rl.orchestrator.client import (
 from prime_rl.orchestrator.config import OrchestratorConfig
 from prime_rl.orchestrator.data import prepare_batch
 from prime_rl.orchestrator.logger import setup_logger
+from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
     process_env_results,
-    compute_advantages,
     wait_for_weight_checkpoint,
     print_benchmark,
 )
@@ -214,10 +214,12 @@ async def orchestrate(config: OrchestratorConfig):
         completion_masks = results["completion_masks"]
         rewards = outputs["reward"]  # TODO: Align naming between prime-rl <> verifiers
 
-        # Compute advantages
-        advantages, solve_none_ratio, solve_all_ratio, effective_batch_size_ratio = compute_advantages(rewards, config.rollouts_per_prompt)
+        advantages, advantage_stats = compute_advantages(
+            rewards=rewards, samples_per_problem=config.rollouts_per_prompt, advantage_type=config.advantage_type
+        )
+
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
-        logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
+        logger.debug(f"Computed advantages ({config.advantage_type}): {lt.lovely(torch.tensor(advantages))}")
 
         # compute batch metrics
         num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
@@ -294,14 +296,13 @@ async def orchestrate(config: OrchestratorConfig):
             "step": progress.step,
         }
         monitor.log(perf_metrics)
-        
 
         # Log rewards metrics to monitor
         reward_metrics = {
             "reward/reward": np.mean(rewards),
-            "reward/solve_none": solve_none_ratio,
-            "reward/solve_all": solve_all_ratio,
-            "reward/effective_batch_size": effective_batch_size_ratio,
+            "reward/solve_none": advantage_stats["solve_none"],
+            "reward/solve_all": advantage_stats["solve_all"],
+            "reward/effective_batch_size": advantage_stats["effective_batch_size"],
             "step": progress.step,
         }
         monitor.log(reward_metrics)
