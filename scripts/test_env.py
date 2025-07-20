@@ -5,14 +5,16 @@ import numpy as np
 from openai import OpenAI
 from verifiers.utils.logging_utils import print_prompt_completions_sample
 
-from prime_rl.environments.registry import REGISTRY, load_environment
+from prime_rl.environments.registry import load_environment
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", "-e", type=str, default="gsm8k", choices=list(REGISTRY.keys()))
+    parser.add_argument("--env", "-e", type=str, default="pydantic-adherence")
     parser.add_argument("--model", "-m", type=str, default="gpt-4.1-mini")
     parser.add_argument("--api-key-var", "-k", type=str, default="OPENAI_API_KEY")
-    parser.add_argument("--api-base-url", "-b", type=str, default="https://api.openai.com/v1")
+    parser.add_argument(
+        "--api-base-url", "-b", type=str, default="https://api.openai.com/v1"
+    )
     parser.add_argument("--num-examples", "-n", type=int, default=5)
     parser.add_argument("--rollouts-per-example", "-r", type=int, default=3)
     parser.add_argument("--max-concurrent-requests", "-c", type=int, default=32)
@@ -43,7 +45,9 @@ if __name__ == "__main__":
     print(f"Rollouts per example: {args.rollouts_per_example}")
 
     print("--- Example ---")
-    print_prompt_completions_sample(results["prompt"], results["completion"], rewards, step=0)
+    print_prompt_completions_sample(
+        results["prompt"], results["completion"], rewards, step=0
+    )
     print("--- All ---")
     print("Rewards:")
     for k, v in results.items():

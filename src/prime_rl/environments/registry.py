@@ -69,7 +69,11 @@ def load_intellect_math_environment(
     from prime_rl.orchestrator.genesys.math import compute_math_reward
 
     train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
-        lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
+        lambda x: {
+            "question": x["prompt"],
+            "info": json.loads(x["verification_info"]),
+            "task": "simple-math",
+        }
     )
     if solve_rate_field is not None:
         if min_solve_rate is not None:
@@ -103,7 +107,6 @@ def load_intellect_math_vf_environment(
     # alternative to genesys math reward function, HF package
     import json
 
-    from math_verify import parse, verify  # type: ignore
     from verifiers.utils.data_utils import extract_boxed_answer
 
     train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
@@ -113,7 +116,10 @@ def load_intellect_math_vf_environment(
             "task": "simple-math",
         }
     )
+    solve_rate_field = env_args.get("solve_rate_field", None)
     if solve_rate_field is not None:
+        min_solve_rate = env_args.get("min_solve_rate", None)
+        max_solve_rate = env_args.get("max_solve_rate", None)
         if min_solve_rate is not None:
             train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate)
         if max_solve_rate is not None:
@@ -128,7 +134,7 @@ def load_intellect_math_vf_environment(
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
         response = parser.parse_answer(completion) or ""
-        return 1.0 if verify(parse(response), parse(answer)) else 0.0
+        return 1.0 if response == str(answer) else 0.0
 
     rubric = vf.Rubric(
         funcs=[
@@ -155,7 +161,11 @@ def load_hendrycks_math_environment(**kwargs) -> Environment:
     from prime_rl.orchestrator.genesys.math import compute_math_reward
 
     train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
-        lambda x: {"question": x["prompt"], "info": json.loads(x["verification_info"]), "task": "simple-math"}
+        lambda x: {
+            "question": x["prompt"],
+            "info": json.loads(x["verification_info"]),
+            "task": "simple-math",
+        }
     )
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
@@ -353,7 +363,11 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
             answer_lines = parsed_completion.strip().split("\n")
             truth_lines = answer.strip().split("\n")
             matcher = difflib.SequenceMatcher(None, answer_lines, truth_lines)
-            longest_block = max(matcher.get_matching_blocks(), key=lambda x: x.size, default=difflib.Match(0, 0, 0))
+            longest_block = max(
+                matcher.get_matching_blocks(),
+                key=lambda x: x.size,
+                default=difflib.Match(0, 0, 0),
+            )
             reward = longest_block.size / len(truth_lines)
 
             if not all(line.startswith(" ") or line.rstrip() == answer_lines[0] for line in answer_lines[1:]):
@@ -451,7 +465,11 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
         Parser for JSON responses that validates against Pydantic models.
         """
 
-        def __init__(self, extract_fn: Callable[[str], Optional[dict]] = extract_last_json, **kwargs):
+        def __init__(
+            self,
+            extract_fn: Callable[[str], Optional[dict]] = extract_last_json,
+            **kwargs,
+        ):
             """
             Initialize the parser.
 
@@ -490,7 +508,10 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
                 if "pydantic_config" not in verification_info or "model_name" not in verification_info:
                     raise ValueError("verification_info must contain 'pydantic_config' and 'model_name'")
 
-                model = _load_model_from_code(verification_info["pydantic_config"], verification_info["model_name"])
+                model = _load_model_from_code(
+                    verification_info["pydantic_config"],
+                    verification_info["model_name"],
+                )
 
                 try:
                     model.model_validate(parsed)
@@ -504,7 +525,11 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
 
     # Preprocess the dataset to parse verification_info and map prompt to question
     dataset = dataset.map(
-        lambda x: {"question": x["prompt"], "answer": json.loads(x["verification_info"]), "task": "pydantic-adherence"}
+        lambda x: {
+            "question": x["prompt"],
+            "answer": json.loads(x["verification_info"]),
+            "task": "pydantic-adherence",
+        }
     )
 
     dataset = dataset.remove_columns(["prompt", "verification_info"])
