@@ -565,6 +565,7 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
+<<<<<<< HEAD
 def load_reasoning_gym_environment(task_name: str, num_samples: int = 1000, seed: int = 0, **kwargs) -> Environment:
     # requires `reasoning-gym`
     from verifiers.envs.reasoning_gym_env import ReasoningGymEnv  # type: ignore
@@ -581,6 +582,8 @@ def load_sentence_repeater_environment(**kwargs) -> Environment:
     return vf_env
 
 
+=======
+>>>>>>> 8af1f598 (xlam env)
 def load_xlam_function_calling_environment(env_args: dict = {}) -> Environment:
     """
     Load the XLAM function calling environment.
@@ -637,6 +640,7 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
     return vf_env
 
 
+<<<<<<< HEAD
 def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen3-{1.7B,4B}-Wordle
@@ -905,6 +909,46 @@ REGISTRY = {
     "gpqa-diamond": {"load_fn": load_gpqa_diamond_environment, "type": "eval", "tags": ["science", "multiple-choice"]},
     "hle": {"load_fn": load_hle_environment, "type": "eval", "tags": ["knowledge", "reasoning"]},
     "simpleqa": {"load_fn": load_simpleqa_environment, "type": "eval", "tags": ["knowledge"]},
+=======
+def load_wordle_think_environment(env_args: dict = {}) -> Environment:
+    # requires `textarena`, `nltk`
+    # model: willcb/Qwen2.5-7B-Wordle-SFT
+    from verifiers.envs.textarena_env import TextArenaEnv
+
+    vf_env = TextArenaEnv(
+        game="Wordle-v0",
+        num_samples=env_args.get("num_samples", 2000),
+        num_eval_samples=env_args.get("num_eval_samples", 20),
+    )
+    return vf_env
+
+
+def load_wordle_nothink_environment(env_args: dict = {}) -> Environment:
+    # requires `textarena`, `nltk`
+    # model: willcb/Qwen3-1.7B-Wordle
+    from verifiers.envs.textarena_env import TextArenaEnv
+
+    vf_env = TextArenaEnv(
+        game="Wordle-v0",
+        num_samples=env_args.get("num_samples", 2000),
+        num_eval_samples=env_args.get("num_eval_samples", 20),
+    )
+    return vf_env
+
+
+REGISTRY = {
+    "gsm8k": load_gsm8k_environment,
+    "hendrycks-math": load_hendrycks_math_environment,
+    "intellect-math": load_intellect_math_environment,
+    "unscramble": load_unscramble_environment,
+    "ascii-tree": load_ascii_tree_environment,
+    "intellect-math-vf": load_intellect_math_vf_environment,
+    "reverse-text": load_reverse_environment,
+    "pydantic-adherence": load_pydantic_adherence_environment,
+    "xlam-function-calling": load_xlam_function_calling_environment,
+    "wordle-think": load_wordle_think_environment,
+    "wordle-nothink": load_wordle_nothink_environment,
+>>>>>>> 8af1f598 (xlam env)
 }
 
 
