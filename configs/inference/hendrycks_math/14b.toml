@@ -1,5 +1,5 @@
 [model]
-name = "Qwen/Qwen3-14B"
+name = "willcb/DeepSeek-R1-Distill-Qwen-14B"
 max_model_len = 2048
 
 [parallel]
