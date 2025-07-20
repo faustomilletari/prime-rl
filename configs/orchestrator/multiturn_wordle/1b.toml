@@ -1,6 +1,10 @@
 max_steps = 500
 batch_size = 128
+<<<<<<< HEAD
 micro_batch_size = 4
+=======
+micro_batch_size = 8
+>>>>>>> 9fb30523 (wordle configs)
 seq_len = 4096
 rollouts_per_prompt = 16
 mask_truncated_completions = false
