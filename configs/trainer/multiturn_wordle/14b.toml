@@ -1,10 +1,10 @@
 
 [monitor.wandb]
 project = "wordle"
-name = "1b-debug"
+name = "14b-debug"
 
 [model]
-name = "willcb/Qwen3-1.7B-Wordle"
+name = "willcb/Qwen3-14B"
 ac = true
 
 [optim]
