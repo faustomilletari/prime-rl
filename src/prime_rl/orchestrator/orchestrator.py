@@ -190,8 +190,7 @@ async def orchestrate(config: OrchestratorConfig):
         generate_completions_start_time = time.time()
         sampling_args = dict(config.sampling)
 
-        # TODO: make configurable; 0 returns top 1 logprobs, None for no logprobs
-        sampling_args["logprobs"] = 0
+        sampling_args["logprobs"] = True
 
         # sanitize for vLLM OpenAI client
         sampling_args["extra_body"] = {"return_tokens_as_token_ids": True}
