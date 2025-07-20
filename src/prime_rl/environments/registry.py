@@ -620,13 +620,13 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
     )
     return vf_env
 
+
 def load_reasoning_gym_environment(env_args: dict = {}) -> Environment:
     vf_env = vf.load_environment(
         "reasoning-gym",
         **env_args,
     )
     return vf_env
-
 
 
 def load_sentence_repeater_environment(**kwargs) -> Environment:
