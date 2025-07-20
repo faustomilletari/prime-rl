@@ -205,6 +205,14 @@ class TrainerConfig(BaseSettings):
         ),
     ] = True
 
+    # NEW CONFIG FLAG
+    replace_zero_advantage: Annotated[
+        bool,
+        Field(
+            description="If True, micro batches where all advantages are zero will be replaced by random sampling of a non-zero-advantage sample within the same batch.",
+        ),
+    ] = False
+
     bench: Annotated[
         bool,
         Field(

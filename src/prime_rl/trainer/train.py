@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import random
 from collections import defaultdict
 from copy import deepcopy
 
@@ -166,9 +167,22 @@ def train(config: TrainerConfig):
         logger.debug("Loading batch")
         load_data_start_time = time.time()
         micro_batches = dataloader.get_batch()
+
+        # Optionally replace zero-advantage micro batches
+        if config.replace_zero_advantage:
+            non_zero_batches = [mb for mb in micro_batches if mb["advantages"].abs().sum().item() != 0]
+            for idx, mb in enumerate(micro_batches):
+                if mb["advantages"].abs().sum().item() == 0:
+                    replacement = random.choice(non_zero_batches)
+                    micro_batches[idx] = {
+                        k: (v.clone() if torch.is_tensor(v) else deepcopy(v))
+                        for k, v in replacement.items()
+                    }
+
         load_data_time = time.time() - load_data_start_time
         logger.debug(f"Loaded batch in {load_data_time:.2f} seconds")
 
+        
         # Optionally, compute the logprobs for the training batch
         compute_logprobs_time = 0
         if config.recompute_logprobs:
