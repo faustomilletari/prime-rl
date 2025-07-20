@@ -217,7 +217,12 @@ def train(config: TrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        # Exclude zero advantage micro_batches
+        loss_scale = sum(
+            micro_batch["loss_mask"].sum().item()
+            for micro_batch in micro_batches
+            if micro_batch["advantages"].abs().sum().item() != 0
+        )
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
