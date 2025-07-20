@@ -29,9 +29,7 @@ def load_gsm8k_environment(**kwargs) -> Environment:
         remove_columns=eval_dataset.column_names,  # type: ignore
     )  # type: ignore
 
-    parser = vf.ThinkParser(
-        extract_fn=extract_boxed_answer
-    )  # uses \boxed{...} to parse the answer by default
+    parser = vf.ThinkParser(extract_fn=extract_boxed_answer)  # uses \boxed{...} to parse the answer by default
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
         response = parser.parse_answer(completion) or ""
@@ -70,9 +68,7 @@ def load_intellect_math_environment(
 
     from prime_rl.orchestrator.genesys.math import compute_math_reward
 
-    train_dataset = load_dataset(
-        "PrimeIntellect/INTELLECT-2-only-math", split="train"
-    ).map(
+    train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
         lambda x: {
             "question": x["prompt"],
             "info": json.loads(x["verification_info"]),
@@ -81,13 +77,9 @@ def load_intellect_math_environment(
     )
     if solve_rate_field is not None:
         if min_solve_rate is not None:
-            train_dataset = train_dataset.filter(
-                lambda x: x[solve_rate_field] >= min_solve_rate
-            )
+            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate)
         if max_solve_rate is not None:
-            train_dataset = train_dataset.filter(
-                lambda x: x[solve_rate_field] <= max_solve_rate
-            )
+            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] <= max_solve_rate)
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
     def correct_answer_reward_func(completion, info, **kwargs) -> float:
@@ -117,9 +109,7 @@ def load_intellect_math_vf_environment(
 
     from verifiers.utils.data_utils import extract_boxed_answer
 
-    train_dataset = load_dataset(
-        "PrimeIntellect/INTELLECT-2-only-math", split="train"
-    ).map(
+    train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
         lambda x: {
             "question": x["prompt"],
             "answer": json.loads(x["verification_info"])["ground_truth"],
@@ -131,20 +121,16 @@ def load_intellect_math_vf_environment(
         min_solve_rate = env_args.get("min_solve_rate", None)
         max_solve_rate = env_args.get("max_solve_rate", None)
         if min_solve_rate is not None:
-            train_dataset = train_dataset.filter(
-                lambda x: x[solve_rate_field] >= min_solve_rate
-            )
+            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate)
         if max_solve_rate is not None:
-            train_dataset = train_dataset.filter(
-                lambda x: x[solve_rate_field] <= max_solve_rate
-            )
+            train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] <= max_solve_rate)
     train_dataset = train_dataset.remove_columns(["prompt", "verification_info"])
 
-    MATH_SYSTEM_PROMPT = "Think step by step inside <think>...</think> tags, then give your answer inside \\boxed{{...}}."
+    MATH_SYSTEM_PROMPT = (
+        "Think step by step inside <think>...</think> tags, then give your answer inside \\boxed{{...}}."
+    )
 
-    parser = vf.ThinkParser(
-        extract_fn=extract_boxed_answer
-    )  # uses \boxed{...} to parse the answer by default
+    parser = vf.ThinkParser(extract_fn=extract_boxed_answer)  # uses \boxed{...} to parse the answer by default
 
     def correct_answer_reward_func(completion, answer, **kwargs) -> float:
         response = parser.parse_answer(completion) or ""
@@ -174,9 +160,7 @@ def load_hendrycks_math_environment(**kwargs) -> Environment:
 
     from prime_rl.orchestrator.genesys.math import compute_math_reward
 
-    train_dataset = load_dataset(
-        "justus27/math-hendrycks-genesys-format", split="train"
-    ).map(
+    train_dataset = load_dataset("justus27/math-hendrycks-genesys-format", split="train").map(
         lambda x: {
             "question": x["prompt"],
             "info": json.loads(x["verification_info"]),
@@ -205,9 +189,7 @@ def load_hendrycks_math_environment(**kwargs) -> Environment:
 def load_reverse_environment(**kwargs) -> Environment:
     import json
 
-    train_dataset = load_dataset(
-        "mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train"
-    ).map(
+    train_dataset = load_dataset("mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train").map(
         lambda x: {
             "question": x["prompt"],
             "answer": json.loads(x["verification_info"])["ground_truth"],
@@ -215,9 +197,7 @@ def load_reverse_environment(**kwargs) -> Environment:
             "task": x["task_type"],
         }
     )
-    train_dataset = train_dataset.remove_columns(
-        ["prompt", "verification_info", "task_type"]
-    )
+    train_dataset = train_dataset.remove_columns(["prompt", "verification_info", "task_type"])
 
     parser = vf.XMLParser(["answer"], answer_field="answer")
 
@@ -268,9 +248,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
 
     dataset = dataset.map(process_dataset)
 
-    parser = vf.XMLParser(
-        ["think", "unscrambled_text"], answer_field="unscrambled_text"
-    )
+    parser = vf.XMLParser(["think", "unscrambled_text"], answer_field="unscrambled_text")
 
     def unscramble_consecutive_reward(completion, answer, **kwargs) -> float:
         parsed_completion = parser.parse_answer(completion)
@@ -309,8 +287,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
                 while (
                     i + consecutive < len(answer_sentences)
                     and j + consecutive < len(truth_sentences)
-                    and answer_sentences[i + consecutive]
-                    == truth_sentences[j + consecutive]
+                    and answer_sentences[i + consecutive] == truth_sentences[j + consecutive]
                 ):
                     consecutive += 1
 
@@ -332,9 +309,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
         weights=[1.0],
     )
 
-    vf_env = vf.SingleTurnEnv(
-        dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10
-    )
+    vf_env = vf.SingleTurnEnv(dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
 
     return vf_env
 
@@ -369,10 +344,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
             matcher = difflib.SequenceMatcher(None, answer_lines, truth_lines)
             reward = matcher.ratio()
 
-            if not all(
-                line.startswith(" ") or line.rstrip() == answer_lines[0]
-                for line in answer_lines[1:]
-            ):
+            if not all(line.startswith(" ") or line.rstrip() == answer_lines[0] for line in answer_lines[1:]):
                 reward *= 0.5
             if not any("--" in line for line in answer_lines[1:]):
                 reward *= 0.5
@@ -398,10 +370,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
             )
             reward = longest_block.size / len(truth_lines)
 
-            if not all(
-                line.startswith(" ") or line.rstrip() == answer_lines[0]
-                for line in answer_lines[1:]
-            ):
+            if not all(line.startswith(" ") or line.rstrip() == answer_lines[0] for line in answer_lines[1:]):
                 reward *= 0.5
             if not any("--" in line for line in answer_lines[1:]):
                 reward *= 0.5
@@ -418,9 +387,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
         weights=[0.3, 0.7],
     )
 
-    vf_env = vf.SingleTurnEnv(
-        dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10
-    )
+    vf_env = vf.SingleTurnEnv(dataset=dataset, parser=parser, rubric=rubric, max_concurrent=10)
 
     return vf_env
 
@@ -538,13 +505,8 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
                 if verification_info is None:
                     raise ValueError("verification_info must be provided in kwargs")
 
-                if (
-                    "pydantic_config" not in verification_info
-                    or "model_name" not in verification_info
-                ):
-                    raise ValueError(
-                        "verification_info must contain 'pydantic_config' and 'model_name'"
-                    )
+                if "pydantic_config" not in verification_info or "model_name" not in verification_info:
+                    raise ValueError("verification_info must contain 'pydantic_config' and 'model_name'")
 
                 model = _load_model_from_code(
                     verification_info["pydantic_config"],
@@ -603,9 +565,7 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_reasoning_gym_environment(
-    task_name: str, num_samples: int = 1000, seed: int = 0, **kwargs
-) -> Environment:
+def load_reasoning_gym_environment(task_name: str, num_samples: int = 1000, seed: int = 0, **kwargs) -> Environment:
     # requires `reasoning-gym`
     from verifiers.envs.reasoning_gym_env import ReasoningGymEnv  # type: ignore
 
@@ -681,10 +641,7 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
     return vf_env
 
 
-<<<<<<< HEAD
-def load_wordle_think_environment(
-    num_train_examples: int = 2000, num_eval_examples: int = 20
-) -> Environment:
+def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen3-{1.7B,4B}-Wordle
     vf_env = vf.load_environment(
@@ -693,42 +650,6 @@ def load_wordle_think_environment(
         num_eval_examples=num_eval_examples,
         use_think=True,
     )
-    vf_env.dataset = vf_env.dataset.add_column(
-        "task", ["wordle-think"] * len(vf_env.dataset)
-    )  # type: ignore
-    vf_env.eval_dataset = vf_env.eval_dataset.add_column(
-        "task", ["wordle-think"] * len(vf_env.eval_dataset)
-    )  # type: ignore
-    return vf_env
-
-
-def load_wordle_nothink_environment(
-    num_train_examples: int = 2000, num_eval_examples: int = 20
-) -> Environment:
-    # requires `textarena`, `nltk`
-    vf_env = vf.load_environment(
-        "wordle",
-        num_train_examples=num_train_examples,
-        num_eval_examples=num_eval_examples,
-        use_think=False,
-    )
-    vf_env.dataset = vf_env.dataset.add_column(
-        "task", ["wordle-nothink"] * len(vf_env.dataset)
-    )  # type: ignore
-    vf_env.eval_dataset = vf_env.eval_dataset.add_column(
-        "task", ["wordle-nothink"] * len(vf_env.eval_dataset)
-    )  # type: ignore
-=======
-def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
-    # requires `textarena`, `nltk`
-    # model: willcb/Qwen2.5-7B-Wordle-SFT
-    from verifiers.envs.textarena_env import TextArenaEnv
-
-    vf_env = TextArenaEnv(
-        game="Wordle-v0",
-        num_train_examples=num_train_examples,
-        num_eval_examples=num_eval_examples,
-    )
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-think"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-think"] * len(vf_env.eval_dataset))  # type: ignore
     return vf_env
@@ -736,39 +657,14 @@ def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examp
 
 def load_wordle_nothink_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
     # requires `textarena`, `nltk`
-    # model: willcb/Qwen3-1.7B-Wordle
-    from verifiers.envs.textarena_env import TextArenaEnv
-
-    NOTHINK_WORDLE_SYSTEM_PROMPT = """You are a competitive game player. \
-Make sure you read the game instructions carefully, and always follow the required format.
-
-In each turn, give only your guess inside <guess>...</guess> tags."""
-    vf_env = TextArenaEnv(
-        game="Wordle-v0",
+    vf_env = vf.load_environment(
+        "wordle",
         num_train_examples=num_train_examples,
         num_eval_examples=num_eval_examples,
-        system_prompt=NOTHINK_WORDLE_SYSTEM_PROMPT,
-        parser=vf.XMLParser(fields=["guess"], answer_field="guess"),
+        use_think=False,
     )
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-nothink"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-nothink"] * len(vf_env.eval_dataset))  # type: ignore
-
-<<<<<<< HEAD
->>>>>>> 59b9b074 (multiturn vllm logprobs)
-=======
-    parser = vf_env.parser
-
-    def partial_credit_reward_func(completion, **kwargs) -> float:
-        """Reward function that gives partial credit for the correct guess."""
-        final_env_response = parser.get_user_messages(completion)[-1]["content"].strip()
-        guess, scoring = final_env_response.split("\n")[:2]
-        num_greens = scoring.count("G")
-        num_yellows = scoring.count("Y")
-        return 0.2 * num_greens + 0.1 * num_yellows
-
-    vf_env.rubric.add_reward_func(partial_credit_reward_func)
-
->>>>>>> c62f5cca (wordle 1b test)
     return vf_env
 
 
@@ -788,7 +684,9 @@ def load_gpqa_environment(use_think: bool = False, **kwargs) -> Environment:
 
     eval_dataset = load_example_dataset("gpqa_main", "train")
     if use_think:
-        system_prompt = """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
+        system_prompt = (
+            """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
+        )
         parser = vf.ThinkParser()
     else:
         system_prompt = """Give only the letter of the correct answer. /no_think"""
@@ -813,7 +711,9 @@ def load_gpqa_diamond_environment(use_think: bool = True, **kwargs) -> Environme
 
     eval_dataset = load_example_dataset("gpqa_diamond", "train")
     if use_think:
-        system_prompt = """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
+        system_prompt = (
+            """Think step-by-step inside <think>...</think> tags, then give only the letter of the correct answer."""
+        )
         parser = vf.ThinkParser()
     else:
         system_prompt = """Give only the letter of the correct answer."""
@@ -949,25 +849,19 @@ Just return the letters "A", "B", or "C", with no text around it.
         judge_prompt=JUDGE_TEMPLATE,
     )
 
-    def correct_answer_reward_func(
-        prompt, completion, answer, state, **kwargs
-    ) -> float:
+    def correct_answer_reward_func(prompt, completion, answer, state, **kwargs) -> float:
         judge_response = rubric.judge(prompt, completion, answer, state, **kwargs)
         match = re.search(r"(A|B|C)", judge_response)
         result = match.group(0) if match else "C"
         return 1.0 if result == "A" else 0.0
 
-    def incorrect_answer_reward_func(
-        prompt, completion, answer, state, **kwargs
-    ) -> float:
+    def incorrect_answer_reward_func(prompt, completion, answer, state, **kwargs) -> float:
         judge_response = rubric.judge(prompt, completion, answer, state, **kwargs)
         match = re.search(r"(A|B|C)", judge_response)
         result = match.group(0) if match else "C"
         return 1.0 if result == "B" else 0.0
 
-    def not_attempted_answer_reward_func(
-        prompt, completion, answer, state, **kwargs
-    ) -> float:
+    def not_attempted_answer_reward_func(prompt, completion, answer, state, **kwargs) -> float:
         judge_response = rubric.judge(prompt, completion, answer, state, **kwargs)
         match = re.search(r"(A|B|C)", judge_response)
         result = match.group(0) if match else "C"
