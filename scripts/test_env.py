@@ -31,7 +31,10 @@ if __name__ == "__main__":
     results = vf_env.evaluate(
         client=client,
         model=args.model,
+<<<<<<< HEAD
         sampling_args=sampling_args,
+=======
+>>>>>>> d1774079 (formatting)
         num_examples=args.num_examples,
         rollouts_per_example=args.rollouts_per_example,
         max_concurrent_requests=args.max_concurrent_requests,
