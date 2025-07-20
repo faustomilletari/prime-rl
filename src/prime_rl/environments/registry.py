@@ -116,10 +116,7 @@ def load_intellect_math_vf_environment(
             "task": "simple-math",
         }
     )
-    solve_rate_field = env_args.get("solve_rate_field", None)
     if solve_rate_field is not None:
-        min_solve_rate = env_args.get("min_solve_rate", None)
-        max_solve_rate = env_args.get("max_solve_rate", None)
         if min_solve_rate is not None:
             train_dataset = train_dataset.filter(lambda x: x[solve_rate_field] >= min_solve_rate)
         if max_solve_rate is not None:
@@ -232,7 +229,7 @@ def load_reverse_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_unscramble_environment(env_args: dict = {}) -> Environment:
+def load_unscramble_environment(**kwargs) -> Environment:
     import json
     import re
 
@@ -314,7 +311,7 @@ def load_unscramble_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
+def load_ascii_tree_environment(**kwargs) -> Environment:
     import difflib
     import json
 
@@ -392,7 +389,7 @@ def load_ascii_tree_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
+def load_pydantic_adherence_environment(**kwargs) -> Environment:
     import json
     import re
     from types import ModuleType
@@ -565,66 +562,10 @@ def load_pydantic_adherence_environment(env_args: dict = {}) -> Environment:
     return vf_env
 
 
-def load_xlam_function_calling_environment(env_args: dict = {}) -> Environment:
-    """
-    Load the XLAM function calling environment.
-
-    Args:
-        env_args: Configuration dictionary (not used in this environment)
-
-    Returns:
-        Environment: The XLAM function calling environment
-    """
-    import json
-
-    def format_sys_prompt(tools: list[dict]) -> str:
-        tool_str = json.dumps(tools, indent=2)
-        return f"""You are a helpful assistant that can use tools to answer questions and perform tasks. You have the following tools:
-{tool_str}
-
-Think step-by-step inside <think>...</think> tags, then call one or more tools inside <tool>...</tool> tags \
-as a JSON array with 'name' and 'arguments' keys for each tool call."""
-
-    def process_example(x):
-        prompt = [
-            {"role": "system", "content": format_sys_prompt(json.loads(x["tools"]))},
-            {"role": "user", "content": x["query"]},
-        ]
-        return {"prompt": prompt, "answer": x["answers"], "task": "xlam-function-calling"}
-
-    dataset = load_dataset("Salesforce/xlam-function-calling-60k", split="train")
-    dataset = dataset.map(process_example, remove_columns=dataset.column_names)  # type: ignore
-
-    parser = vf.XMLParser(fields=["think", "tool"], answer_field="tool")
-
-    def check_tools_reward_func(completion, answer) -> float:
-        try:
-            called_tools = json.loads(parser.parse_answer(completion) or "[]")
-            target_tools = json.loads(answer)
-            for called_tool in called_tools:
-                if called_tool not in target_tools:
-                    return 0
-            for target_tool in target_tools:
-                if target_tool not in called_tools:
-                    return 0
-            return 1
-        except Exception:
-            return 0
-
-    rubric = vf.Rubric(funcs=[check_tools_reward_func])
-
-    vf_env = vf.SingleTurnEnv(
-        dataset=dataset,
-        parser=parser,
-        rubric=rubric,
-    )
-    return vf_env
-
-
-def load_reasoning_gym_environment(env_args: dict = {}) -> Environment:
+def load_reasoning_gym_environment(**kwargs) -> Environment:
     vf_env = vf.load_environment(
         "reasoning-gym",
-        **env_args,
+        **kwargs,
     )
     return vf_env
 
@@ -637,16 +578,7 @@ def load_sentence_repeater_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_xlam_function_calling_environment(env_args: dict = {}) -> Environment:
-    """
-    Load the XLAM function calling environment.
-
-    Args:
-        env_args: Configuration dictionary (not used in this environment)
-
-    Returns:
-        Environment: The XLAM function calling environment
-    """
+def load_xlam_function_calling_environment(**kwargs) -> Environment:
     import json
 
     def format_sys_prompt(tools: list[dict]) -> str:
@@ -697,17 +629,20 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
     return vf_env
 
 
-def load_wordle_think_environment(num_train_examples: int = 2000, num_eval_examples: int = 20) -> Environment:
+def load_wordle_environment(
+    num_train_examples: int = 2000, num_eval_examples: int = 20, use_think: bool = True, **kwargs
+) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen3-{1.7B,4B}-Wordle
     vf_env = vf.load_environment(
         "wordle",
         num_train_examples=num_train_examples,
         num_eval_examples=num_eval_examples,
-        use_think=True,
+        use_think=use_think,
+        **kwargs,
     )
-    vf_env.dataset = vf_env.dataset.add_column("task", ["wordle-think"] * len(vf_env.dataset))  # type: ignore
-    vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle-think"] * len(vf_env.eval_dataset))  # type: ignore
+    vf_env.dataset = vf_env.dataset.add_column("task", ["wordle"] * len(vf_env.dataset))  # type: ignore
+    vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle"] * len(vf_env.eval_dataset))  # type: ignore
     return vf_env
 
 
