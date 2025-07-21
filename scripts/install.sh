@@ -23,6 +23,9 @@ main() {
     log_info "Installing git, tmux, htop, nvtop, cmake, python3-dev, cgroup-tools..."
     sudo apt install git tmux htop nvtop cmake python3-dev cgroup-tools -y
 
+    log_info "Configuring SSH to automatically accept GitHub's host key..."
+    ssh-keyscan github.com >>~/.ssh/known_hosts 2>/dev/null
+
     log_info "Cloning repository..."
     git clone git@github.com:PrimeIntellect-ai/prime-rl.git
 
@@ -44,7 +47,7 @@ main() {
     fi
 
     log_info "Installing dependencies in virtual environment..."
-    uv sync && uv sync --extra fa
+    uv sync && uv sync --all-extras
     log_info "Installation completed!"
 }
 
