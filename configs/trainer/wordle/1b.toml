@@ -5,7 +5,6 @@ name = "1b-debug"
 
 [model]
 name = "willcb/Qwen3-1.7B-Wordle"
-ac = true
 
 [optim]
 lr = 1e-6
