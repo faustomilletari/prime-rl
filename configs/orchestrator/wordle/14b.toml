@@ -20,6 +20,5 @@ max_tokens = 1024
 
 [monitor.wandb.log_samples]
 interval = 10
-num_samples = 16
 
 [ckpt]
