@@ -639,7 +639,6 @@ def load_wordle_environment(
         num_train_examples=num_train_examples,
         num_eval_examples=num_eval_examples,
         use_think=use_think,
-        **kwargs,
     )
     vf_env.dataset = vf_env.dataset.add_column("task", ["wordle"] * len(vf_env.dataset))  # type: ignore
     vf_env.eval_dataset = vf_env.eval_dataset.add_column("task", ["wordle"] * len(vf_env.eval_dataset))  # type: ignore
