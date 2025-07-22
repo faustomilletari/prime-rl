@@ -233,7 +233,7 @@ class OrchestratorConfig(BaseSettings):
     zero_truncated_completions: Annotated[
         bool,
         Field(
-            description="Whether to zero-truncate truncated completions from the loss.",
+            description="Whether to override reward scores with 0 for truncated completions.",
         ),
     ] = True
 
