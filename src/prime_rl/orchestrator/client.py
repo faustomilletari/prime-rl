@@ -30,18 +30,18 @@ def setup_client(client_config: ClientConfig) -> AsyncOpenAI:
     )
 
 
-async def check_health(client: AsyncOpenAI, interval: int = 1, log_interval: int = 10, timeout: int = 360) -> None:
+async def check_health(client: AsyncOpenAI, interval: int = 1, log_interval: int = 10, timeout: int = 1800) -> None:
     logger = get_logger()
     wait_time = 0
     url = str(client.base_url)[:-4] + "/health"
     logger.debug(f"Starting pinging {url} to check health")
     while wait_time < timeout:
         try:
-            await client.get(url, cast_to=Response)
+            await client.get(url, cast_to=Response, options={"max_retries": 0})
             logger.debug(f"Inference pool is ready after {wait_time} seconds")
             return
         except Exception as e:
-            if wait_time % log_interval == 0:
+            if wait_time % log_interval == 0 and wait_time > 0:
                 logger.warning(f"Inference pool was not reached after {wait_time} seconds (Error: {e})")
             await asyncio.sleep(interval)
             wait_time += interval

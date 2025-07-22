@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from prime_rl.trainer.loss import entropy_loss, grpo_loss_clip, grpo_loss_ratio
+from prime_rl.trainer.loss import compute_entropy, grpo_loss_clip, grpo_loss_ratio
 
 pytestmark = [pytest.mark.gpu]
 
@@ -9,12 +9,12 @@ pytestmark = [pytest.mark.gpu]
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 def test_grpo_loss(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
-    original_logprobs = torch.randn(10, 9, dtype=dtype).cuda()
+    original_logprobs = torch.randn(10, 10, dtype=dtype).cuda()
     advantages = torch.randn(10, 10).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
     input_ids = torch.randint(0, 10, (10, 10)).cuda()
 
-    loss, clip_ratio = grpo_loss_clip(
+    loss, ratio, clipped_tokens = grpo_loss_clip(
         logits,
         input_ids,
         advantages,
@@ -28,19 +28,21 @@ def test_grpo_loss(dtype):
     )
     assert loss.shape == ()
     assert loss.item() is not None
-    assert clip_ratio.shape == ()
-    assert clip_ratio.item() is not None
+    assert ratio.shape == ()
+    assert ratio.item() is not None
+    assert clipped_tokens.shape == ()
+    assert clipped_tokens.item() is not None
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 def test_grpo_loss_ratio(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
-    original_logprobs = torch.randn(10, 9, dtype=dtype).cuda()
+    original_logprobs = torch.randn(10, 10, dtype=dtype).cuda()
     advantages = torch.randn(10, 10).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
     input_ids = torch.randint(0, 10, (10, 10)).cuda()
 
-    loss, _ = grpo_loss_ratio(
+    loss, ratio, clipped_tokens = grpo_loss_ratio(
         logits,
         input_ids,
         advantages,
@@ -56,7 +58,7 @@ def test_grpo_loss_ratio(dtype):
 def test_entropy_loss(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
-    entropy = entropy_loss(logits, loss_mask, temperature=0.6)
+    entropy = compute_entropy(logits, loss_mask, temperature=0.6)
     assert entropy.shape == ()
     assert entropy.item() is not None
 
@@ -64,7 +66,7 @@ def test_entropy_loss(dtype):
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 def test_grpo_loss_padding(dtype):
     logits = torch.randn(10, 10, 10, dtype=dtype).cuda()
-    original_logprobs = torch.randn(10, 9, dtype=dtype).cuda()
+    original_logprobs = torch.randn(10, 10, dtype=dtype).cuda()
     advantages = torch.randn(10, 10).cuda()
     loss_mask = torch.ones(10, 10).int().cuda()
     input_ids = torch.randint(0, 10, (10, 10)).cuda()
@@ -87,7 +89,7 @@ def test_grpo_loss_padding(dtype):
         reward = sum_rewards / token_count
         reward_list.append(reward)
 
-        loss, _ = grpo_loss_clip(
+        loss, ratio, _ = grpo_loss_clip(
             pad_logits,
             pad_input_ids,
             pad_advantages,

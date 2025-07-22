@@ -25,9 +25,9 @@ from prime_rl.orchestrator.client import (
 from prime_rl.orchestrator.config import OrchestratorConfig
 from prime_rl.orchestrator.data import prepare_batch
 from prime_rl.orchestrator.logger import setup_logger
+from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
     process_env_results,
-    compute_advantages,
     wait_for_weight_checkpoint,
     print_benchmark,
 )
@@ -225,10 +225,12 @@ async def orchestrate(config: OrchestratorConfig):
         completion_masks = results["completion_mask"]
         rewards = outputs["reward"]
 
-        # Compute advantages
-        advantages = compute_advantages(rewards, config.rollouts_per_prompt)
+        advantages, advantage_stats = compute_advantages(
+            rewards=rewards, samples_per_problem=config.rollouts_per_prompt, advantage_type=config.advantage_type
+        )
+
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
-        logger.debug(f"Computed advantages: {lt.lovely(torch.tensor(advantages))}")
+        logger.debug(f"Computed advantages ({config.advantage_type}): {lt.lovely(torch.tensor(advantages))}")
 
         # compute batch metrics
         num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
@@ -239,7 +241,9 @@ async def orchestrate(config: OrchestratorConfig):
         progress.total_samples += config.batch_size
         progress.total_problems += config.batch_size // config.rollouts_per_prompt
         throughput = num_tokens / (generate_completions_time)
-        avg_seq_length = num_tokens / config.batch_size
+
+        seq_lengths = np.array([len(p) + len(c) for p, c in zip(prompt_tokens, completion_tokens)])
+        problem_avg_seqlens = seq_lengths.reshape(-1, config.rollouts_per_prompt).mean(axis=-1)
 
         # Log samples to W&B table if enabled
         if monitor.wandb:
@@ -248,6 +252,7 @@ async def orchestrate(config: OrchestratorConfig):
                 output_tokens=completion_tokens,
                 rewards=rewards,
                 advantages=advantages,
+                rollouts_per_problem=config.rollouts_per_prompt,
                 step=progress.step,
             )
 
@@ -279,14 +284,15 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Reward: {np.mean(rewards):.2f} | Advantage: {np.mean(advantages):.2f} | Throughput: {throughput:.1f} tokens/s | Seq. Length: {avg_seq_length:.1f} tokens/sample"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Reward: {np.mean(rewards):.2f} | Advantage: {np.mean(advantages):.2f} | Throughput: {throughput:.1f} tokens/s | Seq. Length: {float(problem_avg_seqlens.mean()):.1f} tokens/sample"
         logger.success(step_message)
 
         # Log progress metrics to monitor
         progress_metrics = {
-            "progress/orchestrator/total_tokens": progress.total_tokens,
-            "progress/orchestrator/total_samples": progress.total_samples,
-            "progress/orchestrator/epoch": progress.epoch,
+            "progress/total_tokens": progress.total_tokens,
+            "progress/total_samples": progress.total_samples,
+            "progress/total_problems": progress.total_problems,
+            "progress/epoch": progress.epoch,
             "progress/ckpt_step": ckpt_step,  # Shared W&B axis
             "step": progress.step,
         }
@@ -295,7 +301,10 @@ async def orchestrate(config: OrchestratorConfig):
         # Log perfrmance metrics to monitor
         perf_metrics = {
             "perf/infer/throughput": throughput,
-            "perf/infer/seq_len": avg_seq_length,
+            "perf/infer/seq_len": float(problem_avg_seqlens.mean()),
+            "perf/infer/max_seq_len": float(problem_avg_seqlens.max()),
+            "perf/infer/min_seq_len": float(problem_avg_seqlens.min()),
+            "perf/infer/std_seq_len": float(problem_avg_seqlens.std()),
             "step": progress.step,
         }
         monitor.log(perf_metrics)
@@ -303,10 +312,9 @@ async def orchestrate(config: OrchestratorConfig):
         # Log rewards metrics to monitor
         reward_metrics = {
             "reward/reward": np.mean(rewards),
-            "reward/reward_std": np.std(rewards),
-            "reward/advantage": np.mean(advantages),
-            "reward/advantage_std": np.std(advantages),
-            "reward/advantage_zero_ratio": np.mean(np.array(advantages) == 0.0),
+            "reward/solve_none": advantage_stats["solve_none"],
+            "reward/solve_all": advantage_stats["solve_all"],
+            "reward/effective_batch_size": advantage_stats["effective_batch_size"],
             "step": progress.step,
         }
         monitor.log(reward_metrics)

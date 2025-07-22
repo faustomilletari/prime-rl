@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from openai.types.chat import ChatCompletion
 from rich.console import Console
@@ -107,16 +106,6 @@ def compute_rewards(
         reward = compute_reward(completion, verification_info)
         rewards.append(reward)
     return rewards
-
-
-def compute_advantages(rewards: list[float], samples_per_problem: int) -> list[float]:
-    per_problem_rewards = [rewards[i : i + samples_per_problem] for i in range(0, len(rewards), samples_per_problem)]
-    advantages = []
-    for problem_rewards in per_problem_rewards:
-        reward_array = np.array(problem_rewards)
-        problem_advantages = reward_array - reward_array.mean()
-        advantages.extend(problem_advantages.tolist())
-    return advantages
 
 
 def print_benchmark(history: dict[str, list[Any]]) -> None:

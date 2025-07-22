@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_validator
 
 from prime_rl.eval.registry import Benchmark
+from prime_rl.orchestrator.advantage import AdvantageType
 from prime_rl.utils.config import LogConfig, ModelConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
@@ -200,6 +201,13 @@ class OrchestratorConfig(BaseSettings):
             description="Number of output sequences to return for the given prompt.",
         ),
     ] = 1
+
+    advantage_type: Annotated[
+        AdvantageType,
+        Field(
+            description="Type of advantage computation to use. For details on the variants please refer directly to their docstrings."
+        ),
+    ] = "drgrpo"
 
     seq_len: Annotated[
         int,
