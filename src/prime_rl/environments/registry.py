@@ -150,7 +150,7 @@ def load_intellect_math_vf_environment(
     return vf_env
 
 
-def load_hendrycks_math_environment(**kwargs) -> Environment:
+def load_hendrycks_math_environment() -> Environment:
     import json
 
     from verifiers.utils.data_utils import extract_boxed_answer
@@ -183,7 +183,7 @@ def load_hendrycks_math_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_reverse_environment(**kwargs) -> Environment:
+def load_reverse_environment() -> Environment:
     import json
 
     train_dataset = load_dataset("mikasenghaas/reverse_text_dataset_debug_50_seq_len", split="train").map(
@@ -229,7 +229,7 @@ def load_reverse_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_unscramble_environment(**kwargs) -> Environment:
+def load_unscramble_environment() -> Environment:
     import json
     import re
 
@@ -311,7 +311,7 @@ def load_unscramble_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_ascii_tree_environment(**kwargs) -> Environment:
+def load_ascii_tree_environment() -> Environment:
     import difflib
     import json
 
@@ -389,7 +389,7 @@ def load_ascii_tree_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_pydantic_adherence_environment(**kwargs) -> Environment:
+def load_pydantic_adherence_environment() -> Environment:
     import json
     import re
     from types import ModuleType
@@ -562,23 +562,23 @@ def load_pydantic_adherence_environment(**kwargs) -> Environment:
     return vf_env
 
 
-def load_reasoning_gym_environment(**kwargs) -> Environment:
+def load_reasoning_gym_environment(
+    gym_id: str, num_train_examples: int = 2000, num_eval_examples: int = 20
+) -> Environment:
     vf_env = vf.load_environment(
         "reasoning-gym",
-        **kwargs,
     )
     return vf_env
 
 
-def load_sentence_repeater_environment(**kwargs) -> Environment:
+def load_sentence_repeater_environment() -> Environment:
     vf_env = vf.load_environment(
         "sentence-repeater",
-        **kwargs,
     )
     return vf_env
 
 
-def load_xlam_function_calling_environment(**kwargs) -> Environment:
+def load_xlam_function_calling_environment() -> Environment:
     import json
 
     def format_sys_prompt(tools: list[dict]) -> str:
@@ -630,7 +630,7 @@ as a JSON array with 'name' and 'arguments' keys for each tool call."""
 
 
 def load_wordle_environment(
-    num_train_examples: int = 2000, num_eval_examples: int = 20, use_think: bool = True, **kwargs
+    num_train_examples: int = 2000, num_eval_examples: int = 20, use_think: bool = True
 ) -> Environment:
     # requires `textarena`, `nltk`
     # model: willcb/Qwen3-{1.7B,4B}-Wordle
@@ -662,15 +662,15 @@ def load_wordle_nothink_environment(num_train_examples: int = 2000, num_eval_exa
 ### Eval Environments ###
 
 
-def load_acebench_environment(**kwargs) -> Environment:
+def load_acebench_environment() -> Environment:
     raise NotImplementedError("Acebench environment not implemented")
 
 
-def load_bfcl_v3_environment(**kwargs) -> Environment:
+def load_bfcl_v3_environment() -> Environment:
     raise NotImplementedError("BFCL v3 environment not implemented")
 
 
-def load_gpqa_environment(use_think: bool = False, **kwargs) -> Environment:
+def load_gpqa_environment(use_think: bool = False) -> Environment:
     from verifiers.utils.data_utils import load_example_dataset
 
     eval_dataset = load_example_dataset("gpqa_main", "train")
@@ -697,7 +697,7 @@ def load_gpqa_environment(use_think: bool = False, **kwargs) -> Environment:
     return vf_env
 
 
-def load_gpqa_diamond_environment(use_think: bool = True, **kwargs) -> Environment:
+def load_gpqa_diamond_environment(use_think: bool = True) -> Environment:
     from verifiers.utils.data_utils import load_example_dataset
 
     eval_dataset = load_example_dataset("gpqa_diamond", "train")
@@ -724,7 +724,7 @@ def load_gpqa_diamond_environment(use_think: bool = True, **kwargs) -> Environme
     return vf_env
 
 
-def load_hle_environment(**kwargs) -> Environment:
+def load_hle_environment() -> Environment:
     vf_env = vf.SingleTurnEnv()
     return vf_env
 
@@ -733,7 +733,6 @@ def load_simpleqa_environment(
     judge_model: str = "gpt-4.1-mini",
     judge_base_url: str | None = None,
     judge_api_key_var: str | None = None,
-    **kwargs,
 ) -> Environment:
     """
     Adapted from: https://github.com/openai/simple-evals/blob/main/simpleqa_eval.py
@@ -866,23 +865,23 @@ Just return the letters "A", "B", or "C", with no text around it.
     return vf_env
 
 
-def load_swebench_verified_environment(**kwargs) -> Environment:
+def load_swebench_verified_environment() -> Environment:
     raise NotImplementedError("Swebench verified environment not implemented")
 
 
-def load_taubench2_mock_environment(**kwargs) -> Environment:
+def load_taubench2_mock_environment() -> Environment:
     raise NotImplementedError("Taubench2 mock environment not implemented")
 
 
-def load_taubench2_airline_environment(**kwargs) -> Environment:
+def load_taubench2_airline_environment() -> Environment:
     raise NotImplementedError("Taubench2 airline environment not implemented")
 
 
-def load_taubench2_retail_environment(**kwargs) -> Environment:
+def load_taubench2_retail_environment() -> Environment:
     raise NotImplementedError("Taubench2 retail environment not implemented")
 
 
-def load_taubench2_telecom_v2_environment(**kwargs) -> Environment:
+def load_taubench2_telecom_v2_environment() -> Environment:
     raise NotImplementedError("Taubench2 telecom v2 environment not implemented")
 
 
@@ -944,7 +943,7 @@ REGISTRY = {
         "tags": ["tool-use"],
     },
     "wordle": {
-        "load_fn": load_wordle_think_environment,
+        "load_fn": load_wordle_environment,
         "type": "train",
         "tags": ["game", "multi-turn"],
     },
