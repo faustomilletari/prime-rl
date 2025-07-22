@@ -236,7 +236,7 @@ class OrchestratorConfig(BaseSettings):
             description=
             "If True, samples whose computed advantage is zero will be replaced by randomly selected duplicates of non-zero advantage samples from the same batch. This prevents zero-advantage data from entering the trainer when desired.",
         ),
-    ] = False
+    ] = True
 
     # TODO(Mika): This should be automatic from the number of ZMQ connections
     num_train_workers: Annotated[

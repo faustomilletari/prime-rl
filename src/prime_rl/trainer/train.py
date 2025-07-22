@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import random
 from collections import defaultdict
 from copy import deepcopy
 
