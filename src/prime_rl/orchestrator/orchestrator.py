@@ -227,7 +227,6 @@ async def orchestrate(config: OrchestratorConfig):
         # another prompt whose rollouts have at least one non-zero advantage.
         if config.replace_zero_advantage:
             group_size = config.rollouts_per_prompt
-            num_prompts = len(advantages) // group_size
 
             zero_prompt_indices = []
             non_zero_prompt_indices = []
