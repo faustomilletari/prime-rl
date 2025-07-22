@@ -168,17 +168,6 @@ def train(config: TrainerConfig):
         load_data_start_time = time.time()
         micro_batches = dataloader.get_batch()
 
-        # Optionally replace zero-advantage micro batches
-        if config.replace_zero_advantage:
-            non_zero_batches = [mb for mb in micro_batches if mb["advantages"].abs().sum().item() != 0]
-            for idx, mb in enumerate(micro_batches):
-                if mb["advantages"].abs().sum().item() == 0:
-                    replacement = random.choice(non_zero_batches)
-                    micro_batches[idx] = {
-                        k: (v.clone() if torch.is_tensor(v) else deepcopy(v))
-                        for k, v in replacement.items()
-                    }
-
         load_data_time = time.time() - load_data_start_time
         logger.debug(f"Loaded batch in {load_data_time:.2f} seconds")
 
@@ -230,13 +219,7 @@ def train(config: TrainerConfig):
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
 
-        # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
-        # Exclude zero advantage micro_batches
-        loss_scale = sum(
-            micro_batch["loss_mask"].sum().item()
-            for micro_batch in micro_batches
-            if micro_batch["advantages"].abs().sum().item() != 0
-        )
+        loss_scale = sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches)
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
