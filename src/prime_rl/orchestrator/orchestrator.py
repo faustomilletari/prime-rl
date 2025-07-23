@@ -189,7 +189,6 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info(f"Sending {len(problems)} requests to environments")
         generate_completions_start_time = time.time()
         sampling_args = dict(config.sampling)
-
         sampling_args["logprobs"] = True
 
         # sanitize for vLLM OpenAI client
@@ -220,9 +219,9 @@ async def orchestrate(config: OrchestratorConfig):
         prompt_tokens = results["prompt_ids"]
         completion_tokens = results["completion_ids"]
         completion_logprobs = results["completion_logprobs"]
-        prompt_masks = results["prompt_mask"]
-        completion_masks = results["completion_mask"]
-        rewards = outputs["reward"]
+        prompt_masks = results["prompt_masks"]
+        completion_masks = results["completion_masks"]
+        rewards = outputs["reward"]  # TODO: Align naming between prime-rl <> verifiers
 
         advantages, advantage_stats = compute_advantages(
             rewards=rewards, samples_per_problem=config.rollouts_per_prompt, advantage_type=config.advantage_type
