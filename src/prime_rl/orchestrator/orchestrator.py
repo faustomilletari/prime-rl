@@ -206,7 +206,6 @@ async def orchestrate(config: OrchestratorConfig):
         )
         generate_completions_time = time.time() - generate_completions_start_time
 
-        # TODO: Switch parsing prompt+completion tokens/ masks to vf_env.process_env_results once it supports parsing directly from vLLM. For now, this only works for single-turn output results
         results = vf_env.process_env_results_vllm(
             prompts=outputs["prompt"],
             completions=outputs["completion"],
