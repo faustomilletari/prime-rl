@@ -14,11 +14,12 @@ from transformers import (
     LlamaForCausalLM,
     Qwen2ForCausalLM,
     Qwen3ForCausalLM,
+    Qwen3MoeForCausalLM,
 )
 
 from prime_rl.trainer.config import ModelConfig
 
-Model: TypeAlias = LlamaForCausalLM | Qwen2ForCausalLM | Qwen3ForCausalLM
+Model: TypeAlias = LlamaForCausalLM | Qwen2ForCausalLM | Qwen3ForCausalLM | Qwen3MoeForCausalLM
 
 
 def get_model(config: ModelConfig) -> Model:
