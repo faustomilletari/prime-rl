@@ -172,11 +172,9 @@ def train(config: TrainerConfig):
         logger.debug("Loading batch")
         load_data_start_time = time.time()
         micro_batches = dataloader.get_batch()
-
         load_data_time = time.time() - load_data_start_time
         logger.debug(f"Loaded batch in {load_data_time:.2f} seconds")
 
-        
         # Optionally, compute the logprobs for the training batch
         compute_logprobs_time = 0
         if config.recompute_logprobs:
