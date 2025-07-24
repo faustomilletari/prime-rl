@@ -11,9 +11,6 @@ import lovely_tensors as lt
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-import random
-from copy import deepcopy
-
 from prime_rl.eval.utils import run_benchmark
 from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
 from prime_rl.environments.registry import load_environment
@@ -223,44 +220,7 @@ async def orchestrate(config: OrchestratorConfig):
         logger.debug(f"Computed rewards: {lt.lovely(torch.tensor(rewards))}")
         logger.debug(f"Computed advantages ({config.advantage_type}): {lt.lovely(torch.tensor(advantages))}")
 
-        # Optionally replace prompts where *all* rollouts yield zero advantage by duplicating
-        # another prompt whose rollouts have at least one non-zero advantage.
-        if config.replace_zero_advantage:
-            group_size = config.rollouts_per_prompt
-
-            zero_prompt_indices = []
-            non_zero_prompt_indices = []
-
-            group_advs = [advantages[i : i + group_size] for i in range(0, len(advantages), group_size)]
-            zero_prompt_indices = [i for i, advs in enumerate(group_advs) if all(a == 0 for a in advs)]
-            non_zero_prompt_indices = [i for i, advs in enumerate(group_advs) if any(a != 0 for a in advs)]
-
-            
-            for zp_idx in zero_prompt_indices:
-                repl_idx = random.choice(non_zero_prompt_indices)
-
-                for offset in range(group_size):
-                    src = repl_idx * group_size + offset
-                    tgt = zp_idx * group_size + offset
-
-                    prompt_tokens[tgt] = deepcopy(prompt_tokens[src])
-                    prompt_masks[tgt] = deepcopy(prompt_masks[src])
-                    completion_tokens[tgt] = deepcopy(completion_tokens[src])
-                    completion_masks[tgt] = deepcopy(completion_masks[src])
-                    completion_logprobs[tgt] = deepcopy(completion_logprobs[src])
-                    advantages[tgt] = advantages[src]
-                    rewards[tgt] = rewards[src]
-
-            logger.debug(
-                f"Replaced {len(zero_prompt_indices)} zero-advantage prompt(s) (total {len(zero_prompt_indices) * group_size} rollouts) with non-zero-advantage duplicates"
-            )
-
-        # Compute metrics on original data, excluding zero-advantage prompts
-        valid_prompt_ids = non_zero_prompt_indices if config.replace_zero_advantage else list(
-            range(len(prompt_tokens) // config.rollouts_per_prompt)
-        )
-
-        valid_rollout_indices = [pid * config.rollouts_per_prompt + off for pid in valid_prompt_ids for off in range(config.rollouts_per_prompt)]
+        # compute batch metrics
 
         num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
         num_completion_tokens = sum(len(completion_tokens[i]) for i in range(len(completion_tokens)))
