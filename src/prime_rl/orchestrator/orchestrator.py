@@ -11,6 +11,7 @@ import lovely_tensors as lt
 import numpy as np
 import torch
 from transformers import AutoTokenizer
+
 from prime_rl.eval.utils import run_benchmark
 from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
 from prime_rl.environments.registry import load_environment
@@ -221,7 +222,6 @@ async def orchestrate(config: OrchestratorConfig):
         logger.debug(f"Computed advantages ({config.advantage_type}): {lt.lovely(torch.tensor(advantages))}")
 
         # compute batch metrics
-
         num_prompt_tokens = sum(len(prompt_tokens[i]) for i in range(len(prompt_tokens)))
         num_completion_tokens = sum(len(completion_tokens[i]) for i in range(len(completion_tokens)))
         num_tokens = num_prompt_tokens + num_completion_tokens
@@ -272,10 +272,9 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_reward_mean = np.mean([rewards[i] for i in valid_rollout_indices])
 
         step_message = (
-            f"Step {progress.step} | Time: {step_time:.2f}s | Reward: {step_reward_mean:.2f} | "
+            f"Step {progress.step} | Time: {step_time:.2f}s | Reward: {np.mean(rewards):.2f} | "
             f"Throughput: {throughput:.1f} tokens/s | "
             f"Seq. Length: {float(problem_avg_seqlens.mean()):.1f} tokens/sample"
         )
@@ -305,7 +304,7 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log rewards metrics to monitor
         reward_metrics = {
-            "reward/reward": step_reward_mean,
+            "reward/reward": np.mean(rewards),
             "reward/solve_none": advantage_stats["solve_none"],
             "reward/solve_all": advantage_stats["solve_all"],
             "reward/effective_batch_size": advantage_stats["effective_batch_size"],
