@@ -1,6 +1,6 @@
 version = 1
 revision = 2
-requires-python = ">=3.12.0, <3.13"
+requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'linux'",
     "sys_platform != 'linux'",
@@ -2147,7 +2147,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=90c06b2" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=08016c4" },
     { name = "vllm", specifier = ">=0.9.1" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -3226,8 +3226,8 @@ wheels = [
 
 [[package]]
 name = "verifiers"
-version = "0.1.1"
-source = { git = "https://github.com/willccbb/verifiers?rev=90c06b2#90c06b22e5d9a062c3fb3bf056fb83de88acd19f" }
+version = "0.1.2"
+source = { git = "https://github.com/willccbb/verifiers?rev=08016c4#08016c40aeb65c4b42728ed9c7bda4dd15a9074b" }
 dependencies = [
     { name = "datasets" },
     { name = "openai" },
