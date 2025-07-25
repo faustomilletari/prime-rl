@@ -3,9 +3,11 @@ import json
 import os
 import random
 import socket
+import sys
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import Any, Literal
 
 import aiohttp
@@ -133,6 +135,7 @@ class WandbMonitor(Monitor):
         if not self.is_master:
             self.logger.warning(f"Skipping WandbMonitor initialization from non-master rank ({rank})")
             return
+        self._maybe_overwrite_wandb_command()
         self.wandb = wandb.init(
             project=config.project,
             name=config.name,
@@ -144,11 +147,52 @@ class WandbMonitor(Monitor):
         )
 
         # Optionally, initialize sample logging attributes
-        if config.log_samples:
-            assert tokenizer is not None, "Tokenizer is required for sample logging"
-            self.tokenizer = tokenizer
-            self.last_log_step = -1
-            self.samples = []
+        if config.log_extras:
+            if config.log_extras.samples:
+                assert tokenizer is not None, "Tokenizer is required for sample logging"
+                self.last_log_samples_step = -1
+                self.samples_cols = [
+                    "step",
+                    "tag",
+                    "problem_id",
+                    "sample_id",
+                    "num_input_tokens",
+                    "num_output_tokens",
+                    "input_tokens",
+                    "output_tokens",
+                    "prompt",
+                    "completion",
+                    "reward",
+                    "advantage",
+                ]
+                self.samples_table = wandb.Table(
+                    columns=self.samples_cols,
+                    log_mode="INCREMENTAL",
+                )
+                self.tokenizer = tokenizer
+                self.samples = []
+
+            if config.log_extras.distributions:
+                self.last_log_distributions_step = -1
+                self.distributions_cols = [
+                    "step",
+                    "rewards",
+                    "advantages",
+                    "problem_rewards",
+                    "problem_advantages",
+                ]
+                self.distributions_table = wandb.Table(
+                    columns=self.distributions_cols,
+                    log_mode="INCREMENTAL",
+                )
+                self.distributions = []
+
+    def _maybe_overwrite_wandb_command(self) -> None:
+        """Overwrites sys.argv with the start command if it is set in the environment variables."""
+        wandb_args = os.environ.get("WANDB_ARGS", None)
+        if wandb_args:
+            self.logger.debug(f"Found WANDB_ARGS in environment variables {wandb_args}")
+            sys.argv = json.loads(wandb_args)
 
     def log(self, metrics: dict[str, Any]) -> None:
         if not self.is_master:
@@ -161,6 +205,7 @@ class WandbMonitor(Monitor):
         output_tokens: list[list[int]],
         rewards: list[float],
         advantages: list[float],
+        rollouts_per_problem: int,
         step: int,
     ) -> None:
         """Log prompt/response samples to W&B table.
@@ -172,40 +217,126 @@ class WandbMonitor(Monitor):
             task_rewards: Optional list of task-specific rewards
             step: Current training step
         """
-        if not self.config.log_samples or step % self.config.log_samples.interval != 0:
+        if (
+            not self.config.log_extras
+            or not self.config.log_extras.samples
+            or step % self.config.log_extras.interval != 0
+        ):
             # Do not log samples if not enabled or not log interval step
             return
         assert self.tokenizer is not None, "Tokenizer is required for sample logging"
-        assert self.last_log_step < step, "Step must be greater than last logged step"
+        assert self.last_log_samples_step <= step, "Step must be greater than last logged step"
 
-        self.logger.debug(f"Logging {self.config.log_samples.num_samples} samples to W&B table at step {step}")
+        self.logger.debug(f"Logging samples to W&B table at step {step}")
         start_time = time.time()
         batch_size = len(input_tokens)
-        num_samples = min(self.config.log_samples.num_samples, batch_size)
+        num_problems = batch_size // rollouts_per_problem
+
+        # Compute per-problem statistics
+        per_problem_tokens = defaultdict(list)
+        tokens = [input_tokens[i] + output_tokens[i] for i in range(batch_size)]
+        for i, t in enumerate(tokens):
+            problem_id = i // rollouts_per_problem
+            per_problem_tokens[problem_id].append(t)
+        assert len(per_problem_tokens) == num_problems
+        assert list(per_problem_tokens.keys()) == list(range(num_problems))
+
+        per_problem_seq_len = {
+            problem_id: sum(len(t) for t in tokens) / len(tokens) for problem_id, tokens in per_problem_tokens.items()
+        }
+        self.logger.debug(f"Per-problem seq len: {per_problem_seq_len}")
+        min_len_problem_id = min(per_problem_seq_len, key=per_problem_seq_len.get)
+        max_len_problem_id = max(per_problem_seq_len, key=per_problem_seq_len.get)
+        random_problem_id = random.choice(list(range(num_problems)))
+        problem_ids = {"min_len": min_len_problem_id, "max_len": max_len_problem_id, "random": random_problem_id}
+        self.logger.debug(f"Logging samples for problems: {problem_ids}")
 
         # Randomly select and log samples
-        indices = random.sample(range(batch_size), num_samples)
-        for idx in indices:
-            sample = {
-                "step": step,
-                "sample_idx": idx,
-                "num_input_tokens": len(input_tokens[idx]),
-                "num_output_tokens": len(output_tokens[idx]),
-                "input_tokens": input_tokens[idx],
-                "output_tokens": output_tokens[idx],
-                "prompt": self.tokenizer.decode(input_tokens[idx]),
-                "completion": self.tokenizer.decode(output_tokens[idx]),
-                "reward": float(rewards[idx]),
-                "advantage": float(advantages[idx]),
-            }
-            self.samples.append(sample)
+        for tag, problem_id in problem_ids.items():
+            start_idx = problem_id * rollouts_per_problem
+            for sample_id in range(start_idx, start_idx + rollouts_per_problem):
+                sample = {
+                    "step": step,
+                    "tag": tag,
+                    "problem_id": problem_id,
+                    "sample_id": sample_id,
+                    "num_input_tokens": len(input_tokens[sample_id]),
+                    "num_output_tokens": len(output_tokens[sample_id]),
+                    "input_tokens": str(input_tokens[sample_id]),
+                    "output_tokens": str(output_tokens[sample_id]),
+                    "prompt": self.tokenizer.decode(input_tokens[sample_id]),
+                    "completion": self.tokenizer.decode(output_tokens[sample_id]),
+                    "reward": float(rewards[sample_id]),
+                    "advantage": float(advantages[sample_id]),
+                }
+                assert list(sample.keys()) == self.samples_cols, (
+                    "Order of columns in the table must be the same as order of the keys here"
+                )
+                self.samples_table.add_data(*sample.values())
+                self.samples.append(sample)
+        wandb.log({"samples": self.samples_table}, step=step)
+        self.last_log_samples_step = step
+        self.logger.debug(f"Logged samples at step {step} to W&B table in {time.time() - start_time:.2f}s")
 
-        # Log to W&B table at configured intervals
+    def log_distributions(
+        self, rewards: list[float], advantages: list[float], rollouts_per_problem: int, step: int
+    ) -> None:
+        if (
+            not self.config.log_extras
+            or not self.config.log_extras.distributions
+            or step % self.config.log_extras.interval != 0
+        ):
+            return
+        assert self.last_log_distributions_step <= step, "Step must be greater than last logged step"
+        self.logger.debug(f"Logging distributions to W&B table at step {step}")
+
+        # Group by problem
+        problem_rewards = defaultdict(list)
+        problem_advantages = defaultdict(list)
+        for i, (reward, advantage) in enumerate(zip(rewards, advantages)):
+            problem_id = i // rollouts_per_problem
+            problem_rewards[problem_id].append(reward)
+            problem_advantages[problem_id].append(advantage)
+
+        # Compute mean per-problem
+        problem_mean_rewards = [sum(rewards) / len(rewards) for rewards in problem_rewards.values()]
+        problem_mean_advantages = [sum(advantages) / len(advantages) for advantages in problem_advantages.values()]
+
+        # Append to distributions
+        start_time = time.time()
+        distribution = {
+            "step": step,
+            "rewards": rewards,
+            "advantages": advantages,
+            "problem_rewards": problem_mean_rewards,
+            "problem_advantages": problem_mean_advantages,
+        }
+        assert list(distribution.keys()) == self.distributions_cols, (
+            "Order of columns in the table must be the same as order of the keys here"
+        )
+        self.distributions.append(distribution)
+        self.distributions_table.add_data(*distribution.values())
+        wandb.log({"distributions": self.distributions_table}, step=step)
+        self.last_log_distributions_step = step
+        self.logger.debug(f"Logged distributions at step {step} to W&B table in {time.time() - start_time:.2f}s")
+
+    def log_final_samples(self) -> None:
+        """Log final samples to W&B table."""
+        if not self.config.log_extras or not self.config.log_extras.samples:
+            return
+        self.logger.debug("Logging final samples to W&B table")
         df = pd.DataFrame(self.samples)
         table = wandb.Table(dataframe=df)
-        wandb.log({"completions": table}, step=step)
-        self.last_log_step = step
-        self.logger.debug(f"Logged {len(indices)} samples to W&B table in {time.time() - start_time:.2f}s")
+        wandb.log({"final-samples": table})
+
+    def log_final_distributions(self) -> None:
+        """Log final distributions to W&B table."""
+        if not self.config.log_extras or not self.config.log_extras.distributions:
+            return
+        self.logger.debug("Logging final distributions to W&B table")
+        df = pd.DataFrame(self.distributions)
+        table = wandb.Table(dataframe=df)
+        wandb.log({"final-distributions": table})
 
 
 MonitorType = Literal["file", "socket", "api", "wandb"]

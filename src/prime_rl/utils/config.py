@@ -48,24 +48,30 @@ class APIMonitorConfig(BaseConfig):
     auth_token: Annotated[str, Field(description="The API auth token to use")]
 
 
-class SampleLoggingConfig(BaseConfig):
-    """Configures sample logging for W&B tables."""
+class LogExtrasConfig(BaseConfig):
+    """Configures extra logging for W&B tables."""
+
+    samples: Annotated[
+        bool,
+        Field(
+            description="Whether to log prompt/response samples to W&B tables.",
+        ),
+    ] = True
+
+    distributions: Annotated[
+        bool,
+        Field(
+            description="Whether to log distributions, like rewards, advantages, etc. to W&B tables.",
+        ),
+    ] = True
 
     interval: Annotated[
         int,
         Field(
             ge=1,
-            description="Step interval at which to log samples to W&B table.",
+            description="Step interval at which to log extras to W&B table.",
         ),
     ] = 10
-
-    num_samples: Annotated[
-        int,
-        Field(
-            ge=1,
-            description="Number of samples to randomly select and log from each batch.",
-        ),
-    ] = 8
 
 
 class WandbMonitorConfig(BaseConfig):
@@ -96,10 +102,10 @@ class WandbMonitorConfig(BaseConfig):
 
     offline: Annotated[bool, Field(description="Whether to run W&B in offline mode.")] = False
 
-    log_samples: Annotated[
-        SampleLoggingConfig | None,
+    log_extras: Annotated[
+        LogExtrasConfig | None,
         Field(
-            description="Configuration for logging prompt/response samples to W&B tables. If None, no samples are logged.",
+            description="Configuration for logging extras to W&B tables. If None, no extras are logged.",
         ),
     ] = None
 

@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from prime_rl.eval.registry import Benchmark
 from prime_rl.orchestrator.advantage import AdvantageType
@@ -123,6 +123,13 @@ class EvalConfig(BaseConfig):
         ),
     ] = ["math500"]
 
+    rollouts_per_prompt: Annotated[
+        list[int],
+        Field(
+            description="Number of samples to generate for each benchmark.",
+        ),
+    ] = [1]
+
     interval: Annotated[
         int,
         Field(
@@ -137,6 +144,12 @@ class EvalConfig(BaseConfig):
             description="Whether to evaluate the base model we are training on.",
         ),
     ] = True
+
+    @model_validator(mode="after")
+    def validate_rollouts_per_prompt(self):
+        if len(self.rollouts_per_prompt) != len(self.benchmarks):
+            raise ValueError("Number of rollouts per prompt must be the same as the number of benchmarks")
+        return self
 
 
 class CheckpointConfig(BaseConfig):
@@ -153,6 +166,91 @@ class CheckpointConfig(BaseConfig):
             description="Step to resume orchestrator from. If None, will start from scratch.",
         ),
     ] = None
+
+
+class SimpleBufferConfig(BaseModel):
+    type: Literal["simple"] = "simple"
+
+
+class DifficultyPoolBufferConfig(BaseModel):
+    type: Literal["difficulty-pool"] = "difficulty-pool"
+
+    difficulty_field: Annotated[
+        str | None,
+        Field(
+            description="Field name in the dataset that contains difficulty information. Should only contain `easy`, `normal` and `hard`. If None, all samples are treated as `normal` initially.",
+        ),
+    ] = None
+
+    easy_border: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="If a problem has more than `easy_border` average reward across rollouts, it will be moved to the easy pool.",
+        ),
+    ] = 0.8
+
+    hard_border: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="If a problem has less than `hard_border` average reward across rollouts, it will be moved to the hard pool.",
+        ),
+    ] = 0.2
+
+    # TODO: Maybe make this float | int to allow for specific numbers of easy/hard samples?
+    easy_fraction: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Fraction of the batch that should consist of easy samples.",
+        ),
+    ] = 0.1
+
+    hard_fraction: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Fraction of the batch that should consist of hard samples.",
+        ),
+    ] = 0.1
+
+
+class OnlineDifficultyBufferConfig(BaseModel):
+    type: Literal["online-difficulty"] = "online-difficulty"
+
+    min_reward: Annotated[
+        float | None,
+        Field(
+            ge=0,
+            le=1,
+            description="Minimum reward to include the sample in a batch.",
+        ),
+    ] = 0.01
+
+    max_reward: Annotated[
+        float | None,
+        Field(
+            ge=0,
+            le=1,
+            description="Maximum reward to include the sample in a batch.",
+        ),
+    ] = 0.99
+
+    oversampling_factor: Annotated[
+        float,
+        Field(
+            gt=0,
+            description="Factor by which to oversample during filtering to ensure sufficient samples.",
+        ),
+    ] = 1.0
+
+
+DataBufferConfig: TypeAlias = SimpleBufferConfig | DifficultyPoolBufferConfig | OnlineDifficultyBufferConfig
 
 
 class OrchestratorConfig(BaseSettings):
@@ -172,6 +270,9 @@ class OrchestratorConfig(BaseSettings):
 
     # The evaluation configuration
     eval: EvalConfig | None = None
+
+    # Data buffer configuration
+    buffer: DataBufferConfig = Field(discriminator="type", default=SimpleBufferConfig())
 
     # The logging configuration
     log: LogConfig = LogConfig()
@@ -216,17 +317,24 @@ class OrchestratorConfig(BaseSettings):
         ),
     ] = 2048
 
+    mask_env_responses: Annotated[
+        bool,
+        Field(
+            description="Whether to mask environment responses from the loss.",
+        ),
+    ] = True
+
     mask_truncated_completions: Annotated[
         bool,
         Field(
             description="Whether to mask truncated completions from the loss.",
         ),
-    ] = True
+    ] = False
 
-    mask_env_responses: Annotated[
+    zero_truncated_completions: Annotated[
         bool,
         Field(
-            description="Whether to mask environment responses from the loss.",
+            description="Whether to override reward scores with 0 for truncated completions.",
         ),
     ] = True
 
@@ -292,6 +400,6 @@ class OrchestratorConfig(BaseSettings):
 
             # Disable evaluation
             self.eval = None
-            self.monitor.wandb.log_samples = None
+            self.monitor.wandb.log_extras = None
 
         return self

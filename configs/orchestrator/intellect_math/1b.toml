@@ -18,12 +18,12 @@ solve_rate_field = "solve_rate_qwen_r1_distill_7b"
 min_solve_rate = 0.4
 max_solve_rate = 0.9
 
-[monitor.wandb.log_samples]
+[monitor.wandb.log_extras]
 interval = 50
-num_samples = 16
 
 [eval]
 interval = 50
 benchmarks = ["math500", "aime24", "aime25"]
+rollouts_per_prompt = [1, 16, 16]
 
 [ckpt]
