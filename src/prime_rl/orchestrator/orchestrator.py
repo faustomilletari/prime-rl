@@ -30,6 +30,7 @@ from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
     wait_for_weight_checkpoint,
     print_benchmark,
+    apply_shortest_correct_bonus,
 )
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
@@ -221,8 +222,19 @@ async def orchestrate(config: OrchestratorConfig):
                 mask_truncated_completions=config.mask_truncated_completions,
             )
 
+            if config.apply_shortest_correct_bonus:
+                completion_lengths = [len(tokens) for tokens in results["completion_ids"]]
+                train_rewards = apply_shortest_correct_bonus(
+                    outputs["reward"],
+                    completion_lengths,
+                    group_size=config.rollouts_per_prompt,
+                    bonus=config.shortest_correct_bonus_value,
+                )
+            else:
+                train_rewards = outputs["reward"]
+
             advantages = compute_advantages(
-                rewards=outputs["reward"],
+                rewards=train_rewards,
                 samples_per_problem=config.rollouts_per_prompt,
                 advantage_type=config.advantage_type,
             )
