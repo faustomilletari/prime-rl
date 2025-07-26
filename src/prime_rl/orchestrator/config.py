@@ -338,10 +338,6 @@ class OrchestratorConfig(BaseSettings):
         ),
     ] = True
 
-    # ---------------------------------------------------
-    # Reward shaping options
-    # ---------------------------------------------------
-
     apply_shortest_correct_bonus: Annotated[
         bool,
         Field(
