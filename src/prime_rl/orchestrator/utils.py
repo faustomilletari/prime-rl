@@ -111,7 +111,7 @@ def compute_rewards(
 def apply_shortest_correct_bonus(
     rewards: list[float],
     completion_lengths: list[int],
-    group_size: int,
+    rollouts_per_prompt: int,
     bonus: float = 0.5,
 ) -> list[float]:
     """Return a new reward list where the shortest *correct* rollout(s) in each
@@ -120,10 +120,10 @@ def apply_shortest_correct_bonus(
     assert len(rewards) == len(completion_lengths), "Rewards and lengths must align"
 
     new_rewards = list(rewards)
-    for start in range(0, len(rewards), group_size):
-        group_rewards = new_rewards[start : start + group_size]
+    for start in range(0, len(rewards), rollouts_per_prompt):
+        group_rewards = new_rewards[start : start + rollouts_per_prompt]
         if all(r == 1.0 for r in group_rewards):
-            group_lengths = completion_lengths[start : start + group_size]
+            group_lengths = completion_lengths[start : start + rollouts_per_prompt]
             min_len = min(group_lengths)
             for idx, length in enumerate(group_lengths):
                 if length == min_len:

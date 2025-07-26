@@ -339,19 +339,11 @@ class OrchestratorConfig(BaseSettings):
     ] = True
 
     apply_shortest_correct_bonus: Annotated[
-        bool,
+        float | None,
         Field(
-            description="If True, add an extra reward to the shortest correct answer in fully correct rollout groups.",
+            description="If not None, add an extra reward to the shortest correct answer in fully correct rollout groups. If None, no bonus is applied.",
         ),
-    ] = False
-
-    shortest_correct_bonus_value: Annotated[
-        float,
-        Field(
-            ge=0,
-            description="Bonus value to add when apply_shortest_correct_bonus is enabled.",
-        ),
-    ] = 0.5
+    ] = None
 
     # TODO(Mika): This should be automatic from the number of ZMQ connections
     num_train_workers: Annotated[

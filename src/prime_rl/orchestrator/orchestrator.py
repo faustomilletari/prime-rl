@@ -222,13 +222,13 @@ async def orchestrate(config: OrchestratorConfig):
                 mask_truncated_completions=config.mask_truncated_completions,
             )
 
-            if config.apply_shortest_correct_bonus:
+            if config.apply_shortest_correct_bonus is not None:
                 completion_lengths = [len(tokens) for tokens in results["completion_ids"]]
                 train_rewards = apply_shortest_correct_bonus(
                     outputs["reward"],
                     completion_lengths,
-                    group_size=config.rollouts_per_prompt,
-                    bonus=config.shortest_correct_bonus_value,
+                    rollouts_per_prompt=config.rollouts_per_prompt,
+                    bonus=config.apply_shortest_correct_bonus,
                 )
             else:
                 train_rewards = outputs["reward"]
