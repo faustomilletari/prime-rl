@@ -135,7 +135,6 @@ async def run_benchmark(
     time_metrics = {
         "step": step,
         f"time/eval/{benchmark}": benchmark_time,
-        f"time/eval/{benchmark}/load_data": load_data_time,
         f"time/eval/{benchmark}/generate_completions": generate_completions_time,
         f"time/eval/{benchmark}/compute_rewards": compute_rewards_time,
     }
