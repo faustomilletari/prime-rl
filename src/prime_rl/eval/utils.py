@@ -81,7 +81,6 @@ async def run_benchmark(
     avg_completion_len_per_problem = completion_len_df.groupby("problem_id").completion_len.mean()
     max_avg_completion_len = avg_completion_len_per_problem.max()
     min_avg_completion_len = avg_completion_len_per_problem.min()
-    completion_len_std = pd.Series(completion_lengths).std()
 
     # Compute rewards
     logger.debug("Computing rewards")
