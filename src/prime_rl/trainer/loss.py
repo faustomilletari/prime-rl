@@ -41,6 +41,7 @@ def grpo_loss(
             clip_ratio=loss_config.clip_ratio,
         )
 
+
 @jaxtyped(typechecker=typechecker)
 def grpo_loss_clip(
     shifted_logits: Float[Tensor, "batch seq vocab"],
@@ -100,6 +101,7 @@ def grpo_loss_ratio(
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
     raw_ratio = torch.exp(per_token_logps - original_logprobs)
+    assert (raw_ratio == torch.ones_like(raw_ratio)).all(), "Raw ratio should be 1"
 
     is_clipped = (raw_ratio > clip_ratio).float()
     clipped_token_count = _masked_sum(is_clipped, loss_mask)
