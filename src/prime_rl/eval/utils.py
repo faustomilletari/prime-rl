@@ -12,7 +12,7 @@ from prime_rl.eval.registry import (
 )
 from prime_rl.orchestrator.client import generate_completion
 from prime_rl.orchestrator.config import ModelConfig, SamplingConfig
-from prime_rl.orchestrator.utils import compute_rewards, parse_completions, parse_completion_tokens
+from prime_rl.orchestrator.utils import compute_rewards, parse_completion_tokens, parse_completions
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.monitor import MultiMonitor
 from prime_rl.utils.utils import capitalize
