@@ -181,11 +181,12 @@ def train(config: TrainerConfig):
         compute_logprobs_time = 0
         if config.recompute_logprobs:
             compute_logprobs_start_time = time.time()
-            og_infer_step = progress.step - config.async_level
+            og_infer_step = progress.step - config.async_level + 1
             infer_step = max(og_infer_step, 0)
             logger.info(f"Recomputing logprobs with model weight checkpoint {infer_step}")
 
             # Wake up the logprob model from CPU
+            logger.info(f"Waking up logprob model from CPU for step {infer_step}, {config.async_level=}")
             wake_up_model_from_cpu(logprob_model, tensor_offloaded_repository[infer_step])
             if og_infer_step == infer_step:
                 del tensor_offloaded_repository[infer_step]
