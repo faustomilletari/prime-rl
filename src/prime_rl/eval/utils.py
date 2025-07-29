@@ -75,7 +75,13 @@ async def run_benchmark(
     logger.debug(f"Generated completions in {generate_completions_time:.2f}s")
 
     completion_lengths = [len(parse_completion_tokens(c)) for c in chat_completions]
-    avg_completion_len = sum(completion_lengths) / len(completion_lengths) 
+    avg_completion_len = sum(completion_lengths) / len(completion_lengths)
+    
+    completion_len_df = pd.DataFrame({"problem_id": problem_ids, "completion_len": completion_lengths})
+    avg_completion_len_per_problem = completion_len_df.groupby("problem_id").completion_len.mean()
+    max_avg_completion_len = avg_completion_len_per_problem.max()
+    min_avg_completion_len = avg_completion_len_per_problem.min()
+    completion_len_std = pd.Series(completion_lengths).std()
 
     # Compute rewards
     logger.debug("Computing rewards")
@@ -117,11 +123,19 @@ async def run_benchmark(
     if could_be_binary:
         for pass_rate, pass_rate_score in pass_at_k.mean().items():
             message += f", {capitalize(pass_rate)}: {pass_rate_score:.2f}"
-    message += f", Seq. Len: {avg_completion_len:.2f}"
+    message += (
+        f", Seq. Len: {avg_completion_len:.2f}, Max Seq. Len: {max_avg_completion_len:.2f}, "
+        f"Min Seq. Len: {min_avg_completion_len:.2f}"
+    )
     logger.success(message + ")")
 
     # Log statistics to monitor
-    eval_metrics = {f"avg@{k}": float(sample_stats.reward.mean()), "completion_len": float(avg_completion_len)}
+    eval_metrics = {
+        f"avg@{k}": float(sample_stats.reward.mean()),
+        "completion_len": float(avg_completion_len),
+        "max_completion_len": float(max_avg_completion_len),
+        "min_completion_len": float(min_avg_completion_len),
+    }
     if could_be_binary:
         eval_metrics.update(pass_at_k.mean().to_dict())
     eval_metrics = {**{f"eval/{benchmark}/{k}": v for k, v in eval_metrics.items()}}
