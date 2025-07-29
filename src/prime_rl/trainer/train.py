@@ -218,6 +218,7 @@ def train(config: TrainerConfig):
 
         forward_backward_start_time = time.time()
         loss_metrics = defaultdict(float)
+        max_ratio = 0.0
         num_micro_batches = len(micro_batches)
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
@@ -265,20 +266,9 @@ def train(config: TrainerConfig):
             loss_metrics["loss/clipped_ratio"] += ratio_info.clipped_token_count.detach().float()
 
             loss_metrics["loss/importance_ratio"] += ratio_info.ratio_sum.detach().float()
-            loss_metrics["loss/importance_ratio/max"] = max(
-                loss_metrics["loss/importance_ratio/max"], ratio_info.max_ratio.detach().float()
-            )
-            loss_metrics["loss/importance_ratio/min"] = min(
-                loss_metrics["loss/importance_ratio/min"], ratio_info.min_ratio.detach().float()
-            )
 
             loss_metrics["loss/raw_importance_ratio"] += ratio_info.raw_ratio_sum.detach().float()
-            loss_metrics["loss/raw_importance_ratio/max"] = max(
-                loss_metrics["loss/raw_importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
-            )
-            loss_metrics["loss/raw_importance_ratio/min"] = min(
-                loss_metrics["loss/raw_importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
-            )
+            max_ratio = max(max_ratio, ratio_info.raw_ratio_max.detach().float())
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
@@ -301,14 +291,12 @@ def train(config: TrainerConfig):
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
         for key, value in loss_metrics.items():
-            if key in ["loss/raw_importance_ratio/max", "loss/importance_ratio/max"]:
-                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.MAX)
-            elif key in ["loss/raw_importance_ratio/min", "loss/importance_ratio/min"]:
-                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.MIN)
-            else:
-                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
-
+            dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
+
+        max_ratio = max_ratio.to("cuda")
+        dist.all_reduce(max_ratio, op=dist.ReduceOp.MAX)
+        loss_metrics["loss/importance_ratio/max"] = max_ratio.cpu()
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")

@@ -14,12 +14,9 @@ from prime_rl.trainer.model import Model, forward
 class RatioInfo:
     ratio_sum: Float[Tensor, "1"]
     clipped_token_count: Float[Tensor, "1"]
-    max_ratio: Float[Tensor, "1"]
-    min_ratio: Float[Tensor, "1"]
 
     raw_ratio_sum: Float[Tensor, "1"]
     raw_ratio_max: Float[Tensor, "1"]
-    raw_ratio_min: Float[Tensor, "1"]
 
 
 @jaxtyped(typechecker=typechecker)
@@ -104,11 +101,8 @@ def grpo_loss_clip(
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
-        max_ratio=ratio.max(),
-        min_ratio=ratio.min(),
         raw_ratio_sum=raw_ratio.sum(),
         raw_ratio_max=raw_ratio.max(),
-        raw_ratio_min=raw_ratio.min(),
     )
 
 
@@ -143,11 +137,8 @@ def grpo_loss_ratio(
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
-        max_ratio=ratio.max(),
-        min_ratio=ratio.min(),
         raw_ratio_sum=raw_ratio.sum(),
         raw_ratio_max=raw_ratio.max(),
-        raw_ratio_min=raw_ratio.min(),
     )
 
 
