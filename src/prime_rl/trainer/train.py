@@ -241,7 +241,7 @@ def train(config: TrainerConfig):
             del logits
 
             # Compute loss
-            loss, importance_ratio, clipped_token_count = grpo_loss(
+            loss, ratio_info = grpo_loss(
                 shifted_logits=shifted_logits,
                 input_ids=input_ids,
                 advantages=advantages,
@@ -262,8 +262,23 @@ def train(config: TrainerConfig):
             # Accumulate unnormalized local metrics
             loss_metrics["loss/loss"] += loss.detach().float()
             loss_metrics["loss/entropy"] += entropy.detach().float()
-            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float()
-            loss_metrics["loss/clipped_ratio"] += clipped_token_count.detach().float()
+            loss_metrics["loss/clipped_ratio"] += ratio_info.clipped_token_count.detach().float()
+
+            loss_metrics["loss/importance_ratio"] += ratio_info.ratio_sum.detach().float()
+            loss_metrics["loss/importance_ratio/max"] = max(
+                loss_metrics["loss/importance_ratio/max"], ratio_info.max_ratio.detach().float()
+            )
+            loss_metrics["loss/importance_ratio/min"] = min(
+                loss_metrics["loss/importance_ratio/min"], ratio_info.min_ratio.detach().float()
+            )
+
+            loss_metrics["loss/raw_importance_ratio"] += ratio_info.raw_ratio_sum.detach().float()
+            loss_metrics["loss/raw_importance_ratio/max"] = max(
+                loss_metrics["loss/raw_importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
+            )
+            loss_metrics["loss/raw_importance_ratio/min"] = min(
+                loss_metrics["loss/raw_importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
+            )
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
@@ -276,7 +291,7 @@ def train(config: TrainerConfig):
 
             # We report per-micro batch length normalized metrics here
             logger.debug(
-                f"Completed micro batch {micro_step}/{num_micro_batches} (loss={(loss.item() / loss_mask.sum()):.2f}, entropy={(entropy.item() / loss_mask.sum()):.2f}, importance_ratio={(importance_ratio.item() / loss_mask.sum()):.2f})"
+                f"Completed micro batch {micro_step}/{num_micro_batches} (loss={(loss.item() / loss_mask.sum()):.2f}, entropy={(entropy.item() / loss_mask.sum()):.2f}, importance_ratio={(ratio_info.ratio_sum.item() / loss_mask.sum()):.2f})"
             )
 
         # Normalize all loss metrics globally before reporting
@@ -286,7 +301,13 @@ def train(config: TrainerConfig):
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
         for key, value in loss_metrics.items():
-            dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
+            if key in ["loss/raw_importance_ratio/max", "loss/importance_ratio/max"]:
+                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.MAX)
+            elif key in ["loss/raw_importance_ratio/min", "loss/importance_ratio/min"]:
+                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.MIN)
+            else:
+                dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
+
             loss_metrics[key] = value
 
         # Optionally, clip the gradients
@@ -309,7 +330,7 @@ def train(config: TrainerConfig):
         # Maybe clean up weight checkpoint
         weight_ckpt_manager.maybe_clean(progress.step)
 
-        # Optionally, dump memory snapshot
+        # Optionally, dump memorfy snapshot
         if config.profile_path and progress.step == 2 and world.rank == 0:
             logger.debug("Dumping memory snapshot")
             profile_path = config.profile_path

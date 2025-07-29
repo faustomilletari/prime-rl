@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import torch
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
@@ -6,6 +8,18 @@ from torch.nn import functional as F
 
 from prime_rl.trainer.config import LossConfig
 from prime_rl.trainer.model import Model, forward
+
+
+@dataclass
+class RatioInfo:
+    ratio_sum: Float[Tensor, "1"]
+    clipped_token_count: Float[Tensor, "1"]
+    max_ratio: Float[Tensor, "1"]
+    min_ratio: Float[Tensor, "1"]
+
+    raw_ratio_sum: Float[Tensor, "1"]
+    raw_ratio_max: Float[Tensor, "1"]
+    raw_ratio_min: Float[Tensor, "1"]
 
 
 @jaxtyped(typechecker=typechecker)
@@ -17,7 +31,7 @@ def grpo_loss(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     loss_config: LossConfig,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> tuple[Tensor, RatioInfo]:
     if loss_config.type == "clip":
         return grpo_loss_clip(
             shifted_logits=shifted_logits,
@@ -53,7 +67,7 @@ def grpo_loss_clip(
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> tuple[Tensor, RatioInfo]:
     """
     DeepSeek Math Loss: https://arxiv.org/abs/2402.03300
 
@@ -70,7 +84,9 @@ def grpo_loss_clip(
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
-    coef_1 = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
+    raw_ratio = torch.exp(per_token_logps - original_logprobs)
+
+    coef_1 = torch.clamp(raw_ratio, 0, clip_ratio)
 
     coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
     per_token_loss1 = -coef_1 * advantages
@@ -81,8 +97,19 @@ def grpo_loss_clip(
     clipped_token_count = _masked_sum(is_clipped, loss_mask)
 
     loss = _masked_sum(per_token_loss, loss_mask)
-    ratio = _masked_sum(coef_2, loss_mask)
-    return loss, ratio, clipped_token_count
+
+    raw_ratio = raw_ratio * loss_mask
+    ratio = coef_2 * loss_mask
+
+    return loss, RatioInfo(
+        ratio_sum=ratio.sum(),
+        clipped_token_count=clipped_token_count,
+        max_ratio=ratio.max(),
+        min_ratio=ratio.min(),
+        raw_ratio_sum=raw_ratio.sum(),
+        raw_ratio_max=raw_ratio.max(),
+        raw_ratio_min=raw_ratio.min(),
+    )
 
 
 @jaxtyped(typechecker=typechecker)
@@ -94,14 +121,13 @@ def grpo_loss_ratio(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     clip_ratio: float,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> tuple[Tensor, RatioInfo]:
     # Divide logits by sampling temperature.
     # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
     raw_ratio = torch.exp(per_token_logps - original_logprobs)
-    assert (raw_ratio == torch.ones_like(raw_ratio)).all(), "Raw ratio should be 1"
 
     is_clipped = (raw_ratio > clip_ratio).float()
     clipped_token_count = _masked_sum(is_clipped, loss_mask)
@@ -110,9 +136,19 @@ def grpo_loss_ratio(
     loss = -ratio * advantages
 
     loss = _masked_sum(loss, loss_mask)
-    ratio = _masked_sum(ratio, loss_mask)
 
-    return loss, ratio, clipped_token_count
+    raw_ratio = raw_ratio * loss_mask
+    ratio = ratio * loss_mask
+
+    return loss, RatioInfo(
+        ratio_sum=ratio.sum(),
+        clipped_token_count=clipped_token_count,
+        max_ratio=ratio.max(),
+        min_ratio=ratio.min(),
+        raw_ratio_sum=raw_ratio.sum(),
+        raw_ratio_max=raw_ratio.max(),
+        raw_ratio_min=raw_ratio.min(),
+    )
 
 
 @jaxtyped(typechecker=typechecker)
