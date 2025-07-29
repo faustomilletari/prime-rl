@@ -117,7 +117,7 @@ async def run_benchmark(
     if could_be_binary:
         for pass_rate, pass_rate_score in pass_at_k.mean().items():
             message += f", {capitalize(pass_rate)}: {pass_rate_score:.2f}"
-    message += f", AvgSeqLen: {avg_seq_len:.2f}"
+    message += f", Seq. Len: {avg_seq_len:.2f}"
     logger.success(message + ")")
 
     # Log statistics to monitor
