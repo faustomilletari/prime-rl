@@ -12,7 +12,7 @@ from prime_rl.eval.registry import (
 )
 from prime_rl.orchestrator.client import generate_completion
 from prime_rl.orchestrator.config import ModelConfig, SamplingConfig
-from prime_rl.orchestrator.utils import compute_rewards, parse_completions
+from prime_rl.orchestrator.utils import compute_rewards, parse_completions, parse_completion_tokens
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.monitor import MultiMonitor
 from prime_rl.utils.utils import capitalize
@@ -74,6 +74,9 @@ async def run_benchmark(
     generate_completions_time = time.time() - generate_completions_start_time
     logger.debug(f"Generated completions in {generate_completions_time:.2f}s")
 
+    completion_lengths = [len(parse_completion_tokens(c)) for c in chat_completions]
+    avg_seq_len = sum(completion_lengths) / len(completion_lengths) 
+
     # Compute rewards
     logger.debug("Computing rewards")
     compute_rewards_start_time = time.time()
@@ -114,10 +117,11 @@ async def run_benchmark(
     if could_be_binary:
         for pass_rate, pass_rate_score in pass_at_k.mean().items():
             message += f", {capitalize(pass_rate)}: {pass_rate_score:.2f}"
+    message += f", AvgSeqLen: {avg_seq_len:.2f}"
     logger.success(message + ")")
 
     # Log statistics to monitor
-    eval_metrics = {f"avg@{k}": float(sample_stats.reward.mean())}
+    eval_metrics = {f"avg@{k}": float(sample_stats.reward.mean()), "avg_seq_len": float(avg_seq_len)}
     if could_be_binary:
         eval_metrics.update(pass_at_k.mean().to_dict())
     eval_metrics = {**{f"eval/{benchmark}/{k}": v for k, v in eval_metrics.items()}}
