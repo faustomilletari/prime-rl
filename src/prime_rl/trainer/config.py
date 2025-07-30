@@ -119,7 +119,21 @@ class RatioLossConfig(BaseLossConfig):
     clip_ratio: Annotated[float, Field(ge=0)] = 8.0
 
 
-LossConfig: TypeAlias = ClippingLossConfig | RatioLossConfig
+class GSPOClipLossConfig(BaseLossConfig):
+    """Configures the GSPO clip loss."""
+
+    type: Literal["clip_gspo"] = "clip_gspo"
+    epsilon_low: Annotated[float, Field(ge=0)] = 3e-4
+    epsilon_high: Annotated[float, Field(ge=0)] = 4e-4
+    clip_ratio: Annotated[float, Field(ge=0)] = 1.1
+
+class GSPORatioLossConfig(BaseLossConfig):
+    """Configures the GSPO ratio loss."""
+
+    type: Literal["ratio_gspo"] = "ratio_gspo"
+    clip_ratio: Annotated[float, Field(ge=0)] = 1.1
+
+LossConfig: TypeAlias = ClippingLossConfig | RatioLossConfig | GSPORatioLossConfig | GSPOClipLossConfig
 
 
 class FakeDataLoaderConfig(BaseConfig):

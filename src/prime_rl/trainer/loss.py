@@ -40,6 +40,28 @@ def grpo_loss(
             temperature=temperature,
             clip_ratio=loss_config.clip_ratio,
         )
+    elif loss_config.type == "clip_gspo":
+        return gspo_loss_clip(
+            shifted_logits=shifted_logits,
+            input_ids=input_ids,
+            advantages=advantages,
+            original_logprobs=original_logprobs,
+            loss_mask=loss_mask,
+            temperature=temperature,
+            epsilon_low=loss_config.epsilon_low,
+            epsilon_high=loss_config.epsilon_high,
+            clip_ratio=loss_config.clip_ratio,
+        )
+    elif loss_config.type == "ratio_gspo":  
+        return gspo_loss_ratio(
+            shifted_logits=shifted_logits,
+            input_ids=input_ids,
+            advantages=advantages,
+            original_logprobs=original_logprobs,
+            loss_mask=loss_mask,
+            temperature=temperature,
+            clip_ratio=loss_config.clip_ratio,
+        )
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss_clip(
@@ -65,11 +87,11 @@ def grpo_loss_clip(
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
-    clipped_token_count = _masked_sum(is_clipped, loss_mask)
+    clipped_count = _masked_sum(is_clipped, loss_mask)
 
     loss = _masked_sum(per_token_loss, loss_mask)
     ratio = _masked_sum(coef_2, loss_mask)
-    return loss, ratio, clipped_token_count
+    return loss, ratio, clipped_count
 
 
 @jaxtyped(typechecker=typechecker)
@@ -89,7 +111,7 @@ def grpo_loss_ratio(
     raw_ratio = torch.exp(per_token_logps - original_logprobs)
 
     is_clipped = (raw_ratio > clip_ratio).float()
-    clipped_token_count = _masked_sum(is_clipped, loss_mask)
+    clipped_count = _masked_sum(is_clipped, loss_mask)
 
     ratio = torch.clamp(raw_ratio, 0, clip_ratio)
     loss = -ratio * advantages
@@ -97,8 +119,68 @@ def grpo_loss_ratio(
     loss = _masked_sum(loss, loss_mask)
     ratio = _masked_sum(ratio, loss_mask)
 
-    return loss, ratio, clipped_token_count
+    return loss, ratio, clipped_count
 
+@jaxtyped(typechecker=typechecker)
+def gspo_loss_clip(
+    shifted_logits: Float[Tensor, "batch seq vocab"],
+    input_ids: Int[Tensor, "batch seq"],
+    advantages: Float[Tensor, "batch seq"],
+    original_logprobs: Float[Tensor, "batch seq"],
+    loss_mask: Int[Tensor, "batch seq"],
+    temperature: float,
+    epsilon_low: float,
+    epsilon_high: float,
+    clip_ratio: float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    
+    shifted_logits = shifted_logits / temperature
+    per_token_logps = selective_log_softmax(shifted_logits, input_ids)
+
+    coef_1 = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
+
+    coef_1 = torch.clamp(torch.exp(coef_1), 0, clip_ratio)
+
+    coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
+    per_token_loss1 = -coef_1 * advantages[:, 0]
+    per_token_loss2 = -coef_2 * advantages[:, 0]
+    per_token_loss = torch.max(per_token_loss1, per_token_loss2)
+
+    is_clipped = (per_token_loss1 < per_token_loss2).float()
+    clipped_count = is_clipped.sum()
+
+    loss = per_token_loss.sum()
+    ratio = coef_2.sum()
+    return loss, ratio, clipped_count
+
+
+@jaxtyped(typechecker=typechecker)
+def gspo_loss_ratio(
+    shifted_logits: Float[Tensor, "batch seq vocab"],
+    input_ids: Int[Tensor, "batch seq"],
+    advantages: Float[Tensor, "batch seq"],
+    original_logprobs: Float[Tensor, "batch seq"],
+    loss_mask: Int[Tensor, "batch seq"],
+    temperature: float,
+    clip_ratio: float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    
+    shifted_logits = shifted_logits / temperature
+    per_token_logps = selective_log_softmax(shifted_logits, input_ids)
+
+    raw_ratio = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
+    raw_ratio = torch.exp(raw_ratio)
+
+    is_clipped = (raw_ratio > clip_ratio).float()
+    clipped_count = is_clipped.sum()
+
+    ratio = torch.clamp(raw_ratio, 0, clip_ratio)
+    loss = -ratio * advantages[:, 0]
+
+    loss = loss.sum()
+    ratio = ratio.sum()
+
+    return loss, ratio, clipped_count
 
 @jaxtyped(typechecker=typechecker)
 def selective_log_softmax(

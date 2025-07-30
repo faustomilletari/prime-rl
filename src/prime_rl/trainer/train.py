@@ -223,9 +223,10 @@ def train(config: TrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        total_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        loss_scale = batch_size if (config.loss.type == "clip_gspo" or config.loss.type == "ratio_gspo") else total_tokens
 
-        logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
+        logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
@@ -241,7 +242,7 @@ def train(config: TrainerConfig):
             del logits
 
             # Compute loss
-            loss, importance_ratio, clipped_token_count = grpo_loss(
+            loss, importance_ratio, clipped_count = grpo_loss(
                 shifted_logits=shifted_logits,
                 input_ids=input_ids,
                 advantages=advantages,
@@ -263,7 +264,7 @@ def train(config: TrainerConfig):
             loss_metrics["loss/loss"] += loss.detach().float()
             loss_metrics["loss/entropy"] += entropy.detach().float()
             loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float()
-            loss_metrics["loss/clipped_ratio"] += clipped_token_count.detach().float()
+            loss_metrics["loss/clipped_count"] += clipped_count.detach().float()
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
@@ -281,7 +282,10 @@ def train(config: TrainerConfig):
 
         # Normalize all loss metrics globally before reporting
         for key, value in loss_metrics.items():
-            loss_metrics[key] = value / loss_scale
+            if key == "loss/entropy":
+                loss_metrics[key] = value / total_tokens
+            else:
+                loss_metrics[key] = value / loss_scale
 
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
