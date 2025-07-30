@@ -286,7 +286,15 @@ def train(config: TrainerConfig):
 
         # Normalize all loss metrics globally before reporting
         for key, value in loss_metrics.items():
-            loss_metrics[key] = value / loss_scale
+            if key in [
+                "loss/importance_ratio",
+                "loss/raw_importance_ratio",
+                "loss/raw_importance_ratio/max",
+                "loss/importance_ratio/max",
+            ]:
+                loss_metrics[key] = value / torch.tensor(1.0)
+            else:
+                loss_metrics[key] = value / loss_scale
 
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
@@ -294,7 +302,7 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        max_ratio = max_ratio.to("cuda")
+        max_ratio = torch.tensor(max_ratio).to("cuda")
         dist.all_reduce(max_ratio, op=dist.ReduceOp.MAX)
         loss_metrics["loss/importance_ratio/max"] = max_ratio.cpu()
 

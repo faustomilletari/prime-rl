@@ -131,8 +131,8 @@ def grpo_loss_ratio(
 
     loss = _masked_sum(loss, loss_mask)
 
-    raw_ratio = raw_ratio * loss_mask
-    ratio = ratio * loss_mask
+    raw_ratio = (raw_ratio - 1) * loss_mask
+    ratio = (ratio - 1) * loss_mask
 
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
