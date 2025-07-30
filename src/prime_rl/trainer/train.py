@@ -206,9 +206,6 @@ def train(config: TrainerConfig):
 
             reshard_module(logprob_model)
 
-            # we don't need the weight of this policy anymore so release it from memory to avoid memory leak
-            del tensor_offloaded_repository[infer_step]
-
             compute_logprobs_time = time.time() - compute_logprobs_start_time
             logger.debug(f"Recomputed logprobs in {compute_logprobs_time:.2f} seconds")
 
