@@ -9,6 +9,12 @@ resolution-markers = [
 [options]
 prerelease-mode = "allow"
 
+[manifest]
+members = [
+    "prime-rl",
+    "vf-intellect-math",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -2099,6 +2105,8 @@ dependencies = [
     { name = "transformers" },
     { name = "uvloop" },
     { name = "verifiers" },
+    { name = "vf-intellect-math" },
+    { name = "vf-wordle" },
     { name = "vllm" },
     { name = "wandb" },
 ]
@@ -2147,7 +2155,9 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=08016c4" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" },
+    { name = "vf-intellect-math", editable = "environments/vf_intellect_math" },
+    { name = "vf-wordle", git = "https://github.com/willccbb/verifiers.git?subdirectory=environments%2Fvf_wordle&rev=main" },
     { name = "vllm", specifier = ">=0.9.1" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -3227,10 +3237,32 @@ wheels = [
 [[package]]
 name = "verifiers"
 version = "0.1.2"
-source = { git = "https://github.com/willccbb/verifiers?rev=08016c4#08016c40aeb65c4b42728ed9c7bda4dd15a9074b" }
+source = { git = "https://github.com/willccbb/verifiers?rev=75c7df8#75c7df827443eaed1d5b7e3893cac2d5a205e65b" }
 dependencies = [
     { name = "datasets" },
     { name = "openai" },
+    { name = "pydantic" },
+]
+
+[[package]]
+name = "vf-intellect-math"
+version = "0.1.0"
+source = { editable = "environments/vf_intellect_math" }
+dependencies = [
+    { name = "verifiers" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" }]
+
+[[package]]
+name = "vf-wordle"
+version = "0.1.0"
+source = { git = "https://github.com/willccbb/verifiers.git?subdirectory=environments%2Fvf_wordle&rev=main#4b35d0c8e05c77e03f119598195e0b17eb8e5a3c" }
+dependencies = [
+    { name = "nltk" },
+    { name = "textarena" },
+    { name = "verifiers" },
 ]
 
 [[package]]

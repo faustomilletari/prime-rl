@@ -1,5 +1,5 @@
 [project]
-name = "taubench2"
+name = "vf-skywork-math"
 version = "0.1.0"
 dependencies = [
     "verifiers>=0.1.2",
@@ -10,4 +10,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["taubench2.py"]
+include = ["vf_skywork_math.py"]
