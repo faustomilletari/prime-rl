@@ -68,6 +68,7 @@ async def orchestrate(config: OrchestratorConfig):
     logger.success("Inference pool ready")
 
     # Get checkpoint manager
+    ckpt_manager = None
     if config.ckpt:
         logger.info(f"Initializing checkpoint manager ({config.ckpt})")
         ckpt_manager = CheckpointManager(config.ckpt)
@@ -75,9 +76,9 @@ async def orchestrate(config: OrchestratorConfig):
     # Reset weights to base model if starting from scratch
     progress = Progress()
     ckpt_step = 0
-    if config.ckpt and config.ckpt.resume_step:
+    if config.ckpt and ckpt_manager and config.ckpt.resume_step:
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
-        ckpt_manager.load(progress, step=config.ckpt.resume_step)  # type: ignore
+        ckpt_manager.load(progress, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
         await reload_weights(client, config.weights_path, ckpt_step)
     else:
@@ -105,10 +106,16 @@ async def orchestrate(config: OrchestratorConfig):
     while True:
         # Save checkpoint (if we are not at the first step)
         save_ckpt_time = 0
-        if config.ckpt and config.ckpt.interval and not is_first_step and progress.step % config.ckpt.interval == 0:
+        if (
+            config.ckpt
+            and ckpt_manager
+            and config.ckpt.interval
+            and not is_first_step
+            and progress.step % config.ckpt.interval == 0
+        ):
             logger.info(f"Saving checkpoint at step {progress.step}")
             save_ckpt_start_time = time.time()
-            ckpt_manager.save(progress, step=progress.step)  # type: ignore
+            ckpt_manager.save(progress, step=progress.step)
             save_ckpt_time = time.time() - save_ckpt_start_time
 
         # Break if we have reached the maximum number of steps
@@ -379,9 +386,9 @@ async def orchestrate(config: OrchestratorConfig):
         monitor.wandb.log_final_distributions()
 
     # Write final checkpoint
-    if config.ckpt:
+    if config.ckpt and ckpt_manager:
         logger.info("Writing final checkpoint")
-        ckpt_manager.save(progress, step=progress.step)  # type: ignore
+        ckpt_manager.save(progress, step=progress.step)
 
     logger.success("Orchestrator finished.")
 
