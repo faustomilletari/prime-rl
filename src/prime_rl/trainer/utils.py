@@ -23,10 +23,10 @@ class FakeTokenizer:
         return self.vocab_size
 
 
-def get_real_tensor(tensor: Tensor | DTensor) -> Tensor:
+def get_real_tensor_copy(tensor: Tensor | DTensor) -> Tensor:
     if isinstance(tensor, DTensor):
-        return tensor.to_local()
-    return tensor
+        return tensor.to_local().clone()
+    return tensor.clone()
 
 
 OffloadedTensor: TypeAlias = list[tuple[Tensor, int]]
@@ -39,7 +39,7 @@ def offload_model_to_cpu(model: Model) -> OffloadedTensor:
     """
     tensors_offloaded = []
     for param in chain(model.parameters(), model.buffers()):
-        data = get_real_tensor(param.data)
+        data = get_real_tensor_copy(param.data)
         cpu_data = data.to("cpu", non_blocking=True)
         storage_size = data.untyped_storage().size()
         data.untyped_storage().resize_(1)
@@ -57,7 +57,7 @@ def copy_model_to_gpu(model: Model) -> list[Tensor]:
 
     tensors_offloaded = []
     for param in chain(model.parameters(), model.buffers()):
-        data = get_real_tensor(param.data)
+        data = get_real_tensor_copy(param.data)
         tensors_offloaded.append(data)
     return tensors_offloaded
 
