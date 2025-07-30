@@ -29,9 +29,8 @@ from prime_rl.trainer.model import (
 from prime_rl.trainer.perf import get_perf_counter
 from prime_rl.trainer.utils import (
     OffloadedTensor,
-    copy_model_to_cpu,
-    offload_model_to_cpu,
-    wake_up_model_from_cpu,
+    copy_model_to_gpu,
+    copy_tensor_to_model,
     print_benchmark,
 )
 from prime_rl.trainer.world import get_world
@@ -124,7 +123,7 @@ def train(config: TrainerConfig):
                 model_config = deepcopy(config.model)
                 model_config.name = model_name_or_path
                 logprob_model = setup_model(model_config)
-                tensor_offloaded_repository[step] = offload_model_to_cpu(logprob_model)
+                tensor_offloaded_repository[step] = copy_model_to_gpu(logprob_model)
 
     # Set up the data loader (Optionally, use a fake data loader for debugging)
     logger.info(f"Initializing data loader ({config.data})")
@@ -161,7 +160,7 @@ def train(config: TrainerConfig):
         if config.recompute_logprobs:
             logger.debug(f"Offloading model for step {progress.step} to CPU for future logprob calculation")
             reshard_module(logprob_model)
-            tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
+            tensor_offloaded_repository[progress.step] = copy_model_to_gpu(model)
 
         # Wait for the batch to be available
         logger.info("Waiting for training batch to arrive")
@@ -186,7 +185,7 @@ def train(config: TrainerConfig):
             logger.info(f"Recomputing logprobs with model weight checkpoint {infer_step}")
 
             # Wake up the logprob model from CPU
-            wake_up_model_from_cpu(logprob_model, tensor_offloaded_repository[infer_step])
+            copy_tensor_to_model(logprob_model, tensor_offloaded_repository[infer_step])
             if og_infer_step == infer_step:
                 del tensor_offloaded_repository[infer_step]
 
@@ -205,10 +204,10 @@ def train(config: TrainerConfig):
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
 
-            # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
-            # this avoid having to make sure we don't keep too much tensor offloaded in cpu memory
             reshard_module(logprob_model)
-            offload_model_to_cpu(logprob_model)
+
+            # we don't need the weight of this policy anymore so release it from memory to avoid memory leak
+            del tensor_offloaded_repository[infer_step]
 
             compute_logprobs_time = time.time() - compute_logprobs_start_time
             logger.debug(f"Recomputed logprobs in {compute_logprobs_time:.2f} seconds")

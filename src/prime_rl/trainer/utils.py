@@ -49,7 +49,7 @@ def offload_model_to_cpu(model: Model) -> OffloadedTensor:
     return tensors_offloaded
 
 
-def copy_model_to_cpu(model: Model) -> OffloadedTensor:
+def copy_model_to_gpu(model: Model) -> list[Tensor]:
     """
     Retun a list of cpu tensor representing the model weight.
     Keep gpu memory intact.
@@ -58,19 +58,16 @@ def copy_model_to_cpu(model: Model) -> OffloadedTensor:
     tensors_offloaded = []
     for param in chain(model.parameters(), model.buffers()):
         data = get_real_tensor(param.data)
-        cpu_data = data.to("cpu")
-        storage_size = data.untyped_storage().size()
-        tensors_offloaded.append((cpu_data, storage_size))
-
+        tensors_offloaded.append(data)
     return tensors_offloaded
 
 
-def wake_up_model_from_cpu(model: Model, tensors: OffloadedTensor):
-    for param, (cpu_data, storage_size) in zip(chain(model.parameters(), model.buffers()), tensors):
-        data = get_real_tensor(param.data)
-        data.untyped_storage().resize_(storage_size)
-        data.copy_(cpu_data, non_blocking=True)
-    torch.cuda.synchronize()
+def copy_tensor_to_model(model: Model, tensors: list[Tensor]):
+    for param, tensor in zip(chain(model.parameters(), model.buffers()), tensors):
+        if isinstance(param.data, DTensor):
+            param.data.to_local().copy_(tensor, non_blocking=True)
+        else:
+            param.data.copy_(tensor, non_blocking=True)
 
 
 def print_benchmark(history: dict[str, list[Any]]) -> None:
