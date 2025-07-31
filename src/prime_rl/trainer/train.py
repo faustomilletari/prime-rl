@@ -313,7 +313,7 @@ def train(config: TrainerConfig):
         # Maybe clean up weight checkpoint
         weight_ckpt_manager.maybe_clean(progress.step)
 
-        # Optionally, dump memorfy snapshot
+        # Optionally, dump memory snapshot
         if config.profile_path and progress.step == 2 and world.rank == 0:
             logger.debug("Dumping memory snapshot")
             profile_path = config.profile_path
