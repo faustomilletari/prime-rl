@@ -94,7 +94,7 @@ def train(config: TrainerConfig):
     scheduler = create_lr_scheduler(optimizer, config)
     if scheduler:
         logger.info(
-            f"Using `{config.optim.scheduler}` scheduler (warmup_steps={config.optim.n_warmup_steps}, decay_steps={config.optim.n_decay_steps})"
+            f"Using `{config.optim.scheduler}` scheduler (warmup_steps={config.optim.n_warmup_steps}, decay_steps={config.optim.n_final_decay})"
         )
 
     # Get checkpoint managers
