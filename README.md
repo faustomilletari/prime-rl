@@ -175,7 +175,6 @@ uv run rl \
 
 *NB: This setup requires 8 GPUs - 2 are used for the FSDP trainer, 6 are used for inference.*
 
-
 ### Multi-Node Training
 
 *TBD*
@@ -308,7 +307,6 @@ To kill the tmux session when you're done:
 ```bash
 bash scripts/tmux.sh kill
 ```
-
 
 ### Environments
 
