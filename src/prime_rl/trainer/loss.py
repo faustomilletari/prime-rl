@@ -100,11 +100,11 @@ def grpo_loss_clip(
     ratio = (coef_2.detach() - 1) * loss_mask
 
     return loss, RatioInfo(
-        ratio_sum=ratio.sum(),
+        ratio_sum=ratio.sum().float(),
         clipped_token_count=clipped_token_count,
-        raw_ratio_sum=raw_ratio.sum(),
-        raw_ratio_max=raw_ratio.max() + 1,
-        raw_ratio_min=raw_ratio.min() + 1,
+        raw_ratio_sum=raw_ratio.sum().float(),
+        raw_ratio_max=raw_ratio.max().float() + 1,
+        raw_ratio_min=raw_ratio.min().float() + 1,
     )
 
 
@@ -139,9 +139,9 @@ def grpo_loss_ratio(
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
-        raw_ratio_sum=raw_ratio.sum(),
-        raw_ratio_max=raw_ratio.max() + 1,
-        raw_ratio_min=raw_ratio.min() + 1,
+        raw_ratio_sum=raw_ratio.sum().float(),
+        raw_ratio_max=raw_ratio.max().float() + 1,
+        raw_ratio_min=raw_ratio.min().float() + 1,
     )
 
 
