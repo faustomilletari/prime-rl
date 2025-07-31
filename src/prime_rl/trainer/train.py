@@ -298,14 +298,6 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        importance_ratio_metrics["loss/importance_ratio"] = (
-            total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
-        ) / total_non_masked_tokens
-
-        importance_ratio_metrics["loss/raw_importance_ratio"] = (
-            total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
-        ) / total_non_masked_tokens
-
         max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
         dist.all_reduce(max_importance_ratio, op=dist.ReduceOp.MAX)
         loss_metrics["loss/importance_ratio/max"] = max_importance_ratio.cpu()
@@ -313,6 +305,17 @@ def train(config: TrainerConfig):
         min_importance_ratio = torch.tensor(min_importance_ratio).to("cuda")
         dist.all_reduce(min_importance_ratio, op=dist.ReduceOp.MIN)
         loss_metrics["loss/importance_ratio/min"] = min_importance_ratio.cpu()
+
+        dist.all_reduce(importance_ratio_metrics["loss/importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
+        dist.all_reduce(importance_ratio_metrics["loss/raw_importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
+
+        importance_ratio_metrics["loss/importance_ratio"] = (
+            total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
+        ) / total_non_masked_tokens
+
+        importance_ratio_metrics["loss/raw_importance_ratio"] = (
+            total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
+        ) / total_non_masked_tokens
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")
