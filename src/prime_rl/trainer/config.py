@@ -7,6 +7,7 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 AttnImplementation: TypeAlias = Literal["sdpa", "flash_attention_2"]
+SchedulerType: TypeAlias = Literal["linear", "cosine", "constant"]
 
 
 class ModelConfig(BaseConfig):
@@ -41,12 +42,27 @@ class ModelConfig(BaseConfig):
 
 
 class OptimizerConfig(BaseConfig):
-    """Configures the Adam optimizer."""
+    """Configures the Adam optimizer and learning rate scheduler."""
 
     lr: Annotated[float, Field(ge=0)] = 4e-4
     weight_decay: Annotated[float, Field(ge=0)] = 0.01
     betas1: Annotated[float, Field(ge=0)] = 0.9
     betas2: Annotated[float, Field(ge=0)] = 0.99
+
+    # LR Scheduler parameters
+    scheduler: Annotated[SchedulerType, Field(description="Type of learning rate scheduler to use.")] = "constant"
+
+    n_warmup_steps: Annotated[
+        int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")
+    ] = 0
+
+    n_decay_steps: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of steps over which to decay the learning rate. If None, will use max_steps from trainer config.",
+        ),
+    ] = None
 
 
 class CheckpointConfig(BaseConfig):

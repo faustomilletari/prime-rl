@@ -299,6 +299,10 @@ def train(config: TrainerConfig):
         optimizer.step()
         optimizer.zero_grad()
 
+        # Update learning rate scheduler
+        if scheduler:
+            scheduler.step()
+
         forward_backward_time = time.time() - forward_backward_start_time
 
         # Optionally, broadcast the weight checkpoint from master rank
