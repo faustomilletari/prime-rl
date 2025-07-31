@@ -80,6 +80,7 @@ def grpo_loss_clip(
     """
     # Divide logits by sampling temperature.
     # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
+
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
@@ -121,6 +122,7 @@ def grpo_loss_ratio(
 ) -> tuple[Tensor, RatioInfo]:
     # Divide logits by sampling temperature.
     # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
+
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
