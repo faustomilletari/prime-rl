@@ -267,13 +267,13 @@ def train(config: TrainerConfig):
             loss_metrics["loss/entropy"] += entropy.detach().float()
             loss_metrics["loss/clipped_ratio"] += ratio_info.clipped_token_count.detach().float()
 
-            importance_ratio_metrics["loss/importance_ratio"] += ratio_info.ratio_sum.detach().float()
+            importance_ratio_metrics["loss/importance_ratio_error_sum"] += ratio_info.ratio_sum.detach().float()
 
-            importance_ratio_metrics["loss/raw_importance_ratio"] += ratio_info.raw_ratio_sum.detach().float()
+            importance_ratio_metrics["loss/raw_importance_ratio_error_sum"] += ratio_info.raw_ratio_sum.detach().float()
             max_importance_ratio = max(max_importance_ratio, ratio_info.raw_ratio_max.detach().float())
             min_importance_ratio = min(min_importance_ratio, ratio_info.raw_ratio_min.detach().float())
 
-            recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
+            recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(1.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
 
             # Scale loss by scale factor before backward pass
@@ -291,14 +291,18 @@ def train(config: TrainerConfig):
         for key, value in loss_metrics.items():
             loss_metrics[key] = value / loss_scale
 
-        for key, value in importance_ratio_metrics.items():
-            importance_ratio_metrics[key] = value / torch.tensor(1.0)
-
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
         for key, value in loss_metrics.items():
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
+
+        loss_metrics["loss/importance_ratio"] = (
+            loss_scale + loss_metrics["loss/importance_ratio_error_sum"]
+        ) / loss_scale
+        loss_metrics["loss/raw_importance_ratio"] = (
+            loss_scale + loss_metrics["loss/raw_importance_ratio_error_sum"]
+        ) / loss_scale
 
         max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
         dist.all_reduce(max_importance_ratio, op=dist.ReduceOp.MAX)
@@ -347,12 +351,14 @@ def train(config: TrainerConfig):
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0
-        loss_metrics = {key: value.item() for key, value in loss_metrics.items()}
-        loss_metrics.update({key: value.item() for key, value in importance_ratio_metrics.items()})
+        loss_metrics.update(importance_ratio_metrics)
+        loss_metrics = {
+            key: value.item() if isinstance(value, torch.Tensor) else value for key, value in loss_metrics.items()
+        }
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio: {loss_metrics['loss/importance_ratio']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio: {loss_metrics['loss/importance_ratio_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics

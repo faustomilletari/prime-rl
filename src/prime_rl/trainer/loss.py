@@ -103,8 +103,8 @@ def grpo_loss_clip(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
         raw_ratio_sum=raw_ratio.sum(),
-        raw_ratio_max=raw_ratio.max(),
-        raw_ratio_min=raw_ratio.min(),
+        raw_ratio_max=raw_ratio.max() + 1,
+        raw_ratio_min=raw_ratio.min() + 1,
     )
 
 
@@ -140,8 +140,8 @@ def grpo_loss_ratio(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
         raw_ratio_sum=raw_ratio.sum(),
-        raw_ratio_max=raw_ratio.max(),
-        raw_ratio_min=raw_ratio.min(),
+        raw_ratio_max=raw_ratio.max() + 1,
+        raw_ratio_min=raw_ratio.min() + 1,
     )
 
 
