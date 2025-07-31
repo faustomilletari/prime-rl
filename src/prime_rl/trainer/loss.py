@@ -141,18 +141,19 @@ def gspo_loss_clip(
     # compute sequence-level importance ratio by averaging over the tokens
     coef_1 = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
 
-    coef_1 = torch.clamp(torch.exp(coef_1), 0, clip_ratio)
+    coef_1 = per_token_logps - per_token_logps.detach() + coef_1.detach().unsqueeze(-1)
+    coef_1 = torch.clamp(coef_1.clamp(max=10.0).exp(), 0, clip_ratio)
 
     coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
-    per_token_loss1 = -coef_1 * advantages[:, 0]
-    per_token_loss2 = -coef_2 * advantages[:, 0]
+    per_token_loss1 = -coef_1 * advantages
+    per_token_loss2 = -coef_2 * advantages
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
-    clipped_count = is_clipped.sum()
+    clipped_count = _masked_sum(is_clipped, loss_mask)
 
-    loss = per_token_loss.sum()
-    ratio = coef_1.sum()
+    loss = _masked_sum(per_token_loss, loss_mask) / loss_mask.sum()
+    ratio = _masked_sum(coef_1, loss_mask)
     return loss, ratio, clipped_count
 
 
@@ -171,17 +172,19 @@ def gspo_loss_ratio(
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
     # compute sequence-level importance ratio by averaging over the tokens
-    raw_ratio = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
-    raw_ratio = torch.exp(raw_ratio)
+    raw_seq_ratio = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
+
+    raw_ratio = per_token_logps - per_token_logps.detach() + raw_seq_ratio.detach().unsqueeze(-1)
+    raw_ratio = raw_ratio.clamp(max=10.0).exp()
 
     is_clipped = (raw_ratio > clip_ratio).float()
-    clipped_count = is_clipped.sum()
+    clipped_count = _masked_sum(is_clipped, loss_mask)
 
     ratio = torch.clamp(raw_ratio, 0, clip_ratio)
-    loss = -ratio * advantages[:, 0]
+    loss = -ratio * advantages
 
-    loss = loss.sum()
-    ratio = raw_ratio.sum()
+    loss = _masked_sum(loss, loss_mask) / loss_mask.sum()
+    ratio = _masked_sum(raw_ratio, loss_mask)
 
     return loss, ratio, clipped_count
 

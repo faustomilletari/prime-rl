@@ -263,8 +263,8 @@ def train(config: TrainerConfig):
             # Accumulate unnormalized local metrics
             loss_metrics["loss/loss"] += loss.detach().float() / loss_scale
             loss_metrics["loss/entropy"] += entropy.detach().float() / total_tokens
-            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float() / loss_scale
-            loss_metrics["loss/clipped_count"] += clipped_count.detach().float() / loss_scale
+            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float() / total_tokens
+            loss_metrics["loss/clipped_count"] += clipped_count.detach().float() / total_tokens
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
