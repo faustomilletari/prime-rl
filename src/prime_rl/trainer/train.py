@@ -31,6 +31,7 @@ from prime_rl.trainer.utils import (
     OffloadedTensor,
     copy_model_to_cpu,
     offload_model_to_cpu,
+    sync_importance_ratio_metrics,
     wake_up_model_from_cpu,
     print_benchmark,
 )
@@ -218,9 +219,7 @@ def train(config: TrainerConfig):
 
         forward_backward_start_time = time.time()
         loss_metrics = defaultdict(float)
-        importance_ratio_metrics = defaultdict(float)
-        max_importance_ratio = 0.0
-        min_importance_ratio = 0.0
+        importance_ratio_metrics = defaultdict(lambda: torch.tensor(0.0).to("cuda"))
         num_micro_batches = len(micro_batches)
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
@@ -271,8 +270,12 @@ def train(config: TrainerConfig):
             importance_ratio_metrics["loss/importance_ratio_error_sum"] += ratio_info.ratio_sum.detach().float()
 
             importance_ratio_metrics["loss/raw_importance_ratio_error_sum"] += ratio_info.raw_ratio_sum.detach().float()
-            max_importance_ratio = max(max_importance_ratio, ratio_info.raw_ratio_max.detach().float())
-            min_importance_ratio = min(min_importance_ratio, ratio_info.raw_ratio_min.detach().float())
+            importance_ratio_metrics["loss/importance_ratio/max"] = max(
+                importance_ratio_metrics["loss/importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
+            )
+            importance_ratio_metrics["loss/importance_ratio/min"] = min(
+                importance_ratio_metrics["loss/importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
+            )
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(1.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
@@ -298,24 +301,7 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
-        dist.all_reduce(max_importance_ratio, op=dist.ReduceOp.MAX)
-        loss_metrics["loss/importance_ratio/max"] = max_importance_ratio.cpu()
-
-        min_importance_ratio = torch.tensor(min_importance_ratio).to("cuda")
-        dist.all_reduce(min_importance_ratio, op=dist.ReduceOp.MIN)
-        loss_metrics["loss/importance_ratio/min"] = min_importance_ratio.cpu()
-
-        dist.all_reduce(importance_ratio_metrics["loss/importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
-        dist.all_reduce(importance_ratio_metrics["loss/raw_importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
-
-        importance_ratio_metrics["loss/importance_ratio"] = (
-            total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
-        ) / total_non_masked_tokens
-
-        importance_ratio_metrics["loss/raw_importance_ratio"] = (
-            total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
-        ) / total_non_masked_tokens
+        sync_importance_ratio_metrics(importance_ratio_metrics, loss_metrics, total_non_masked_tokens)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")

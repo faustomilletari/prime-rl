@@ -3,6 +3,7 @@ from typing import Any, TypeAlias
 
 import pandas as pd
 import torch
+import torch.distributed as dist
 from rich.console import Console
 from rich.table import Table
 from torch import Tensor
@@ -122,3 +123,30 @@ def print_benchmark(history: dict[str, list[Any]]) -> None:
 
     # Display table
     console.print(table)
+
+
+def sync_importance_ratio_metrics(
+    importance_ratio_metrics: dict[str, Tensor], loss_metrics: dict[str, Tensor], total_non_masked_tokens: Tensor
+):
+    """
+    Sync the importance ratio metrics across all ranks.
+
+    a bit ugly so moved as a function
+    """
+
+    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio/max"], op=dist.ReduceOp.MAX)
+    loss_metrics["loss/importance_ratio/max"] = importance_ratio_metrics["loss/importance_ratio/max"].cpu()
+
+    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio/min"], op=dist.ReduceOp.MIN)
+    loss_metrics["loss/importance_ratio/min"] = importance_ratio_metrics["loss/importance_ratio/min"].cpu()
+
+    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
+    dist.all_reduce(importance_ratio_metrics["loss/raw_importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
+
+    importance_ratio_metrics["loss/importance_ratio"] = (
+        total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
+    ) / total_non_masked_tokens
+
+    importance_ratio_metrics["loss/raw_importance_ratio"] = (
+        total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
+    ) / total_non_masked_tokens
