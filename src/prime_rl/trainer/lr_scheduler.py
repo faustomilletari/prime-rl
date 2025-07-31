@@ -16,7 +16,8 @@ def create_lr_scheduler(optimizer: Optimizer, config: TrainerConfig) -> LRSchedu
         raise ValueError("Must specify max_steps when using a scheduler")
 
     if n_final_decay is None:
-        raise ValueError("Must specify n_final_decay for non-constant scheduler")
+        # Fallback: decay for remaining steps after warmup
+        n_final_decay = config.max_steps - warmup_steps
 
     if n_final_decay <= 0:
         raise ValueError(f"n_final_decay must be positive, got {n_final_decay}")
