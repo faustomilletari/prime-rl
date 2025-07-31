@@ -31,7 +31,7 @@ def prepare_sample(
 
     # Prepare prompt tokens
     prompt_token_ids = torch.tensor(rollout.prompt_tokens).long()
-    prompt_token_mask = torch.tensor(rollout.prompt_mask).long()
+    prompt_token_mask = torch.zeros_like(prompt_token_ids).long()
 
     # Prepare completion tokens
     completion_token_ids = torch.tensor(rollout.completion_tokens).long()
