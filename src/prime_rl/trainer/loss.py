@@ -228,6 +228,7 @@ class ImportanceRatioMetrics:
     def update(self, ratio_info: RatioInfo):
         self.error_sum += ratio_info.ratio_sum.detach().float()
         self.raw_error_sum += ratio_info.raw_ratio_sum.detach().float()
+        self.raw_ratio_abs_sum += ratio_info.raw_ratio_abs_sum.detach().float()
         self.max = torch.max(self.max, ratio_info.raw_ratio_max.detach().float())
         self.min = torch.min(self.min, ratio_info.raw_ratio_min.detach().float())
         self.clipped += ratio_info.clipped_token_count.detach().float()
