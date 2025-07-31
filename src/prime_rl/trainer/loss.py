@@ -114,6 +114,7 @@ def grpo_loss_ratio(
         raw_ratio_sum=raw_ratio.sum().float(),
         raw_ratio_max=raw_ratio.max().float() + 1,
         raw_ratio_min=raw_ratio.min().float() + 1,
+        raw_ratio_abs_sum=raw_ratio.abs().sum().float(),
     )
 
 
