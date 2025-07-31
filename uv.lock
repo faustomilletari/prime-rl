@@ -2157,7 +2157,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" },
     { name = "vf-intellect-math", editable = "environments/vf_intellect_math" },
     { name = "vf-reverse-text", editable = "environments/vf_reverse_text" },
     { name = "vf-wordle", git = "https://github.com/willccbb/verifiers.git?subdirectory=environments%2Fvf_wordle&rev=main" },
@@ -3240,7 +3240,7 @@ wheels = [
 [[package]]
 name = "verifiers"
 version = "0.1.2"
-source = { git = "https://github.com/willccbb/verifiers?rev=75c7df8#75c7df827443eaed1d5b7e3893cac2d5a205e65b" }
+source = { git = "https://github.com/willccbb/verifiers?rev=74c604f#74c604f7481aa6db8abbb949becf8e23b20de8b0" }
 dependencies = [
     { name = "datasets" },
     { name = "openai" },
@@ -3256,7 +3256,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" }]
 
 [[package]]
 name = "vf-reverse-text"
@@ -3267,7 +3267,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" }]
 
 [[package]]
 name = "vf-wordle"
