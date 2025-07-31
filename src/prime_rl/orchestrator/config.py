@@ -396,10 +396,11 @@ class OrchestratorConfig(BaseSettings):
     def auto_setup_bench(self):
         if self.bench:
             self.max_steps = 4  # Run for 1 warmup step + 3 evaluation steps
-            self.async_level = 1e9  # Never wait for RL weight checkpoints
+            self.async_level = int(1e9)  # Never wait for RL weight checkpoints
 
             # Disable evaluation
             self.eval = None
-            self.monitor.wandb.log_extras = None
+            if self.monitor.wandb:
+                self.monitor.wandb.log_extras = None
 
         return self
