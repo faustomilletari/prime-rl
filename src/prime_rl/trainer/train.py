@@ -19,11 +19,7 @@ from prime_rl.trainer.weights import WeightCheckpointManager
 from prime_rl.trainer.config import TrainerConfig
 from prime_rl.trainer.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
-<<<<<<< HEAD
-from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs, ImportanceRatioMetrics
-=======
-from prime_rl.trainer.loss import grpo_loss, compute_entropy, compute_logprobs
->>>>>>> 81be216a (fix logprob)
+from prime_rl.trainer.loss import grpo_loss, compute_entropy, compute_logprobs, ImportanceRatioMetrics
 from prime_rl.trainer.model import (
     forward,
     get_tokenizer,
@@ -202,7 +198,6 @@ def train(config: TrainerConfig):
                     loss_mask = micro_batch["loss_mask"].to("cuda")
                     logprobs = micro_batch["logprobs"].to("cuda")
                     temperature = micro_batch["temperature"]
-
 
                     logits = forward(logprob_model, input_ids, position_ids).contiguous()
                     recomputed_logprobs, _ = compute_logprobs(logits, input_ids, temperature)
