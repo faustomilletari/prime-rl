@@ -310,7 +310,7 @@ bash scripts/tmux.sh kill
 ```
 
 
-### Adding Custom Environments
+### Environments
 
 `prime-rl` supports Environment modules built with `verifiers` ([repo](https://github.com/willccbb/verifiers)) for training tasks. To create a new Environment module template in the `environments/` folder, do:
 
