@@ -7,7 +7,6 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from prime_rl.trainer.config import LossConfig
-from prime_rl.trainer.model import Model, forward
 
 
 @dataclass
@@ -21,46 +20,38 @@ class RatioInfo:
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss(
-    shifted_logits: Float[Tensor, "batch seq vocab"],
-    input_ids: Int[Tensor, "batch seq"],
+    logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     original_logprobs: Float[Tensor, "batch seq"],
     loss_mask: Int[Tensor, "batch seq"],
-    temperature: float,
     loss_config: LossConfig,
 ) -> tuple[Tensor, RatioInfo]:
     if loss_config.type == "clip":
         return grpo_loss_clip(
-            shifted_logits=shifted_logits,
-            input_ids=input_ids,
+            logprobs=logprobs,
             advantages=advantages,
             original_logprobs=original_logprobs,
             loss_mask=loss_mask,
-            temperature=temperature,
             epsilon_low=loss_config.epsilon_low,
             epsilon_high=loss_config.epsilon_high,
             clip_ratio=loss_config.clip_ratio,
         )
     elif loss_config.type == "ratio":
         return grpo_loss_ratio(
-            shifted_logits=shifted_logits,
-            input_ids=input_ids,
+            logprobs=logprobs,
             advantages=advantages,
             original_logprobs=original_logprobs,
             loss_mask=loss_mask,
-            temperature=temperature,
             clip_ratio=loss_config.clip_ratio,
         )
 
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss_clip(
-    shifted_logits: Float[Tensor, "batch seq vocab"],
-    input_ids: Int[Tensor, "batch seq"],
+    logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     original_logprobs: Float[Tensor, "batch seq"],
     loss_mask: Int[Tensor, "batch seq"],
-    temperature: float,
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
@@ -76,12 +67,8 @@ def grpo_loss_clip(
         epsilon: Clipping parameter for PPO
         ignore_index: Specifies a target value that is ignored and does not contribute to the loss
     """
-    # Divide logits by sampling temperature.
-    # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
-    shifted_logits = shifted_logits / temperature
-    per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
-    raw_ratio = torch.exp(per_token_logps - original_logprobs)
+    raw_ratio = torch.exp(logprobs - original_logprobs)
 
     coef_1 = torch.clamp(raw_ratio, 0, clip_ratio)
 
@@ -108,20 +95,13 @@ def grpo_loss_clip(
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss_ratio(
-    shifted_logits: Float[Tensor, "batch seq vocab"],
-    input_ids: Int[Tensor, "batch seq"],
+    logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     original_logprobs: Float[Tensor, "batch seq"],
     loss_mask: Int[Tensor, "batch seq"],
-    temperature: float,
     clip_ratio: float,
 ) -> tuple[Tensor, RatioInfo]:
-    # Divide logits by sampling temperature.
-    # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
-    shifted_logits = shifted_logits / temperature
-    per_token_logps = selective_log_softmax(shifted_logits, input_ids)
-
-    raw_ratio = torch.exp(per_token_logps - original_logprobs)
+    raw_ratio = torch.exp(logprobs - original_logprobs)
 
     is_clipped = (raw_ratio > clip_ratio).float()
     clipped_token_count = _masked_sum(is_clipped, loss_mask)
@@ -184,17 +164,15 @@ def selective_log_softmax(
 
 @jaxtyped(typechecker=typechecker)
 def compute_logprobs(
-    model: Model,
+    logits: Float[Tensor, "batch seq vocab"],
     input_ids: Int[Tensor, "batch seq"],
-    position_ids: Int[Tensor, "batch seq"],
     temperature: float,
-) -> Float[Tensor, "batch seq"]:
-    logits = forward(model, input_ids, position_ids).contiguous()
+) -> tuple[Float[Tensor, "batch seq"], Float[Tensor, "batch seq vocab"]]:
     shifted_logits = shift_logits(logits)
     shifted_logits = shifted_logits / temperature
     logprobs = selective_log_softmax(shifted_logits, input_ids)
-    del logits, shifted_logits
-    return logprobs
+    del logits
+    return logprobs, shifted_logits
 
 
 @jaxtyped(typechecker=typechecker)
