@@ -226,7 +226,8 @@ def train(config: TrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        total_non_masked_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        loss_scale = total_non_masked_tokens
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
@@ -298,11 +299,17 @@ def train(config: TrainerConfig):
             loss_metrics[key] = value
 
         loss_metrics["loss/importance_ratio"] = (
-            loss_scale + loss_metrics["loss/importance_ratio_error_sum"]
-        ) / loss_scale
+            total_non_masked_tokens + loss_metrics["loss/importance_ratio_error_sum"]
+        ) / total_non_masked_tokens
+
+        ratio = loss_metrics["loss/importance_ratio_error_sum"]
+        a = ratio + total_non_masked_tokens
+        b = a / total_non_masked_tokens
+        logger.info(f"Total non masked tokens: {total_non_masked_tokens}, {a=}, {b=}, {ratio=}")
+
         loss_metrics["loss/raw_importance_ratio"] = (
-            loss_scale + loss_metrics["loss/raw_importance_ratio_error_sum"]
-        ) / loss_scale
+            total_non_masked_tokens + loss_metrics["loss/raw_importance_ratio_error_sum"]
+        ) / total_non_masked_tokens
 
         max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
         dist.all_reduce(max_importance_ratio, op=dist.ReduceOp.MAX)
@@ -358,7 +365,7 @@ def train(config: TrainerConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio: {loss_metrics['loss/importance_ratio_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {loss_metrics['loss/importance_ratio_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
