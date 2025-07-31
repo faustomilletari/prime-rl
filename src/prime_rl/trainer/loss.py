@@ -19,6 +19,8 @@ class RatioInfo:
     raw_ratio_max: Float[Tensor, "1"]
     raw_ratio_min: Float[Tensor, "1"]
 
+    raw_ratio_abs_sum: Float[Tensor, "1"]
+
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss(
@@ -81,6 +83,7 @@ def grpo_loss_clip(
         raw_ratio_sum=raw_ratio.sum().float(),
         raw_ratio_max=raw_ratio.max().float() + 1,
         raw_ratio_min=raw_ratio.min().float() + 1,
+        raw_ratio_abs_sum=raw_ratio.abs().sum().float(),
     )
 
 
@@ -92,7 +95,6 @@ def grpo_loss_ratio(
     loss_mask: Int[Tensor, "batch seq"],
     clip_ratio: float,
 ) -> tuple[Tensor, RatioInfo]:
-
     raw_ratio = torch.exp(logprobs - original_logprobs)
 
     is_clipped = (raw_ratio > clip_ratio).float()
@@ -220,6 +222,8 @@ class ImportanceRatioMetrics:
         self.ratio = torch.tensor(0.0).to("cuda")
         self.raw_ratio = torch.tensor(0.0).to("cuda")
 
+        self.raw_ratio_abs_sum = torch.tensor(0.0).to("cuda")
+
     def update(self, ratio_info: RatioInfo):
         self.error_sum += ratio_info.ratio_sum.detach().float()
         self.raw_error_sum += ratio_info.raw_ratio_sum.detach().float()
@@ -237,6 +241,7 @@ class ImportanceRatioMetrics:
         dist.all_reduce(self.min, op=dist.ReduceOp.MIN)
         dist.all_reduce(self.error_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(self.raw_error_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.raw_ratio_abs_sum, op=dist.ReduceOp.SUM)
 
         self.ratio = (total_non_masked_tokens + self.error_sum) / total_non_masked_tokens
         self.raw_ratio = (total_non_masked_tokens + self.raw_error_sum) / total_non_masked_tokens
@@ -253,4 +258,5 @@ class ImportanceRatioMetrics:
             "importance_ratio/clipped": self.clipped.item(),
             "importance_ratio/ratio": self.ratio.item(),
             "importance_ratio/raw_ratio": self.raw_ratio.item(),
+            "importance_ratio/raw_ratio_abs_sum": self.raw_ratio_abs_sum.item(),
         }
