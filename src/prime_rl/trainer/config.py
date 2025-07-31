@@ -56,11 +56,11 @@ class OptimizerConfig(BaseConfig):
         int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")
     ] = 0
 
-    n_decay_steps: Annotated[
+    n_final_decay: Annotated[
         int | None,
         Field(
             ge=1,
-            description="Number of steps over which to decay the learning rate. If None, will use max_steps from trainer config.",
+            description="Number of steps to decay the learning rate during the final portion of training. If None, will use max_steps from trainer config.",
         ),
     ] = None
 

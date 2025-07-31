@@ -20,6 +20,7 @@ from prime_rl.trainer.config import TrainerConfig
 from prime_rl.trainer.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs
+from prime_rl.trainer.lr_scheduler import create_lr_scheduler
 from prime_rl.trainer.model import (
     forward,
     get_tokenizer,
@@ -88,6 +89,13 @@ def train(config: TrainerConfig):
         weight_decay=config.optim.weight_decay,
         betas=(config.optim.betas1, config.optim.betas2),
     )
+
+    # Set up the learning rate scheduler
+    scheduler = create_lr_scheduler(optimizer, config)
+    if scheduler:
+        logger.info(
+            f"Using `{config.optim.scheduler}` scheduler (warmup_steps={config.optim.n_warmup_steps}, decay_steps={config.optim.n_decay_steps})"
+        )
 
     # Get checkpoint managers
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
@@ -336,13 +344,15 @@ def train(config: TrainerConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio: {loss_metrics['loss/importance_ratio']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        current_lr = optimizer.param_groups[0]["lr"]
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio: {loss_metrics['loss/importance_ratio']:.2f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
         perf_metrics = {
             "perf/train/throughput": throughput,
             "perf/train/mfu": mfu,
+            "optim/lr": current_lr,
             "step": progress.step,
         }
         monitor.log(perf_metrics)

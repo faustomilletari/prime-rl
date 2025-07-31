@@ -9,19 +9,24 @@ def create_lr_scheduler(optimizer: Optimizer, config: TrainerConfig) -> LRSchedu
     if config.optim.scheduler == "constant":
         return None
 
-    # Determine total steps for scheduling
-    total_steps = config.optim.n_decay_steps or config.max_steps
-    if total_steps is None:
-        raise ValueError("Must specify either n_decay_steps or max_steps for non-constant scheduler")
-
     warmup_steps = config.optim.n_warmup_steps
+    n_final_decay = config.optim.n_final_decay
+
+    # If n_final_decay is not specified, fall back to using max_steps for total schedule length
+    if n_final_decay is None:
+        if config.max_steps is None:
+            raise ValueError("Must specify either n_final_decay or max_steps for non-constant scheduler")
+        # Use max_steps as total length, subtract warmup to get decay portion
+        n_final_decay = config.max_steps - warmup_steps
+
+    if n_final_decay <= 0:
+        raise ValueError(f"n_final_decay must be positive, got {n_final_decay} (warmup_steps={warmup_steps})")
 
     # Create the main decay scheduler
-    decay_steps = total_steps - warmup_steps
     if config.optim.scheduler == "linear":
-        main_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.0, total_iters=decay_steps)
+        main_scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.0, total_iters=n_final_decay)
     elif config.optim.scheduler == "cosine":
-        main_scheduler = CosineAnnealingLR(optimizer, T_max=decay_steps, eta_min=0.0)
+        main_scheduler = CosineAnnealingLR(optimizer, T_max=n_final_decay, eta_min=0.0)
     else:
         raise ValueError(f"Unknown scheduler type: {config.optim.scheduler}")
 
