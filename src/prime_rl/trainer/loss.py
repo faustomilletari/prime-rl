@@ -137,6 +137,7 @@ def gspo_loss_clip(
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
+    # compute sequence-level importance ratio by averaging over the tokens
     coef_1 = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
 
     coef_1 = torch.clamp(torch.exp(coef_1), 0, clip_ratio)

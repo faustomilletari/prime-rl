@@ -224,7 +224,7 @@ def train(config: TrainerConfig):
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
         total_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
-        loss_scale = batch_size if (config.loss.type == "clip_gspo" or config.loss.type == "ratio_gspo") else total_tokens
+        loss_scale = batch_size if (config.loss.type == "clip-gspo" or config.loss.type == "ratio-gspo") else total_tokens
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
@@ -261,13 +261,13 @@ def train(config: TrainerConfig):
                 )
 
             # Accumulate unnormalized local metrics
-            loss_metrics["loss/loss"] += loss.detach().float()
-            loss_metrics["loss/entropy"] += entropy.detach().float()
-            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float()
-            loss_metrics["loss/clipped_count"] += clipped_count.detach().float()
+            loss_metrics["loss/loss"] += loss.detach().float() / loss_scale
+            loss_metrics["loss/entropy"] += entropy.detach().float() / total_tokens
+            loss_metrics["loss/importance_ratio"] += importance_ratio.detach().float() / loss_scale
+            loss_metrics["loss/clipped_count"] += clipped_count.detach().float() / loss_scale
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
-            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
+            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float() / loss_scale
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
@@ -279,13 +279,6 @@ def train(config: TrainerConfig):
             logger.debug(
                 f"Completed micro batch {micro_step}/{num_micro_batches} (loss={(loss.item() / loss_mask.sum()):.2f}, entropy={(entropy.item() / loss_mask.sum()):.2f}, importance_ratio={(importance_ratio.item() / loss_mask.sum()):.2f})"
             )
-
-        # Normalize all loss metrics globally before reporting
-        for key, value in loss_metrics.items():
-            if key == "loss/entropy":
-                loss_metrics[key] = value / total_tokens
-            else:
-                loss_metrics[key] = value / loss_scale
 
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
