@@ -18,7 +18,8 @@ def grpo_loss(
     temperature: float,
     loss_config: LossConfig,
 ) -> tuple[Tensor, Tensor, Tensor]:
-    if loss_config.type == "clip":
+    
+    if loss_config.type == "clip-grpo":
         return grpo_loss_clip(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -30,7 +31,7 @@ def grpo_loss(
             epsilon_high=loss_config.epsilon_high,
             clip_ratio=loss_config.clip_ratio,
         )
-    elif loss_config.type == "ratio":
+    elif loss_config.type == "ratio-grpo":
         return grpo_loss_ratio(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -40,7 +41,7 @@ def grpo_loss(
             temperature=temperature,
             clip_ratio=loss_config.clip_ratio,
         )
-    elif loss_config.type == "clip_gspo":
+    elif loss_config.type == "clip-gspo":
         return gspo_loss_clip(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -52,7 +53,7 @@ def grpo_loss(
             epsilon_high=loss_config.epsilon_high,
             clip_ratio=loss_config.clip_ratio,
         )
-    elif loss_config.type == "ratio_gspo":  
+    elif loss_config.type == "ratio-gspo":  
         return gspo_loss_ratio(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -90,7 +91,7 @@ def grpo_loss_clip(
     clipped_count = _masked_sum(is_clipped, loss_mask)
 
     loss = _masked_sum(per_token_loss, loss_mask)
-    ratio = _masked_sum(coef_2, loss_mask)
+    ratio = _masked_sum(coef_1, loss_mask)
     return loss, ratio, clipped_count
 
 
@@ -117,7 +118,7 @@ def grpo_loss_ratio(
     loss = -ratio * advantages
 
     loss = _masked_sum(loss, loss_mask)
-    ratio = _masked_sum(ratio, loss_mask)
+    ratio = _masked_sum(raw_ratio, loss_mask)
 
     return loss, ratio, clipped_count
 
@@ -151,7 +152,7 @@ def gspo_loss_clip(
     clipped_count = is_clipped.sum()
 
     loss = per_token_loss.sum()
-    ratio = coef_2.sum()
+    ratio = coef_1.sum()
     return loss, ratio, clipped_count
 
 
@@ -179,7 +180,7 @@ def gspo_loss_ratio(
     loss = -ratio * advantages[:, 0]
 
     loss = loss.sum()
-    ratio = ratio.sum()
+    ratio = raw_ratio.sum()
 
     return loss, ratio, clipped_count
 
