@@ -170,6 +170,7 @@ def gspo_loss_ratio(
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
+    # compute sequence-level importance ratio by averaging over the tokens
     raw_ratio = ((per_token_logps - original_logprobs) * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1)
     raw_ratio = torch.exp(raw_ratio)
 
