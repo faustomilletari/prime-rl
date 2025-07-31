@@ -267,14 +267,14 @@ def train(config: TrainerConfig):
             loss_metrics["loss/entropy"] += entropy.detach().float()
             loss_metrics["loss/clipped_ratio"] += ratio_info.clipped_token_count.detach().float()
 
-            importance_ratio_metrics["loss/importance_ratio_error_sum"] += ratio_info.ratio_sum.detach().float()
+            importance_ratio_metrics["importance_ratio/error_sum"] += ratio_info.ratio_sum.detach().float()
 
-            importance_ratio_metrics["loss/raw_importance_ratio_error_sum"] += ratio_info.raw_ratio_sum.detach().float()
-            importance_ratio_metrics["loss/importance_ratio/max"] = max(
-                importance_ratio_metrics["loss/importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
+            importance_ratio_metrics["importance_ratio/raw_error_sum"] += ratio_info.raw_ratio_sum.detach().float()
+            importance_ratio_metrics["importance_ratio/max"] = max(
+                importance_ratio_metrics["importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
             )
-            importance_ratio_metrics["loss/importance_ratio/min"] = min(
-                importance_ratio_metrics["loss/importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
+            importance_ratio_metrics["importance_ratio/min"] = min(
+                importance_ratio_metrics["importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
             )
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(1.0))
@@ -301,7 +301,7 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        sync_importance_ratio_metrics(importance_ratio_metrics, loss_metrics, total_non_masked_tokens)
+        sync_importance_ratio_metrics(importance_ratio_metrics, total_non_masked_tokens)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")
@@ -342,14 +342,17 @@ def train(config: TrainerConfig):
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0
-        loss_metrics.update(importance_ratio_metrics)
         loss_metrics = {
             key: value.item() if isinstance(value, torch.Tensor) else value for key, value in loss_metrics.items()
+        }
+        importance_ratio_metrics = {
+            key: value.item() if isinstance(value, torch.Tensor) else value
+            for key, value in importance_ratio_metrics.items()
         }
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {loss_metrics['loss/importance_ratio_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {importance_ratio_metrics['importance_ratio/raw_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
@@ -363,6 +366,10 @@ def train(config: TrainerConfig):
         # Log loss metrics
         loss_metrics["step"] = progress.step
         monitor.log(loss_metrics)
+
+        # Log importance ratio metrics
+        importance_ratio_metrics["step"] = progress.step
+        monitor.log(importance_ratio_metrics)
 
         # Log time metrics
         time_metrics = {

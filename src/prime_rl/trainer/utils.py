@@ -125,28 +125,24 @@ def print_benchmark(history: dict[str, list[Any]]) -> None:
     console.print(table)
 
 
-def sync_importance_ratio_metrics(
-    importance_ratio_metrics: dict[str, Tensor], loss_metrics: dict[str, Tensor], total_non_masked_tokens: Tensor
-):
+def sync_importance_ratio_metrics(importance_ratio_metrics: dict[str, Tensor], total_non_masked_tokens: Tensor):
     """
     Sync the importance ratio metrics across all ranks.
 
     a bit ugly so moved as a function
     """
 
-    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio/max"], op=dist.ReduceOp.MAX)
-    loss_metrics["loss/importance_ratio/max"] = importance_ratio_metrics["loss/importance_ratio/max"].cpu()
+    dist.all_reduce(importance_ratio_metrics["importance_ratio/max"], op=dist.ReduceOp.MAX)
 
-    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio/min"], op=dist.ReduceOp.MIN)
-    loss_metrics["loss/importance_ratio/min"] = importance_ratio_metrics["loss/importance_ratio/min"].cpu()
+    dist.all_reduce(importance_ratio_metrics["importance_ratio/min"], op=dist.ReduceOp.MIN)
 
-    dist.all_reduce(importance_ratio_metrics["loss/importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
-    dist.all_reduce(importance_ratio_metrics["loss/raw_importance_ratio_error_sum"], op=dist.ReduceOp.SUM)
+    dist.all_reduce(importance_ratio_metrics["importance_ratio/error_sum"], op=dist.ReduceOp.SUM)
+    dist.all_reduce(importance_ratio_metrics["importance_ratio/raw_error_sum"], op=dist.ReduceOp.SUM)
 
-    importance_ratio_metrics["loss/importance_ratio"] = (
-        total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
+    importance_ratio_metrics["importance_ratio/ratio"] = (
+        total_non_masked_tokens + importance_ratio_metrics["importance_ratio/error_sum"]
     ) / total_non_masked_tokens
 
-    importance_ratio_metrics["loss/raw_importance_ratio"] = (
-        total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
+    importance_ratio_metrics["importance_ratio/raw_ratio"] = (
+        total_non_masked_tokens + importance_ratio_metrics["importance_ratio/raw_error_sum"]
     ) / total_non_masked_tokens
