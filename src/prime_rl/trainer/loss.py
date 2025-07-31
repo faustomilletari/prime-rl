@@ -4,7 +4,7 @@ from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 from torch.nn import functional as F
 
-from prime_rl.trainer.config import ClippingConfig, GRPOVariantsConfig, RatioConfig
+from prime_rl.trainer.config import LossConfig
 from prime_rl.trainer.model import Model, forward
 
 
@@ -16,9 +16,9 @@ def grpo_loss(
     original_logprobs: Float[Tensor, "batch seq"],
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
-    grpo_loss_config: GRPOVariantsConfig,
+    loss_config: LossConfig,
 ) -> tuple[Tensor, Tensor, Tensor]:
-    if isinstance(grpo_loss_config, ClippingConfig):
+    if loss_config.type == "clip":
         return grpo_loss_clip(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -26,12 +26,11 @@ def grpo_loss(
             original_logprobs=original_logprobs,
             loss_mask=loss_mask,
             temperature=temperature,
-            epsilon_low=grpo_loss_config.epsilon_low,
-            epsilon_high=grpo_loss_config.epsilon_high,
-            clip_ratio=grpo_loss_config.clip_ratio,
-            highest_entropy_percentage=grpo_loss_config.highest_entropy_ratio_loss,
+            epsilon_low=loss_config.epsilon_low,
+            epsilon_high=loss_config.epsilon_high,
+            clip_ratio=loss_config.clip_ratio,
         )
-    elif isinstance(grpo_loss_config, RatioConfig):
+    elif loss_config.type == "ratio":
         return grpo_loss_ratio(
             shifted_logits=shifted_logits,
             input_ids=input_ids,
@@ -39,12 +38,8 @@ def grpo_loss(
             original_logprobs=original_logprobs,
             loss_mask=loss_mask,
             temperature=temperature,
-            clip_ratio=grpo_loss_config.clip_ratio,
-            highest_entropy_percentage=grpo_loss_config.highest_entropy_ratio_loss,
+            clip_ratio=loss_config.clip_ratio,
         )
-    else:
-        raise ValueError(f"Invalid grpo_loss_type: {grpo_loss_config.type}")
-
 
 @jaxtyped(typechecker=typechecker)
 def grpo_loss_clip(
@@ -57,21 +52,8 @@ def grpo_loss_clip(
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
-    highest_entropy_percentage: float,
 ) -> tuple[Tensor, Tensor, Tensor]:
-    """
-    DeepSeek Math Loss: https://arxiv.org/abs/2402.03300
-
-    Args:
-        policy_logprobs: Log probabilities from the policy model
-        ref_logprobs: Log probabilities from the reference model
-        advantages: Advantages for each token
-        beta: KL penalty coefficient
-        epsilon: Clipping parameter for PPO
-        ignore_index: Specifies a target value that is ignored and does not contribute to the loss
-    """
-    # Divide logits by sampling temperature.
-    # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
+    
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
@@ -84,9 +66,6 @@ def grpo_loss_clip(
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
     clipped_token_count = _masked_sum(is_clipped, loss_mask)
-
-    if highest_entropy_percentage < 1.0:
-        loss_mask = highest_entropy_mask(shifted_logits, loss_mask, highest_entropy_percentage)
 
     loss = _masked_sum(per_token_loss, loss_mask)
     ratio = _masked_sum(coef_2, loss_mask)
@@ -102,10 +81,8 @@ def grpo_loss_ratio(
     loss_mask: Int[Tensor, "batch seq"],
     temperature: float,
     clip_ratio: float,
-    highest_entropy_percentage: float,
 ) -> tuple[Tensor, Tensor, Tensor]:
-    # Divide logits by sampling temperature.
-    # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
+    
     shifted_logits = shifted_logits / temperature
     per_token_logps = selective_log_softmax(shifted_logits, input_ids)
 
@@ -116,9 +93,6 @@ def grpo_loss_ratio(
 
     ratio = torch.clamp(raw_ratio, 0, clip_ratio)
     loss = -ratio * advantages
-
-    if highest_entropy_percentage < 1.0:
-        loss_mask = highest_entropy_mask(shifted_logits, loss_mask, highest_entropy_percentage)
 
     loss = _masked_sum(loss, loss_mask)
     ratio = _masked_sum(ratio, loss_mask)
@@ -197,39 +171,6 @@ def compute_entropy(
 def _masked_sum(tensor: Tensor, mask: Tensor) -> Tensor:
     """Sums over the unmasked tensor values"""
     return (tensor * mask).sum()
-
-
-@jaxtyped(typechecker=typechecker)
-def highest_entropy_mask(
-    logits: Float[Tensor, "batch seq vocab"],
-    loss_mask: Int[Tensor, "batch seq"],
-    percent: float,
-) -> Tensor:
-    """
-    Returns a mask (batch, seq) where the top `percent` of masked tokens (loss_mask==1)
-    with the highest entropy are 1, others 0.
-    Args:
-        logits: Tensor of shape (batch, seq, vocab)
-        loss_mask: Tensor of shape (batch, seq), 1 for valid tokens, 0 for padding
-        percent: float in (0, 1), e.g., 0.2 for top 20%
-        temperature: float, temperature for softmax (default 1.0)
-    Returns:
-        mask: Tensor of shape (batch, seq), dtype=torch.bool
-    """
-    pd = torch.nn.functional.softmax(logits, dim=-1)
-    entropy = torch.logsumexp(logits, dim=-1) - torch.sum(pd * logits, dim=-1)  # (batch, seq)
-
-    valid_entropy = entropy[loss_mask.bool()]
-    k = int(percent * valid_entropy.numel())
-    if k < 1:
-        k = 1
-    if k == valid_entropy.numel():
-        threshold = valid_entropy.min() - 1  # all True
-    else:
-        threshold = torch.kthvalue(valid_entropy, valid_entropy.numel() - k + 1).values
-
-    mask = (entropy >= threshold) & (loss_mask.bool())
-    return mask
 
 
 @jaxtyped(typechecker=typechecker)
