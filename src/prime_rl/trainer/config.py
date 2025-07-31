@@ -179,7 +179,7 @@ class TrainerConfig(BaseSettings):
     weights: WeightCheckpointConfig = WeightCheckpointConfig()
 
     # The loss configuration
-    loss: LossConfig = Field(discriminator="type", default=RatioLossConfig())
+    loss: LossConfig = Field(discriminator="type", default=GRPOClipLossConfig())
 
     # The logging configuration
     log: LogConfig = LogConfig()
