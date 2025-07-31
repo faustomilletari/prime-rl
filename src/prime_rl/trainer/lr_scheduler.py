@@ -33,6 +33,3 @@ def create_lr_scheduler(optimizer: Optimizer, config: TrainerConfig) -> LRSchedu
     # LinearLR requires start_factor > 0, so we use a very small value instead of 0
     warmup_scheduler = LinearLR(optimizer, start_factor=1e-8, end_factor=1.0, total_iters=warmup_steps)
     return SequentialLR(optimizer, [warmup_scheduler, main_scheduler], milestones=[warmup_steps])
-
-
-yet
