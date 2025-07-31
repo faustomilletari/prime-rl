@@ -205,7 +205,7 @@ def train(config: TrainerConfig):
                     recomputed_logprob_error = (torch.exp(recomputed_logprobs - logprobs) * loss_mask).sum()
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
-                    micro_batch["og_logprobs"] = recomputed_logprobs.to("cpu")
+                    micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
 
             # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
             # this avoid having to make sure we don't keep too much tensor offloaded in cpu memory
@@ -235,7 +235,7 @@ def train(config: TrainerConfig):
             position_ids = micro_batch["position_ids"].to("cuda")
             advantages = micro_batch["advantages"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
-            og_logprobs = micro_batch["og_logprobs"].to("cuda")
+            og_logprobs = micro_batch["logprobs"].to("cuda")
             temperature = micro_batch["temperature"]
             micro_batch_size, seq_len = input_ids.shape
 
