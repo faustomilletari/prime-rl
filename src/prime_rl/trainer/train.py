@@ -19,7 +19,7 @@ from prime_rl.trainer.weights import WeightCheckpointManager
 from prime_rl.trainer.config import TrainerConfig
 from prime_rl.trainer.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
-from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs
+from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs, ImportanceRatioMetrics
 from prime_rl.trainer.model import (
     forward,
     get_tokenizer,
@@ -31,7 +31,6 @@ from prime_rl.trainer.utils import (
     OffloadedTensor,
     copy_model_to_cpu,
     offload_model_to_cpu,
-    ImportanceRatioMetrics,
     wake_up_model_from_cpu,
     print_benchmark,
 )
@@ -265,9 +264,6 @@ def train(config: TrainerConfig):
             # Accumulate unnormalized local metrics
             loss_metrics["loss/loss"] += loss.detach().float()
             loss_metrics["loss/entropy"] += entropy.detach().float()
-            loss_metrics["loss/clipped_ratio"] += (
-                ratio_info.clipped_token_count.detach().float()
-            )  # todo move to importance ratio metrics
 
             importance_ratio_metrics.update(ratio_info)
 
@@ -295,7 +291,7 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        importance_ratio_metrics.sync(total_non_masked_tokens)
+        importance_ratio_metrics.sync(total_non_masked_tokens, loss_scale)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")

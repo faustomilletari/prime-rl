@@ -1,6 +1,8 @@
+from collections import defaultdict
 from dataclasses import dataclass
 
 import torch
+import torch.distributed as dist
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
@@ -227,3 +229,55 @@ def shift_logits(logits: Float[Tensor, "batch seq vocab"]) -> Float[Tensor, "bat
     zeros = torch.zeros(B, 1, V, device=logits.device, dtype=logits.dtype)  # (B, 1, V)
     logits = torch.cat([zeros, logits], dim=1)  # (B, L, V)
     return logits
+
+
+class ImportanceRatioMetrics:
+    def __init__(self):
+        self.importance_ratio_metrics = defaultdict(lambda: torch.tensor(0.0).to("cuda"))
+
+    def update(self, ratio_info: RatioInfo):
+        self.importance_ratio_metrics["importance_ratio/error_sum"] += ratio_info.ratio_sum.detach().float()
+
+        self.importance_ratio_metrics["importance_ratio/raw_error_sum"] += ratio_info.raw_ratio_sum.detach().float()
+        self.importance_ratio_metrics["importance_ratio/max"] = max(
+            self.importance_ratio_metrics["importance_ratio/max"], ratio_info.raw_ratio_max.detach().float()
+        )
+        self.importance_ratio_metrics["importance_ratio/min"] = min(
+            self.importance_ratio_metrics["importance_ratio/min"], ratio_info.raw_ratio_min.detach().float()
+        )
+
+        self.importance_ratio_metrics["importance_ratio/clipped"] += ratio_info.clipped_token_count.detach().float()
+
+    def sync(self, total_non_masked_tokens: Tensor, loss_scale: float):
+        """
+        Sync the importance ratio metrics across all ranks.
+        """
+        self.importance_ratio_metrics["importance_ratio/clipped"] = (
+            self.importance_ratio_metrics["importance_ratio/clipped"] / loss_scale
+        )
+        dist.all_reduce(self.importance_ratio_metrics["importance_ratio/clipped"], op=dist.ReduceOp.AVG)
+
+        dist.all_reduce(self.importance_ratio_metrics["importance_ratio/max"], op=dist.ReduceOp.MAX)
+
+        dist.all_reduce(self.importance_ratio_metrics["importance_ratio/min"], op=dist.ReduceOp.MIN)
+
+        dist.all_reduce(self.importance_ratio_metrics["importance_ratio/error_sum"], op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.importance_ratio_metrics["importance_ratio/raw_error_sum"], op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.importance_ratio_metrics["loss/clipped_ratio"], op=dist.ReduceOp.AVG)
+
+        self.importance_ratio_metrics["importance_ratio/ratio"] = (
+            total_non_masked_tokens + self.importance_ratio_metrics["importance_ratio/error_sum"]
+        ) / total_non_masked_tokens
+
+        self.importance_ratio_metrics["importance_ratio/raw_ratio"] = (
+            total_non_masked_tokens + self.importance_ratio_metrics["importance_ratio/raw_error_sum"]
+        ) / total_non_masked_tokens
+
+    def to_dict(self) -> dict[str, float]:
+        """
+        return a dict of float values (could be used to log to wandb)
+        """
+        return {
+            key: value.item() if isinstance(value, torch.Tensor) else value
+            for key, value in self.importance_ratio_metrics.items()
+        }
