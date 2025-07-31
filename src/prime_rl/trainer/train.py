@@ -298,17 +298,12 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        loss_metrics["loss/importance_ratio"] = (
-            total_non_masked_tokens + loss_metrics["loss/importance_ratio_error_sum"]
+        importance_ratio_metrics["loss/importance_ratio"] = (
+            total_non_masked_tokens + importance_ratio_metrics["loss/importance_ratio_error_sum"]
         ) / total_non_masked_tokens
 
-        ratio = loss_metrics["loss/importance_ratio_error_sum"]
-        a = ratio + total_non_masked_tokens
-        b = a / total_non_masked_tokens
-        logger.info(f"Total non masked tokens: {total_non_masked_tokens}, {a=}, {b=}, {ratio=}")
-
-        loss_metrics["loss/raw_importance_ratio"] = (
-            total_non_masked_tokens + loss_metrics["loss/raw_importance_ratio_error_sum"]
+        importance_ratio_metrics["loss/raw_importance_ratio"] = (
+            total_non_masked_tokens + importance_ratio_metrics["loss/raw_importance_ratio_error_sum"]
         ) / total_non_masked_tokens
 
         max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
