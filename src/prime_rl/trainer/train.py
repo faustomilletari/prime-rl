@@ -200,7 +200,7 @@ def train(config: TrainerConfig):
                     temperature = micro_batch["temperature"]
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
-                    recomputed_logprob_error = (torch.exp(recomputed_logprobs - logprobs) * loss_mask).sum()
+                    recomputed_logprob_error = ((recomputed_logprobs - logprobs).abs().exp() * loss_mask).sum() / loss_mask.sum()
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
@@ -267,7 +267,7 @@ def train(config: TrainerConfig):
             loss_metrics["loss/clipped_count"] += clipped_count.detach().float() / loss_scale
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
-            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float() / loss_scale
+            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
