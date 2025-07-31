@@ -17,6 +17,7 @@ class RatioInfo:
 
     raw_ratio_sum: Float[Tensor, "1"]
     raw_ratio_max: Float[Tensor, "1"]
+    raw_ratio_min: Float[Tensor, "1"]
 
 
 @jaxtyped(typechecker=typechecker)
@@ -95,14 +96,15 @@ def grpo_loss_clip(
 
     loss = _masked_sum(per_token_loss, loss_mask)
 
-    raw_ratio = raw_ratio * loss_mask
-    ratio = coef_2 * loss_mask
+    raw_ratio = (raw_ratio.detach() - 1) * loss_mask
+    ratio = (coef_2.detach() - 1) * loss_mask
 
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
         raw_ratio_sum=raw_ratio.sum(),
         raw_ratio_max=raw_ratio.max(),
+        raw_ratio_min=raw_ratio.min(),
     )
 
 
@@ -131,14 +133,15 @@ def grpo_loss_ratio(
 
     loss = _masked_sum(loss, loss_mask)
 
-    raw_ratio = (raw_ratio - 1) * loss_mask
-    ratio = (ratio - 1) * loss_mask
+    raw_ratio = (raw_ratio.detach() - 1) * loss_mask
+    ratio = (ratio.detach() - 1) * loss_mask
 
     return loss, RatioInfo(
         ratio_sum=ratio.sum(),
         clipped_token_count=clipped_token_count,
         raw_ratio_sum=raw_ratio.sum(),
         raw_ratio_max=raw_ratio.max(),
+        raw_ratio_min=raw_ratio.min(),
     )
 
 

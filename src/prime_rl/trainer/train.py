@@ -218,7 +218,9 @@ def train(config: TrainerConfig):
 
         forward_backward_start_time = time.time()
         loss_metrics = defaultdict(float)
-        max_ratio = 0.0
+        importance_ratio_metrics = defaultdict(float)
+        max_importance_ratio = 0.0
+        min_importance_ratio = 0.0
         num_micro_batches = len(micro_batches)
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
@@ -265,10 +267,11 @@ def train(config: TrainerConfig):
             loss_metrics["loss/entropy"] += entropy.detach().float()
             loss_metrics["loss/clipped_ratio"] += ratio_info.clipped_token_count.detach().float()
 
-            loss_metrics["loss/importance_ratio"] += ratio_info.ratio_sum.detach().float()
+            importance_ratio_metrics["loss/importance_ratio"] += ratio_info.ratio_sum.detach().float()
 
-            loss_metrics["loss/raw_importance_ratio"] += ratio_info.raw_ratio_sum.detach().float()
-            max_ratio = max(max_ratio, ratio_info.raw_ratio_max.detach().float())
+            importance_ratio_metrics["loss/raw_importance_ratio"] += ratio_info.raw_ratio_sum.detach().float()
+            max_importance_ratio = max(max_importance_ratio, ratio_info.raw_ratio_max.detach().float())
+            min_importance_ratio = min(min_importance_ratio, ratio_info.raw_ratio_min.detach().float())
 
             recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(0.0))
             loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
@@ -286,15 +289,10 @@ def train(config: TrainerConfig):
 
         # Normalize all loss metrics globally before reporting
         for key, value in loss_metrics.items():
-            if key in [
-                "loss/importance_ratio",
-                "loss/raw_importance_ratio",
-                "loss/raw_importance_ratio/max",
-                "loss/importance_ratio/max",
-            ]:
-                loss_metrics[key] = value / torch.tensor(1.0)
-            else:
-                loss_metrics[key] = value / loss_scale
+            loss_metrics[key] = value / loss_scale
+
+        for key, value in importance_ratio_metrics.items():
+            importance_ratio_metrics[key] = value / torch.tensor(1.0)
 
         # Synchronize the batch metrics across all ranks
         logger.debug(f"All-reduce loss metrics keys {list(loss_metrics.keys())}")
@@ -302,9 +300,13 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        max_ratio = torch.tensor(max_ratio).to("cuda")
-        dist.all_reduce(max_ratio, op=dist.ReduceOp.MAX)
-        loss_metrics["loss/importance_ratio/max"] = max_ratio.cpu()
+        max_importance_ratio = torch.tensor(max_importance_ratio).to("cuda")
+        dist.all_reduce(max_importance_ratio, op=dist.ReduceOp.MAX)
+        loss_metrics["loss/importance_ratio/max"] = max_importance_ratio.cpu()
+
+        min_importance_ratio = torch.tensor(min_importance_ratio).to("cuda")
+        dist.all_reduce(min_importance_ratio, op=dist.ReduceOp.MIN)
+        loss_metrics["loss/importance_ratio/min"] = min_importance_ratio.cpu()
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")
@@ -346,6 +348,7 @@ def train(config: TrainerConfig):
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0
         loss_metrics = {key: value.item() for key, value in loss_metrics.items()}
+        loss_metrics.update({key: value.item() for key, value in importance_ratio_metrics.items()})
 
         # Log step metrics
         step_time = time.time() - step_start_time
