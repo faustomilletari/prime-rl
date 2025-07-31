@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -13,6 +13,7 @@ prerelease-mode = "allow"
 members = [
     "prime-rl",
     "vf-intellect-math",
+    "vf-reverse-text",
 ]
 
 [[package]]
@@ -2106,6 +2107,7 @@ dependencies = [
     { name = "uvloop" },
     { name = "verifiers" },
     { name = "vf-intellect-math" },
+    { name = "vf-reverse-text" },
     { name = "vf-wordle" },
     { name = "vllm" },
     { name = "wandb" },
@@ -2157,6 +2159,7 @@ requires-dist = [
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" },
     { name = "vf-intellect-math", editable = "environments/vf_intellect_math" },
+    { name = "vf-reverse-text", editable = "environments/vf_reverse_text" },
     { name = "vf-wordle", git = "https://github.com/willccbb/verifiers.git?subdirectory=environments%2Fvf_wordle&rev=main" },
     { name = "vllm", specifier = ">=0.9.1" },
     { name = "wandb", specifier = ">=0.20.1" },
@@ -3248,6 +3251,17 @@ dependencies = [
 name = "vf-intellect-math"
 version = "0.1.0"
 source = { editable = "environments/vf_intellect_math" }
+dependencies = [
+    { name = "verifiers" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=75c7df8" }]
+
+[[package]]
+name = "vf-reverse-text"
+version = "0.1.0"
+source = { editable = "environments/vf_reverse_text" }
 dependencies = [
     { name = "verifiers" },
 ]

@@ -33,6 +33,7 @@ dependencies = [
     "nltk>=3.9.1",
     "vf-intellect-math",
     "vf-wordle",
+    "vf-reverse-text",
 ]
 
 [project.scripts]
@@ -56,9 +57,10 @@ prerelease = "allow"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
-verifiers = { git = "https://github.com/willccbb/verifiers", rev = "75c7df8" }
+verifiers = { git = "https://github.com/willccbb/verifiers", rev = "74c604f" }
 vf-intellect-math = { workspace = true }
 vf-wordle = { git = "https://github.com/willccbb/verifiers.git", subdirectory = "environments/vf_wordle", rev = "main" }
+vf-reverse-text = { workspace = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
@@ -68,6 +70,7 @@ explicit = true
 [tool.uv.workspace]
 members = [
     "environments/vf_intellect_math",
+    "environments/vf_reverse_text",
 ]
 
 [dependency-groups]
