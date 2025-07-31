@@ -338,7 +338,7 @@ def train(config: TrainerConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {importance_ratio_metrics.to_dict()['importance_ratio/raw_error_sum']:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {importance_ratio_metrics.raw_error_sum:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
