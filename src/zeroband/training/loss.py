@@ -1,10 +1,24 @@
+from dataclasses import dataclass
+
 import torch
 import torch.nn.functional as F
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
-
+import torch.distributed as dist
 from zeroband.training.config import ClippingConfig, GRPOVariantsConfig, KlCovConfig, RatioConfig
+
+
+@dataclass
+class RatioInfo:
+    ratio_sum: Float[Tensor, "1"]
+    clipped_token_count: Float[Tensor, "1"]
+
+    raw_ratio_sum: Float[Tensor, "1"]
+    raw_ratio_max: Float[Tensor, "1"]
+    raw_ratio_min: Float[Tensor, "1"]
+
+    raw_ratio_abs_sum: Float[Tensor, "1"]
 
 
 @jaxtyped(typechecker=typechecker)
@@ -17,7 +31,7 @@ def grpo_loss(
     temperature: float,
     max_tokens: int,
     grpo_loss_config: GRPOVariantsConfig,
-) -> tuple[Tensor, Tensor | None]:
+) -> tuple[Tensor, RatioInfo]:
     if isinstance(grpo_loss_config, ClippingConfig):
         return grpo_loss_clip(
             logits,
@@ -75,7 +89,7 @@ def grpo_loss_clip(
     clip_ratio: float,
     max_tokens: int,
     highest_entropy_percentage: float,
-) -> tuple[Tensor, Tensor]:
+) -> tuple[Tensor, RatioInfo]:
     """
     DeepSeek Math Loss: https://arxiv.org/abs/2402.03300
 
@@ -100,7 +114,8 @@ def grpo_loss_clip(
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
 
-    coef_1 = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
+    raw_ratio = torch.exp(per_token_logps - original_logprobs)
+    coef_1 = torch.clamp(raw_ratio, 0, clip_ratio)
 
     coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
     per_token_loss1 = -coef_1 * advantages
@@ -108,14 +123,24 @@ def grpo_loss_clip(
     per_token_loss = torch.max(per_token_loss1, per_token_loss2)
 
     is_clipped = (per_token_loss1 < per_token_loss2).float()
-    clip_ratio = _apply_mask(is_clipped, loss_mask, max_tokens)
+    clipped_token_count = (is_clipped * loss_mask).sum()
 
     if highest_entropy_percentage < 1.0:
         loss_mask = highest_entropy_mask(logits, loss_mask, highest_entropy_percentage)
 
     loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
 
-    return loss, clip_ratio
+    raw_ratio = (raw_ratio.detach() - 1) * loss_mask
+    ratio = (coef_2.detach() - 1) * loss_mask
+
+    return loss, RatioInfo(
+        ratio_sum=ratio.sum().float(),
+        clipped_token_count=clipped_token_count.float(),
+        raw_ratio_sum=raw_ratio.sum().float(),
+        raw_ratio_max=raw_ratio.max().float() + 1,
+        raw_ratio_min=raw_ratio.min().float() + 1,
+        raw_ratio_abs_sum=raw_ratio.abs().sum().float(),
+    )
 
 
 # beartype here just make sure we have the correct shape
@@ -130,7 +155,7 @@ def grpo_loss_ratio(
     max_tokens: int,
     clip_ratio: float,
     highest_entropy_percentage: float,
-) -> tuple[Tensor, Tensor | None]:
+) -> tuple[Tensor, RatioInfo]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
     advantages = advantages[:, 1:]
@@ -144,8 +169,12 @@ def grpo_loss_ratio(
     logits = logits / temperature
     per_token_logps = selective_log_softmax(logits, input_ids)
 
-    ratio = torch.clamp(torch.exp(per_token_logps - original_logprobs), 0, clip_ratio)
+    raw_ratio = torch.exp(per_token_logps - original_logprobs)
 
+    is_clipped = (raw_ratio > clip_ratio).float()
+    clipped_token_count = (is_clipped * loss_mask).sum()
+
+    ratio = torch.clamp(raw_ratio, 0, clip_ratio)
     per_token_loss = -ratio * advantages
 
     if highest_entropy_percentage < 1.0:
@@ -153,10 +182,17 @@ def grpo_loss_ratio(
 
     loss = _apply_mask(per_token_loss, loss_mask, max_tokens)
 
-    with torch.no_grad():
-        ratio_avg = _apply_mask(ratio, loss_mask, max_tokens)
+    raw_ratio = (raw_ratio.detach() - 1) * loss_mask
+    ratio = (ratio.detach() - 1) * loss_mask
 
-    return loss, ratio_avg
+    return loss, RatioInfo(
+        ratio_sum=ratio.sum().float(),
+        clipped_token_count=clipped_token_count.float(),
+        raw_ratio_sum=raw_ratio.sum().float(),
+        raw_ratio_max=raw_ratio.max().float() + 1,
+        raw_ratio_min=raw_ratio.min().float() + 1,
+        raw_ratio_abs_sum=raw_ratio.abs().sum().float(),
+    )
 
 
 # beartype here just make sure we have the correct shape
@@ -172,7 +208,7 @@ def grpo_loss_kl_cov(
     kl_coef_cov: float,
     k_percent: float,
     highest_entropy_percentage: float,
-) -> tuple[Tensor, Tensor | None]:
+) -> tuple[Tensor, RatioInfo]:
     # we start by dropping the bos token because it does not have a corresponding logit
     input_ids = input_ids[:, 1:]
     advantages = advantages[:, 1:]
@@ -223,7 +259,18 @@ def grpo_loss_kl_cov(
 
     pg_loss = _apply_mask(pg_losses, loss_mask, max_tokens)
 
-    return pg_loss, ppo_kl_abs
+    # For kl_cov variant, we track the ratio for monitoring
+    raw_ratio = (ratio.detach() - 1) * loss_mask
+    
+    # No clipping is done in kl_cov variant, so clipped_token_count is 0
+    return pg_loss, RatioInfo(
+        ratio_sum=raw_ratio.sum().float(),
+        clipped_token_count=torch.tensor(0.0, device=logits.device),
+        raw_ratio_sum=raw_ratio.sum().float(),
+        raw_ratio_max=raw_ratio.max().float() + 1,
+        raw_ratio_min=raw_ratio.min().float() + 1,
+        raw_ratio_abs_sum=raw_ratio.abs().sum().float(),
+    )
 
 
 def selective_log_softmax(logits, index):
@@ -347,3 +394,69 @@ def highest_entropy_mask(
 
     mask = (entropy >= threshold) & (loss_mask.bool())
     return mask
+
+
+
+
+class ImportanceRatioMetrics:
+    """
+    This class is used to compute the importance ratio metrics
+
+    The importance ratio metrics are computed as follows:
+    - error_sum: sum of the importance ratio error. Error is above or below 1
+    - raw_error_sum: sum of the raw importance ratio error
+    - max: max of the raw importance ratio
+    - min: min of the raw importance ratio
+    - clipped: clipped percentage of the importance ratio. This is the percentage of tokens that were clipped
+    - ratio: ratio of the importance ratio. This is the ratio after clipping
+    - raw_ratio: raw ratio of the importance ratio. This is the ratio before clipping
+    """
+
+    def __init__(self):
+        self.error_sum = torch.tensor(0.0).to("cuda")
+        self.raw_error_sum = torch.tensor(0.0).to("cuda")
+        self.max = torch.tensor(0.0).to("cuda")
+        self.min = torch.tensor(float("inf")).to("cuda")
+        self.clipped = torch.tensor(0.0).to("cuda")
+        self.ratio = torch.tensor(0.0).to("cuda")
+        self.raw_ratio = torch.tensor(0.0).to("cuda")
+
+        self.raw_abs_error_sum = torch.tensor(0.0).to("cuda")
+
+    def update(self, ratio_info: RatioInfo):
+        self.error_sum += ratio_info.ratio_sum.detach().float()
+        self.raw_error_sum += ratio_info.raw_ratio_sum.detach().float()
+        self.raw_abs_error_sum += ratio_info.raw_ratio_abs_sum.detach().float()
+        self.max = torch.max(self.max, ratio_info.raw_ratio_max.detach().float())
+        self.min = torch.min(self.min, ratio_info.raw_ratio_min.detach().float())
+        self.clipped += ratio_info.clipped_token_count.detach().float()
+
+    def sync(self, total_non_masked_tokens: Tensor, loss_scale: float):
+        """
+        Sync the importance ratio metrics across all ranks.
+        """
+        self.clipped = self.clipped / loss_scale
+        dist.all_reduce(self.clipped, op=dist.ReduceOp.AVG)
+        dist.all_reduce(self.max, op=dist.ReduceOp.MAX)
+        dist.all_reduce(self.min, op=dist.ReduceOp.MIN)
+        dist.all_reduce(self.error_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.raw_error_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(self.raw_abs_error_sum, op=dist.ReduceOp.SUM)
+
+        self.ratio = (total_non_masked_tokens + self.error_sum) / total_non_masked_tokens
+        self.raw_ratio = (total_non_masked_tokens + self.raw_error_sum) / total_non_masked_tokens
+
+    def to_dict(self) -> dict[str, float]:
+        """
+        return a dict of float values (could be used to log to wandb)
+        """
+        return {
+            "importance_ratio/error_sum": self.error_sum.item(),
+            "importance_ratio/raw_error_sum": self.raw_error_sum.item(),
+            "importance_ratio/max": self.max.item(),
+            "importance_ratio/min": self.min.item() if self.min != float("inf") else 0.0,
+            "importance_ratio/clipped": self.clipped.item(),
+            "importance_ratio/ratio": self.ratio.item(),
+            "importance_ratio/raw_ratio": self.raw_ratio.item(),
+            "importance_ratio/raw_abs_error_sum": self.raw_abs_error_sum.item(),
+        }

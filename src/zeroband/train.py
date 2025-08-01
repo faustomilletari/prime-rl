@@ -21,7 +21,7 @@ from zeroband.training.checkpoint import TrainingProgress, load_checkpoint_fsdp_
 from zeroband.training.config import Config as TrainingConfig
 from zeroband.training.data import BatchOutput, DatasetOutput, get_dataloader, packed_batch
 from zeroband.training.logger import setup_logger
-from zeroband.training.loss import entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
+from zeroband.training.loss import ImportanceRatioMetrics, entropy_loss, grpo_loss, kl_penalty, selective_log_softmax
 from zeroband.training.utils import (
     MetricsAverager,
     OffloadedTensor,
@@ -288,6 +288,7 @@ def train(config: TrainingConfig):
         for rollout_step in range(config.optim.step_per_rollout):
             logger.debug(f"training rollout step {rollout_step} / {config.optim.step_per_rollout}")
             metric_averager = MetricsAverager()
+            importance_ratio_metrics = ImportanceRatioMetrics()
             loss_batch = torch.tensor(0.0, device="cuda")
 
             if config.train.memory_profile and world_info.rank == 0:
@@ -307,6 +308,9 @@ def train(config: TrainingConfig):
                     wandb_sample_history = log_prompt_response_samples(tokenizer, batch, training_progress.step, wandb_sample_history)
                 except Exception as e:
                     logger.warning(f"Error logging samples to WandB: {e}")
+                    
+                    
+            total_non_masked_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in data_per_rollout)
 
             # Now here's the complete grad_acc_step loop WITHOUT the WandB logging inside it:
             for grad_acc_step in range(num_grad_acc_steps):
@@ -362,7 +366,7 @@ def train(config: TrainingConfig):
 
                 # Loss
 
-                pg_loss, clip_ratio = grpo_loss(
+                pg_loss, ratio_info = grpo_loss(
                     logits,
                     input_ids,
                     advantages,
@@ -372,6 +376,8 @@ def train(config: TrainingConfig):
                     max_tokens,
                     config.grpo.off_policy,
                 )
+                
+                importance_ratio_metrics.update(ratio_info)
 
                 with torch.no_grad() if config.grpo.entropy_loss_coeff == 0 else nullcontext():
                     entropy = entropy_loss(logits, loss_mask, batch["temperature"], max_tokens)
@@ -398,12 +404,13 @@ def train(config: TrainingConfig):
                 metric_averager.update("losses/pg_loss", pg_loss.detach().clone())
                 metric_averager.update("losses/entropy_loss", entropy.detach().clone())
 
-                if clip_ratio is not None:
-                    metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
+                # if clip_ratio is not None:
+                #     metric_averager.update("losses/clip_ratio", clip_ratio.detach().clone())
 
-                del loss, pg_loss, entropy, clip_ratio
+                del loss, pg_loss, entropy
 
             metric_averager.sync()
+            importance_ratio_metrics.sync(total_non_masked_tokens, num_grad_acc_steps)
 
             dist.all_reduce(loss_batch, op=dist.ReduceOp.AVG)
 
@@ -437,6 +444,8 @@ def train(config: TrainingConfig):
                 "losses/grad_norm": grad_norm.item(),
                 "lengths/padding_proportion": padding_proportion,
             }
+
+            metrics.update(importance_ratio_metrics.to_dict())
 
             for key, value in metric_averager.items():
                 metrics[key] = value.item()
