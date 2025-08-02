@@ -20,7 +20,7 @@ from prime_rl.trainer.config import TrainerConfig
 from prime_rl.trainer.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs, ImportanceRatioMetrics
-from prime_rl.trainer.lr_scheduler import create_lr_scheduler
+from prime_rl.trainer.scheduler import create_lr_scheduler
 from prime_rl.trainer.model import (
     forward,
     get_tokenizer,
@@ -91,11 +91,10 @@ def train(config: TrainerConfig):
     )
 
     # Set up the learning rate scheduler
-    scheduler = create_lr_scheduler(optimizer, config)
-    if scheduler:
-        logger.info(
-            f"Using `{config.optim.scheduler}` scheduler (warmup_steps={config.optim.n_warmup_steps}, decay_steps={config.optim.n_final_decay})"
-        )
+    scheduler = create_lr_scheduler(optimizer, config.optim.scheduler_config, config.max_steps)
+    logger.info(
+        f"Using `{config.optim.scheduler_config.scheduler}` scheduler (warmup_steps={config.optim.scheduler_config.warmup_steps}, decay_steps={getattr(config.optim.scheduler_config, 'decay_steps', None)})"
+    )
 
     # Get checkpoint managers
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
@@ -312,8 +311,7 @@ def train(config: TrainerConfig):
         optimizer.zero_grad()
 
         # Update learning rate scheduler
-        if scheduler:
-            scheduler.step()
+        scheduler.step()
 
         forward_backward_time = time.time() - forward_backward_start_time
 
@@ -358,10 +356,16 @@ def train(config: TrainerConfig):
         perf_metrics = {
             "perf/train/throughput": throughput,
             "perf/train/mfu": mfu,
-            "optim/lr": current_lr,
             "step": progress.step,
         }
         monitor.log(perf_metrics)
+
+        # Log optimizer metrics
+        optim_metrics = {
+            "optim/lr": current_lr,
+            "step": progress.step,
+        }
+        monitor.log(optim_metrics)
 
         # Log loss metrics
         loss_metrics["step"] = progress.step
@@ -408,4 +412,3 @@ def main():
 
 if __name__ == "__main__":
     main()
- 

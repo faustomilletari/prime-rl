@@ -7,7 +7,6 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 AttnImplementation: TypeAlias = Literal["sdpa", "flash_attention_2"]
-SchedulerType: TypeAlias = Literal["linear", "cosine", "constant"]
 
 
 class ModelConfig(BaseConfig):
@@ -41,6 +40,59 @@ class ModelConfig(BaseConfig):
     ] = True
 
 
+class BaseSchedulerConfig(BaseModel):
+    """Base configuration for learning rate schedulers."""
+    
+    warmup_steps: Annotated[int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")] = 0
+
+
+class ConstantSchedulerConfig(BaseSchedulerConfig):
+    """Configuration for constant learning rate scheduler."""
+    
+    scheduler: Literal["constant"] = "constant"
+
+
+class LinearSchedulerConfig(BaseSchedulerConfig):
+    """Configuration for linear learning rate scheduler."""
+    
+    scheduler: Literal["linear"] = "linear"
+    decay_steps: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of steps to decay the learning rate during the final portion of training. If None, will use remaining steps after warmup.",
+        ),
+    ] = None
+    
+    @model_validator(mode="after")
+    def validate_decay_steps(self):
+        if self.scheduler == "linear" and self.decay_steps is not None and self.decay_steps <= 0:
+            raise ValueError(f"decay_steps must be positive for linear scheduler, got {self.decay_steps}")
+        return self
+
+
+class CosineSchedulerConfig(BaseSchedulerConfig):
+    """Configuration for cosine learning rate scheduler."""
+    
+    scheduler: Literal["cosine"] = "cosine"
+    decay_steps: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of steps to decay the learning rate during the final portion of training. If None, will use remaining steps after warmup.",
+        ),
+    ] = None
+    
+    @model_validator(mode="after")
+    def validate_decay_steps(self):
+        if self.scheduler == "cosine" and self.decay_steps is not None and self.decay_steps <= 0:
+            raise ValueError(f"decay_steps must be positive for cosine scheduler, got {self.decay_steps}")
+        return self
+
+
+SchedulerConfig: TypeAlias = ConstantSchedulerConfig | LinearSchedulerConfig | CosineSchedulerConfig
+
+
 class OptimizerConfig(BaseConfig):
     """Configures the Adam optimizer and learning rate scheduler."""
 
@@ -49,20 +101,8 @@ class OptimizerConfig(BaseConfig):
     betas1: Annotated[float, Field(ge=0)] = 0.9
     betas2: Annotated[float, Field(ge=0)] = 0.99
 
-    # LR Scheduler parameters
-    scheduler: Annotated[SchedulerType, Field(description="Type of learning rate scheduler to use.")] = "constant"
-
-    n_warmup_steps: Annotated[
-        int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")
-    ] = 0
-
-    n_final_decay: Annotated[
-        int | None,
-        Field(
-            ge=1,
-            description="Number of steps to decay the learning rate during the final portion of training. If None, will use max_steps from trainer config.",
-        ),
-    ] = None
+    # LR Scheduler configuration
+    scheduler_config: SchedulerConfig = Field(discriminator="scheduler", default=ConstantSchedulerConfig())
 
 
 class CheckpointConfig(BaseConfig):
