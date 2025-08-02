@@ -93,6 +93,7 @@ members = [
     "environments/vf_hendrycks_math",
     "environments/vf_skywork_math",
     "environments/vf_unscramble",
+    "environments/vf_alphabet_sort",
 ]
 
 [dependency-groups]
