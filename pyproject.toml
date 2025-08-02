@@ -32,6 +32,7 @@ dependencies = [
     "textarena>=0.6.16",
     "nltk>=3.9.1",
     "math-verify>=0.8.0",
+    "vf-alphabet-sort",
 ]
 
 [project.scripts]

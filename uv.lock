@@ -2147,6 +2147,7 @@ dependencies = [
     { name = "transformers" },
     { name = "uvloop" },
     { name = "verifiers" },
+    { name = "vf-alphabet-sort" },
     { name = "vllm" },
     { name = "wandb" },
 ]
@@ -2207,6 +2208,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" },
+    { name = "vf-alphabet-sort", editable = "environments/vf_alphabet_sort" },
     { name = "vf-alphabet-sort", marker = "extra == 'vf'", editable = "environments/vf_alphabet_sort" },
     { name = "vf-ascii-tree", marker = "extra == 'vf'", editable = "environments/vf_ascii_tree" },
     { name = "vf-hendrycks-math", marker = "extra == 'vf'", editable = "environments/vf_hendrycks_math" },
