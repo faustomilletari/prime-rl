@@ -222,7 +222,7 @@ class TrainerConfig(BaseSettings):
         Field(
             description="Maximum number of steps to run training for. If None, will run indefinitely.",
         ),
-    ] = None
+    ] = 100000000000000
 
     async_level: Annotated[
         int,
