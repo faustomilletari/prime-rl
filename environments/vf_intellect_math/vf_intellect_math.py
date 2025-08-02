@@ -12,7 +12,7 @@ def load_environment(
 
     from prime_rl.orchestrator.genesys.math import compute_math_reward
 
-    train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math", split="train").map(
+    train_dataset = load_dataset("PrimeIntellect/INTELLECT-2-only-math-filtered-2k", split="train").map(
         lambda x: {
             "question": x["prompt"],
             "info": json.loads(x["verification_info"]),
