@@ -57,6 +57,7 @@ vf = [
     "vf-hendrycks-math",
     "vf-skywork-math",
     "vf-unscramble",
+    "vf-alphabet-sort",
 ]
 
 [tool.uv]
