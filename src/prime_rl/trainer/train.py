@@ -10,7 +10,6 @@ from prime_rl.trainer import envs
 
 import shardcast
 import torch
-from torch import Tensor
 import torch.distributed as dist
 from torch._guards import log as torch_log
 from loguru import logger
@@ -184,6 +183,7 @@ def train(config: TrainerConfig):
 
         # Optionally, compute the logprobs for the training batch
         compute_logprobs_time = 0
+        recomputed_logprobs_metrics = None
         if config.recompute_logprobs:
             compute_logprobs_start_time = time.time()
             og_infer_step = progress.step - config.async_level
@@ -195,6 +195,8 @@ def train(config: TrainerConfig):
             if og_infer_step == infer_step:
                 del tensor_offloaded_repository[infer_step]
 
+            all_recomputed_logprobs = []
+
             with torch.no_grad():
                 num_micro_batches = len(micro_batches)
                 for micro_step, micro_batch in enumerate(micro_batches, start=1):
@@ -205,10 +207,24 @@ def train(config: TrainerConfig):
                     temperature = micro_batch["temperature"]
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
-                    recomputed_logprob_error = (torch.exp((recomputed_logprobs - logprobs).abs()) * loss_mask).sum()
 
-                    micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
+                    all_recomputed_logprobs.append(
+                        ((recomputed_logprobs - logprobs).abs() / (logprobs.abs() + 1e-8)).flatten()
+                    )
+
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
+
+            all_recomputed_logprobs = torch.cat(all_recomputed_logprobs, dim=0)
+
+            recomputed_logprobs_metrics = {
+                "recomputed_logprob_error/mean": all_recomputed_logprobs.mean().item(),
+                "recomputed_logprob_error/std": all_recomputed_logprobs.std().item(),
+                "recomputed_logprob_error/max": all_recomputed_logprobs.max().item(),
+                "recomputed_logprob_error/min": all_recomputed_logprobs.min().item(),
+                "recomputed_logprob_error/median": all_recomputed_logprobs.median().item(),
+                "recomputed_logprob_error/quantile_0.01": all_recomputed_logprobs.quantile(0.01).item(),
+                "recomputed_logprob_error/quantile_0.99": all_recomputed_logprobs.quantile(0.99).item(),
+            }
 
             # here we sepcifically don't save the tensor offloaded, they are alreay consumed and we will never use it again.
             # this avoid having to make sure we don't keep too much tensor offloaded in cpu memory
@@ -271,9 +287,6 @@ def train(config: TrainerConfig):
             loss_metrics["loss/entropy"] += entropy.detach().float()
 
             importance_ratio_metrics.update(ratio_info)
-
-            recomputed_logprob_error: Tensor = micro_batch.get("recomputed_logprob_error", torch.tensor(1.0))
-            loss_metrics["loss/recomputed_logprob_error"] += recomputed_logprob_error.detach().float()
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
@@ -364,6 +377,10 @@ def train(config: TrainerConfig):
             "step": progress.step,
         }
         monitor.log(optim_metrics)
+
+        if recomputed_logprobs_metrics is not None:
+            recomputed_logprobs_metrics["step"] = progress.step
+            monitor.log(recomputed_logprobs_metrics)
 
         # Log loss metrics
         loss_metrics["step"] = progress.step
