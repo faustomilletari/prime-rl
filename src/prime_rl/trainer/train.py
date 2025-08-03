@@ -211,47 +211,47 @@ def train(config: TrainerConfig):
                     mask_logprobs = logprobs[loss_mask.bool()]
                     mask_recomputed_logprobs = recomputed_logprobs[loss_mask.bool()]
 
-                    if not (mask_recomputed_logprobs[mask_logprobs == 0].abs() < 1e-6).all():
-                        # Find problematic tokens
-                        problematic_mask = (mask_logprobs == 0) & (mask_recomputed_logprobs != 0)
-                        if problematic_mask.any():
-                            # Get the original positions in the flattened tensor
-                            masked_positions = torch.where(loss_mask.bool())[0]
-                            problematic_positions = masked_positions[problematic_mask]
+                    # if not (mask_recomputed_logprobs[mask_logprobs == 0].abs() < 1e-6).all():
+                    #     # Find problematic tokens
+                    #     problematic_mask = (mask_logprobs == 0) & (mask_recomputed_logprobs != 0)
+                    #     if problematic_mask.any():
+                    #         # Get the original positions in the flattened tensor
+                    #         masked_positions = torch.where(loss_mask.bool())[0]
+                    #         problematic_positions = masked_positions[problematic_mask]
 
-                            # Get the token IDs
-                            flat_input_ids = input_ids.flatten()
-                            problematic_token_ids = flat_input_ids[problematic_positions]
+                    #         # Get the token IDs
+                    #         flat_input_ids = input_ids.flatten()
+                    #         problematic_token_ids = flat_input_ids[problematic_positions]
 
-                            # Decode tokens
-                            decoded_tokens = [tokenizer.decode([tid.item()]) for tid in problematic_token_ids]
+                    #         # Decode tokens
+                    #         decoded_tokens = [tokenizer.decode([tid.item()]) for tid in problematic_token_ids]
 
-                            logger.error(
-                                f"Recomputed logprobs should be 0 for masked tokens. Found {len(problematic_token_ids)} problematic tokens:"
-                            )
-                            for i, (tid, token, pos) in enumerate(
-                                zip(problematic_token_ids, decoded_tokens, problematic_positions)
-                            ):
-                                logger.error(
-                                    f"  Token {i + 1}: ID={tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}"
-                                )
-                                with open("logprob_diff_analysis.txt", "a") as f:
-                                    f.write(
-                                        f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}\n"
-                                    )
+                    #         logger.error(
+                    #             f"Recomputed logprobs should be 0 for masked tokens. Found {len(problematic_token_ids)} problematic tokens:"
+                    #         )
+                    #         for i, (tid, token, pos) in enumerate(
+                    #             zip(problematic_token_ids, decoded_tokens, problematic_positions)
+                    #         ):
+                    #             logger.error(
+                    #                 f"  Token {i + 1}: ID={tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}"
+                    #             )
+                    #             with open("logprob_diff_analysis.txt", "a") as f:
+                    #                 f.write(
+                    #                     f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}\n"
+                    #                 )
 
-                        os.makedirs("outputs", exist_ok=True)
-                        torch.save(
-                            {
-                                "logprobs": logprobs,
-                                "recomputed_logprobs": recomputed_logprobs,
-                                "loss_mask": loss_mask,
-                                "input_ids": input_ids,
-                                "position_ids": position_ids,
-                            },
-                            f"outputs/mask_logprobs_{counter}.pt",
-                        )
-                        counter += 1
+                    #     os.makedirs("outputs", exist_ok=True)
+                    #     torch.save(
+                    #         {
+                    #             "logprobs": logprobs,
+                    #             "recomputed_logprobs": recomputed_logprobs,
+                    #             "loss_mask": loss_mask,
+                    #             "input_ids": input_ids,
+                    #             "position_ids": position_ids,
+                    #         },
+                    #         f"outputs/mask_logprobs_{counter}.pt",
+                    #     )
+                    #     counter += 1
 
                     recomputed_logprob_error = (torch.exp((recomputed_logprobs - logprobs).abs()) * loss_mask).sum()
 
