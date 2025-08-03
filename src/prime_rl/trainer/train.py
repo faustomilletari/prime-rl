@@ -205,6 +205,9 @@ def train(config: TrainerConfig):
                     loss_mask = micro_batch["loss_mask"].to("cuda")
                     logprobs = micro_batch["logprobs"].to("cuda")
                     temperature = micro_batch["temperature"]
+                    
+                    # Get seq_len from the current micro batch
+                    _, seq_len = input_ids.shape
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
 
