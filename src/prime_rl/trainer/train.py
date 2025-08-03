@@ -240,6 +240,7 @@ def train(config: TrainerConfig):
                                         f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}\n"
                                     )
 
+                        os.makedirs("outputs", exist_ok=True)
                         torch.save(
                             {
                                 "logprobs": logprobs,
