@@ -276,9 +276,24 @@ def train(config: TrainerConfig):
                                 recomp_logprob = flat_recomputed_logprobs[idx].item()
                                 diff = abs(recomp_logprob - orig_logprob)
                                 rel_diff = diff / abs(orig_logprob) if orig_logprob != 0 else float('inf')
-                                f.write(
-                                    f"Token ID: {token_id} ('{token_str}'), Original: {orig_logprob:.6f}, Recomputed: {recomp_logprob:.6f}, Abs Diff: {diff:.6f}, Rel Diff: {rel_diff:.2%}\n"
-                                )
+                                if rel_diff > 0.2:  # Only show if rel diff exceeds 20%
+                                    # Get context around the token
+                                    batch_idx = idx // seq_len
+                                    seq_idx = idx % seq_len
+                                    context_start = max(0, seq_idx - 10)
+                                    context_end = min(seq_len, seq_idx + 10)
+                                    context_tokens = input_ids[batch_idx, context_start:context_end].tolist()
+                                    context_str = tokenizer.decode(context_tokens)
+                                    # Highlight the target token position
+                                    before_tokens = input_ids[batch_idx, context_start:seq_idx].tolist()
+                                    after_tokens = input_ids[batch_idx, seq_idx+1:context_end].tolist()
+                                    before_str = tokenizer.decode(before_tokens) if before_tokens else ""
+                                    after_str = tokenizer.decode(after_tokens) if after_tokens else ""
+                                    
+                                    f.write(
+                                        f"Token ID: {token_id} ('{token_str}'), Original: {orig_logprob:.6f}, Recomputed: {recomp_logprob:.6f}, Abs Diff: {diff:.6f}, Rel Diff: {rel_diff:.2%}\n"
+                                    )
+                                    f.write(f"  Context: ...{before_str}[{token_str}]{after_str}...\n")
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
