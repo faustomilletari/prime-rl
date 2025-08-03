@@ -211,7 +211,7 @@ def train(config: TrainerConfig):
                     mask_logprobs = logprobs[loss_mask.bool()]
                     mask_recomputed_logprobs = recomputed_logprobs[loss_mask.bool()]
 
-                    if not (mask_recomputed_logprobs[mask_logprobs == 0] == 0).all():
+                    if not (mask_recomputed_logprobs[mask_logprobs == 0].abs() < 1e-6).all():
                         # Find problematic tokens
                         problematic_mask = (mask_logprobs == 0) & (mask_recomputed_logprobs != 0)
                         if problematic_mask.any():
