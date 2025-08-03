@@ -212,9 +212,34 @@ def train(config: TrainerConfig):
                     mask_recomputed_logprobs = recomputed_logprobs[loss_mask.bool()]
 
                     if not (mask_recomputed_logprobs[mask_logprobs == 0] == 0).all():
-                        logger.error(
-                            f"Recomputed logprobs should be 0 for masked tokens, but got {mask_recomputed_logprobs[mask_logprobs == 0]}"
-                        )
+                        # Find problematic tokens
+                        problematic_mask = (mask_logprobs == 0) & (mask_recomputed_logprobs != 0)
+                        if problematic_mask.any():
+                            # Get the original positions in the flattened tensor
+                            masked_positions = torch.where(loss_mask.bool())[0]
+                            problematic_positions = masked_positions[problematic_mask]
+
+                            # Get the token IDs
+                            flat_input_ids = input_ids.flatten()
+                            problematic_token_ids = flat_input_ids[problematic_positions]
+
+                            # Decode tokens
+                            decoded_tokens = [tokenizer.decode([tid.item()]) for tid in problematic_token_ids]
+
+                            logger.error(
+                                f"Recomputed logprobs should be 0 for masked tokens. Found {len(problematic_token_ids)} problematic tokens:"
+                            )
+                            for i, (tid, token, pos) in enumerate(
+                                zip(problematic_token_ids, decoded_tokens, problematic_positions)
+                            ):
+                                logger.error(
+                                    f"  Token {i + 1}: ID={tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}"
+                                )
+                                with open("logprob_diff_analysis.txt", "a") as f:
+                                    f.write(
+                                        f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}\n"
+                                    )
+
                         torch.save(
                             {
                                 "logprobs": logprobs,
@@ -228,6 +253,30 @@ def train(config: TrainerConfig):
                         counter += 1
 
                     recomputed_logprob_error = (torch.exp((recomputed_logprobs - logprobs).abs()) * loss_mask).sum()
+
+                    # Find top 10 tokens with biggest abs logprob difference
+                    abs_diff = (recomputed_logprobs - logprobs).abs()
+                    masked_diff = abs_diff * loss_mask
+                    flat_diff = masked_diff.flatten()
+                    flat_input_ids = input_ids.flatten()
+                    flat_logprobs = logprobs.flatten()
+                    flat_recomputed_logprobs = recomputed_logprobs.flatten()
+
+                    top_k = min(20, (flat_diff > 0).sum().item())
+                    if top_k > 0:
+                        top_indices = torch.topk(flat_diff, k=top_k).indices
+
+                        with open("logprob_diff_analysis.txt", "a") as f:
+                            f.write(f"\n=== Step {progress.step}, Micro batch {micro_step}/{num_micro_batches} ===\n")
+                            for idx in top_indices:
+                                token_id = flat_input_ids[idx].item()
+                                token_str = tokenizer.decode([token_id])
+                                orig_logprob = flat_logprobs[idx].item()
+                                recomp_logprob = flat_recomputed_logprobs[idx].item()
+                                diff = abs(recomp_logprob - orig_logprob)
+                                f.write(
+                                    f"Token ID: {token_id} ('{token_str}'), Original: {orig_logprob:.6f}, Recomputed: {recomp_logprob:.6f}, Diff: {diff:.6f}\n"
+                                )
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
