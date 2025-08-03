@@ -233,11 +233,11 @@ def train(config: TrainerConfig):
                                 zip(problematic_token_ids, decoded_tokens, problematic_positions)
                             ):
                                 logger.error(
-                                    f"  Token {i + 1}: ID={tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}"
+                                    f"  Token {i + 1}: ID={tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}"
                                 )
                                 with open("logprob_diff_analysis.txt", "a") as f:
                                     f.write(
-                                        f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}\n"
+                                        f"ZERO LOGPROB TOKEN: Token ID: {tid.item()}, Text='{token}', Position={pos.item()}, Recomputed logprob={mask_recomputed_logprobs[problematic_mask][i].item():.6f}, Original logprob={mask_logprobs[problematic_mask][i].item():.6f}\n"
                                     )
 
                         os.makedirs("outputs", exist_ok=True)
