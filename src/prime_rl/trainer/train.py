@@ -110,6 +110,8 @@ def train(config: TrainerConfig):
         f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
     )
 
+    counter = 0
+
     # Optionally, initialize a model to compute logprobs
     if config.recompute_logprobs:
         # Initialize the logprob model
@@ -205,6 +207,26 @@ def train(config: TrainerConfig):
                     temperature = micro_batch["temperature"]
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
+
+                    mask_logprobs = logprobs[loss_mask.bool()]
+                    mask_recomputed_logprobs = recomputed_logprobs[loss_mask.bool()]
+
+                    if not (mask_recomputed_logprobs[mask_logprobs == 0] == 0).all():
+                        logger.error(
+                            f"Recomputed logprobs should be 0 for masked tokens, but got {mask_recomputed_logprobs[mask_logprobs == 0]}"
+                        )
+                        torch.save(
+                            {
+                                "logprobs": logprobs,
+                                "recomputed_logprobs": recomputed_logprobs,
+                                "loss_mask": loss_mask,
+                                "input_ids": input_ids,
+                                "position_ids": position_ids,
+                            },
+                            f"outputs/mask_logprobs_{counter}.pt",
+                        )
+                        counter += 1
+
                     recomputed_logprob_error = (torch.exp((recomputed_logprobs - logprobs).abs()) * loss_mask).sum()
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
