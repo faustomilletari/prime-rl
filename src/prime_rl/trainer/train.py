@@ -275,8 +275,9 @@ def train(config: TrainerConfig):
                                 orig_logprob = flat_logprobs[idx].item()
                                 recomp_logprob = flat_recomputed_logprobs[idx].item()
                                 diff = abs(recomp_logprob - orig_logprob)
+                                rel_diff = diff / abs(orig_logprob) if orig_logprob != 0 else float('inf')
                                 f.write(
-                                    f"Token ID: {token_id} ('{token_str}'), Original: {orig_logprob:.6f}, Recomputed: {recomp_logprob:.6f}, Diff: {diff:.6f}\n"
+                                    f"Token ID: {token_id} ('{token_str}'), Original: {orig_logprob:.6f}, Recomputed: {recomp_logprob:.6f}, Abs Diff: {diff:.6f}, Rel Diff: {rel_diff:.2%}\n"
                                 )
 
                     micro_batch["recomputed_logprob_error"] = recomputed_logprob_error.to("cpu")
