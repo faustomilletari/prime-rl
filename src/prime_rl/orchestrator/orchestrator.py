@@ -30,6 +30,7 @@ from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
     wait_for_weight_checkpoint,
     print_benchmark,
+    process_env_results,
 )
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
@@ -221,17 +222,7 @@ async def orchestrate(config: OrchestratorConfig):
             completion_requests += problems_to_sample * config.rollouts_per_prompt
             calls_to_generate += 1
 
-            results = vf_env.process_env_results_vllm(
-                prompts=outputs.prompt,
-                completions=outputs.completion,
-                states=outputs.state,
-                rewards=outputs.reward,
-                processing_class=tokenizer,
-                max_seq_len=config.seq_len,
-                mask_env_responses=config.mask_env_responses,
-                zero_truncated_completions=config.zero_truncated_completions,
-                mask_truncated_completions=config.mask_truncated_completions,
-            )
+            results = await process_env_results(outputs, client, config)
 
             advantages = compute_advantages(
                 rewards=outputs.reward,

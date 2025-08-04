@@ -5,6 +5,7 @@ import pandas as pd
 from openai.types.chat import ChatCompletion
 from rich.console import Console
 from rich.table import Table
+from verifiers.types import ProcessedOutputs
 
 from prime_rl.orchestrator.client import tokenize
 from prime_rl.orchestrator.genesys import TaskType, get_reward_function
@@ -46,9 +47,9 @@ async def process_env_results(outputs, client, config):
     prompt_masks = []
     completion_masks = []
 
-    assert all(len(s["responses"]) == 1 for s in outputs["state"])
-    chat_completions = [s["responses"][0] for s in outputs["state"]]
-    for prompt, chat_completion in zip(outputs["prompt"], chat_completions):
+    assert all(len(s["responses"]) == 1 for s in outputs.state)
+    chat_completions = [s["responses"][0] for s in outputs.state]
+    for prompt, chat_completion in zip(outputs.prompt, chat_completions):
         # Tokenize prompt using vLLM server
         prompt_tokens = await tokenize(client, config.model, prompt)
 
@@ -72,13 +73,14 @@ async def process_env_results(outputs, client, config):
         prompt_masks.append(prompt_mask)
         completion_masks.append(completion_mask)
 
-    return {
-        "prompt_tokens": all_prompt_tokens,
-        "completion_tokens": all_completion_tokens,
-        "completion_logprobs": all_completion_logprobs,
-        "prompt_masks": prompt_masks,
-        "completion_masks": completion_masks,
-    }
+    return ProcessedOutputs(
+        prompt_ids=all_prompt_tokens,
+        completion_ids=all_completion_tokens,
+        completion_logprobs=all_completion_logprobs,
+        prompt_mask=prompt_masks,
+        completion_mask=completion_masks,
+        rewards=outputs.reward,
+    )
 
 
 def parse_completions(chat_completions: list[ChatCompletion]) -> list[str]:
