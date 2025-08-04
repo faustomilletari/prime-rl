@@ -1,5 +1,3 @@
-import json
-
 import verifiers as vf
 from datasets import load_dataset
 
