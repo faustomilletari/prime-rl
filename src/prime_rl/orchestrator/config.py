@@ -253,6 +253,9 @@ class OnlineDifficultyBufferConfig(BaseModel):
 DataBufferConfig: TypeAlias = SimpleBufferConfig | DifficultyPoolBufferConfig | OnlineDifficultyBufferConfig
 
 
+LossScaleType: TypeAlias = Literal["total_completion_tokens", "fixed"]
+
+
 class OrchestratorConfig(BaseSettings):
     """Configures the orchestrator for RL training."""
 
@@ -294,6 +297,13 @@ class OrchestratorConfig(BaseSettings):
             description="Number of samples to train on per micro batch. This value should be tuned based on the hardware available. Usually, to the largest value divisble by the training batch size.",
         ),
     ] = 128
+
+    loss_scale_type: Annotated[
+        LossScaleType,
+        Field(
+            description="Type of loss scale to use. If `count_completion_tokens`, the loss scale will be the number of completion tokens. If `fixed`, the loss scale will be a fixed value.",
+        ),
+    ] = "count_completion_tokens"
 
     rollouts_per_prompt: Annotated[
         int,

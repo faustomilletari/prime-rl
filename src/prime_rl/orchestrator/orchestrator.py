@@ -321,6 +321,7 @@ async def orchestrate(config: OrchestratorConfig):
             num_train_workers=config.num_train_workers,
             seq_len=config.seq_len,
             collate_mode=config.collate_mode,
+            loss_scale_type=config.loss_scale_type,
         )
 
         step_path = Path(config.rollout_path) / f"step_{progress.step}"

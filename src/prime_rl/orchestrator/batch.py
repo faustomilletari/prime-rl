@@ -7,6 +7,7 @@ from torch import Tensor
 from transformers import AutoTokenizer
 
 from prime_rl.orchestrator.buffer import Rollout
+from prime_rl.orchestrator.config import LossScaleType
 from prime_rl.trainer.data import MicroBatch
 
 
@@ -16,6 +17,7 @@ class BatchSample(TypedDict):
     loss_mask: Int[Tensor, "seq"]
     advantages: Float[Tensor, "seq"]
     logprobs: Float[Tensor, "seq"]
+    completion_tokens_count: int
 
 
 def prepare_sample(
@@ -43,6 +45,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
+    completion_tokens_count = len(completion_token_ids)
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -69,15 +72,17 @@ def prepare_sample(
         "loss_mask": loss_mask,
         "position_ids": position_ids,
         "logprobs": logprobs,
+        "completion_tokens_count": completion_tokens_count,
     }
 
 
-def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
+def prepare_micro_batch(samples: list[BatchSample], temperature: float) -> MicroBatch:
     micro_batch = {}
 
     for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
         micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
 
+    micro_batch["completion_tokens_count"] = sum(sample["completion_tokens_count"] for sample in samples)
     micro_batch["temperature"] = temperature
 
     return micro_batch
@@ -91,6 +96,7 @@ def prepare_batch_padding(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    loss_scale_type: LossScaleType,
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -118,6 +124,17 @@ def prepare_batch_padding(
             batches.append(prepare_micro_batch(micro_batches, temperature))
 
         batches_per_gpu.append(batches)
+
+    if loss_scale_type == "count_completion_tokens":
+        loss_scale = sum(micro_batch["completion_tokens_count"] for batch in batches_per_gpu for micro_batch in batch)
+    elif loss_scale_type == "fixed":
+        loss_scale = sum(len(batches) for batches in batches_per_gpu) * micro_batch_size * seq_len
+    else:
+        raise ValueError(f"Invalid loss scale type: {loss_scale_type}")
+
+    for batch in batches_per_gpu:
+        for micro_batch in batch:
+            micro_batch["loss_scale"] = loss_scale
 
     return batches_per_gpu
 
@@ -165,6 +182,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
         micro_batch[key] = torch.cat([sample[key] for sample in samples], dim=0).unsqueeze(0)
 
     micro_batch["temperature"] = temperature
+    micro_batch["completion_tokens_count"] = sum(sample["completion_tokens_count"] for sample in samples)
 
     return micro_batch
 
@@ -177,6 +195,7 @@ def prepare_batch_packing(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    loss_scale_type: LossScaleType,
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -221,6 +240,20 @@ def prepare_batch_packing(
             batches.append(micro_batches.pop(0))
         batches_per_gpu.append(batches)
 
+    if loss_scale_type == "total_completion_tokens":
+        loss_scale = sum(micro_batch["completion_tokens_count"] for batch in batches_per_gpu for micro_batch in batch)
+    elif loss_scale_type == "fixed":
+        loss_scale = 0
+        for batch in batches_per_gpu:
+            for micro_batch in batch:
+                loss_scale += micro_batch["input_ids"].shape[0] * micro_batch["input_ids"].shape[1]
+    else:
+        raise ValueError(f"Invalid loss scale type: {loss_scale_type}")
+
+    for batch in batches_per_gpu:
+        for micro_batch in batch:
+            micro_batch["loss_scale"] = loss_scale
+
     return batches_per_gpu
 
 
@@ -233,6 +266,7 @@ def prepare_batch(
     seq_len: int,
     num_train_workers: int,
     collate_mode: Literal["packing", "padding"],
+    loss_scale_type: LossScaleType,
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -247,6 +281,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                loss_scale_type,
             )
         case "packing":
             return prepare_batch_packing(
@@ -257,6 +292,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                loss_scale_type,
             )
         case _:
             raise ValueError(f"Invalid collate mode: {collate_mode}")

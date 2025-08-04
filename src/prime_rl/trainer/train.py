@@ -230,7 +230,7 @@ def train(config: TrainerConfig):
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
         total_non_masked_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
-        loss_scale = total_non_masked_tokens
+        loss_scale = micro_batches[0]["loss_scale"]
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
         for micro_step, micro_batch in enumerate(micro_batches, start=1):
