@@ -76,8 +76,8 @@ vf-pydantic-adherence = { workspace = true }
 vf-hendrycks-math = { workspace = true }
 vf-skywork-math = { workspace = true }
 vf-unscramble = { workspace = true }
-
 vf-alphabet-sort = { workspace = true }
+
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

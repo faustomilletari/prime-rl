@@ -20,6 +20,7 @@ from prime_rl.trainer.config import TrainerConfig
 from prime_rl.trainer.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.loss import grpo_loss, compute_entropy, shift_logits, compute_logprobs, ImportanceRatioMetrics
+from prime_rl.trainer.scheduler import create_lr_scheduler
 from prime_rl.trainer.model import (
     forward,
     get_tokenizer,
@@ -89,6 +90,10 @@ def train(config: TrainerConfig):
         betas=(config.optim.betas1, config.optim.betas2),
     )
 
+    # Set up the learning rate scheduler
+    scheduler = create_lr_scheduler(optimizer, config.optim.scheduler, config.max_steps)
+    logger.info(f"Using `{config.optim.scheduler.type}` scheduler ({config.optim.scheduler})")
+
     # Get checkpoint managers
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
     weight_ckpt_manager = WeightCheckpointManager(config.weights, config.ckpt, config.async_level)
@@ -100,7 +105,7 @@ def train(config: TrainerConfig):
     progress = Progress()
     if config.ckpt and config.ckpt.resume_step:
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
-        ckpt_manager.load(model, [optimizer], progress, step=config.ckpt.resume_step)
+        ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step)
     logger.info(
         f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
     )
@@ -147,11 +152,11 @@ def train(config: TrainerConfig):
         if config.ckpt and config.ckpt.interval and not is_first_step and progress.step % config.ckpt.interval == 0:
             logger.info(f"Saving checkpoint at step {progress.step}")
             save_ckpt_start_time = time.time()
-            ckpt_manager.save(model, [optimizer], progress, step=progress.step)
+            ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
             save_ckpt_time = time.time() - save_ckpt_start_time
 
         # Break if we have reached the maximum number of steps
-        if config.max_steps and progress.step >= config.max_steps:
+        if progress.step >= config.max_steps:
             break
 
         logger.info(f"Starting training step {progress.step}")
@@ -303,6 +308,9 @@ def train(config: TrainerConfig):
         optimizer.step()
         optimizer.zero_grad()
 
+        # Update learning rate scheduler
+        scheduler.step()
+
         forward_backward_time = time.time() - forward_backward_start_time
 
         # Optionally, broadcast the weight checkpoint from master rank
@@ -338,7 +346,8 @@ def train(config: TrainerConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {importance_ratio_metrics.raw_error_sum:.2f} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        current_lr = optimizer.param_groups[0]["lr"]
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {loss_metrics['loss/loss']:.2f} | Entropy: {loss_metrics['loss/entropy']:.2f} | Importance Ratio Error: {importance_ratio_metrics.raw_error_sum:.2f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
@@ -348,6 +357,13 @@ def train(config: TrainerConfig):
             "step": progress.step,
         }
         monitor.log(perf_metrics)
+
+        # Log optimizer metrics
+        optim_metrics = {
+            "optim/lr": current_lr,
+            "step": progress.step,
+        }
+        monitor.log(optim_metrics)
 
         # Log loss metrics
         loss_metrics["step"] = progress.step
@@ -378,7 +394,7 @@ def train(config: TrainerConfig):
     # Write final checkpoint
     if config.ckpt:
         logger.info("Writing final checkpoint")
-        ckpt_manager.save(model, [optimizer], progress, step=progress.step)
+        ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("Trainer finished!")

@@ -1,4 +1,3 @@
-
 [monitor.wandb]
 project = "alphabet-sort"
 name = "3b-multiturn-sort-debug"
@@ -10,3 +9,4 @@ name = "Qwen/Qwen2.5-3B-Instruct"
 lr = 1e-6
 
 [ckpt]
+interval = 100

@@ -40,13 +40,57 @@ class ModelConfig(BaseConfig):
     ] = True
 
 
+class ConstantSchedulerConfig(BaseModel):
+    """Configuration for constant learning rate scheduler."""
+
+    type: Literal["constant"] = "constant"
+
+
+class LinearSchedulerConfig(BaseModel):
+    """Configuration for linear learning rate scheduler."""
+
+    type: Literal["linear"] = "linear"
+
+    warmup_steps: Annotated[int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")] = 0
+
+    decay_steps: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of steps to decay the learning rate during the final portion of training. If None, will use remaining steps after warmup.",
+        ),
+    ] = None
+
+
+class CosineSchedulerConfig(BaseModel):
+    """Configuration for cosine learning rate scheduler."""
+
+    type: Literal["cosine"] = "cosine"
+
+    warmup_steps: Annotated[int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")] = 0
+
+    decay_steps: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Number of steps to decay the learning rate during the final portion of training. If None, will use remaining steps after warmup.",
+        ),
+    ] = None
+
+
+SchedulerConfig: TypeAlias = ConstantSchedulerConfig | LinearSchedulerConfig | CosineSchedulerConfig
+
+
 class OptimizerConfig(BaseConfig):
-    """Configures the Adam optimizer."""
+    """Configures the Adam optimizer and learning rate scheduler."""
 
     lr: Annotated[float, Field(ge=0)] = 4e-4
     weight_decay: Annotated[float, Field(ge=0)] = 0.01
     betas1: Annotated[float, Field(ge=0)] = 0.9
     betas2: Annotated[float, Field(ge=0)] = 0.99
+
+    # LR Scheduler configuration
+    scheduler: SchedulerConfig = Field(discriminator="type", default=ConstantSchedulerConfig())
 
 
 class CheckpointConfig(BaseConfig):
@@ -174,11 +218,11 @@ class TrainerConfig(BaseSettings):
     monitor: MultiMonitorConfig = MultiMonitorConfig()
 
     max_steps: Annotated[
-        int | None,
+        int,
         Field(
-            description="Maximum number of steps to run training for. If None, will run indefinitely.",
+            description="Maximum number of steps to run training for.",
         ),
-    ] = None
+    ] = 100000000000000
 
     async_level: Annotated[
         int,
