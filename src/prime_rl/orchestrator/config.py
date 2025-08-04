@@ -301,9 +301,9 @@ class OrchestratorConfig(BaseSettings):
     loss_scale_type: Annotated[
         LossScaleType,
         Field(
-            description="Type of loss scale to use. If `count_completion_tokens`, the loss scale will be the number of completion tokens. If `fixed`, the loss scale will be a fixed value.",
+            description="Type of loss scale to use. If `total_completion_tokens`, the loss scale will be the number of completion tokens. If `fixed`, the loss scale will be a fixed value.",
         ),
-    ] = "count_completion_tokens"
+    ] = "total_completion_tokens"
 
     rollouts_per_prompt: Annotated[
         int,

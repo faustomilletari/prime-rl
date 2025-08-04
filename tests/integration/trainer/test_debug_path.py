@@ -21,7 +21,7 @@ def create_sample(seq_len: int) -> BatchSample:
         "advantages": torch.randn(seq_len).float(),
         "loss_mask": torch.ones(seq_len).long(),
         "logprobs": torch.randn(seq_len).float(),
-        "total_tokens": seq_len,
+        "loss_scale": seq_len,
     }
 
 
