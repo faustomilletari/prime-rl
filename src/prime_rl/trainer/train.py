@@ -208,8 +208,13 @@ def train(config: TrainerConfig):
 
                     recomputed_logprobs = compute_logprobs(logprob_model, input_ids, position_ids, temperature)
 
+                    # Use safer indexing that handles 2D masks properly
+                    mask_flat = loss_mask.bool().flatten()
+                    recomputed_flat = recomputed_logprobs.flatten()[mask_flat]
+                    logprobs_flat = logprobs.flatten()[mask_flat]
+
                     all_recomputed_logprobs.append(
-                        ((recomputed_logprobs - logprobs).abs() / (logprobs.abs() + 1e-8)).flatten()
+                        ((recomputed_flat - logprobs_flat).abs() / (logprobs_flat.abs() + 1e-8))
                     )
 
                     micro_batch["logprobs"] = recomputed_logprobs.to("cpu")
