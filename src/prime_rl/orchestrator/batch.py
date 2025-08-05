@@ -17,7 +17,7 @@ class BatchSample(TypedDict):
     loss_mask: Int[Tensor, "seq"]
     advantages: Float[Tensor, "seq"]
     logprobs: Float[Tensor, "seq"]
-    completion_tokens_count: int
+    num_completion_tokens: int
 
 
 def prepare_sample(
@@ -45,7 +45,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
-    completion_tokens_count = len(completion_token_ids)
+    num_completion_tokens = len(completion_token_ids)
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -72,7 +72,7 @@ def prepare_sample(
         "loss_mask": loss_mask,
         "position_ids": position_ids,
         "logprobs": logprobs,
-        "completion_tokens_count": completion_tokens_count,
+        "num_completion_tokens": num_completion_tokens,
     }
 
 
@@ -82,7 +82,7 @@ def prepare_micro_batch(samples: list[BatchSample], temperature: float) -> Micro
     for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
         micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
 
-    micro_batch["completion_tokens_count"] = sum(sample["completion_tokens_count"] for sample in samples)
+    micro_batch["num_completion_tokens"] = sum(sample["num_completion_tokens"] for sample in samples)
     micro_batch["temperature"] = temperature
 
     return micro_batch
@@ -126,11 +126,9 @@ def prepare_batch_padding(
         batches_per_gpu.append(batches)
 
     if loss_scale_type == "count_completion_tokens":
-        loss_scale = sum(micro_batch["completion_tokens_count"] for batch in batches_per_gpu for micro_batch in batch)
+        loss_scale = sum(micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch)
     elif loss_scale_type == "fixed":
         loss_scale = sum(len(batches) for batches in batches_per_gpu) * micro_batch_size * seq_len
-    else:
-        raise ValueError(f"Invalid loss scale type: {loss_scale_type}")
 
     for batch in batches_per_gpu:
         for micro_batch in batch:
@@ -182,7 +180,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
         micro_batch[key] = torch.cat([sample[key] for sample in samples], dim=0).unsqueeze(0)
 
     micro_batch["temperature"] = temperature
-    micro_batch["completion_tokens_count"] = sum(sample["completion_tokens_count"] for sample in samples)
+    micro_batch["num_completion_tokens"] = sum(sample["num_completion_tokens"] for sample in samples)
 
     return micro_batch
 
@@ -241,14 +239,12 @@ def prepare_batch_packing(
         batches_per_gpu.append(batches)
 
     if loss_scale_type == "total_completion_tokens":
-        loss_scale = sum(micro_batch["completion_tokens_count"] for batch in batches_per_gpu for micro_batch in batch)
+        loss_scale = sum(micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch)
     elif loss_scale_type == "fixed":
         loss_scale = 0
         for batch in batches_per_gpu:
             for micro_batch in batch:
                 loss_scale += micro_batch["input_ids"].shape[0] * micro_batch["input_ids"].shape[1]
-    else:
-        raise ValueError(f"Invalid loss scale type: {loss_scale_type}")
 
     for batch in batches_per_gpu:
         for micro_batch in batch:
