@@ -229,7 +229,7 @@ def train(config: TrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the number of unmasked tokens in the batch (per-batch length normalization)
-        total_non_masked_tokens = sum(micro_batch["loss_mask"].sum() for micro_batch in micro_batches)
+        num_completion_tokens_full_batch = micro_batches[0]["num_completion_tokens_full_batch"]
         loss_scale = micro_batches[0]["loss_scale"]
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale=})")
@@ -296,7 +296,7 @@ def train(config: TrainerConfig):
             dist.all_reduce(value.to("cuda"), op=dist.ReduceOp.AVG)
             loss_metrics[key] = value
 
-        importance_ratio_metrics.sync(total_non_masked_tokens, loss_scale)
+        importance_ratio_metrics.sync(num_completion_tokens_full_batch, loss_scale)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")

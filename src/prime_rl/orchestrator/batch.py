@@ -125,14 +125,19 @@ def prepare_batch_padding(
 
         batches_per_gpu.append(batches)
 
+    num_completion_tokens_full_batch = sum(
+        micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch
+    )
+
     if loss_scale_type == "count_completion_tokens":
-        loss_scale = sum(micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch)
+        loss_scale = num_completion_tokens_full_batch
     elif loss_scale_type == "fixed":
         loss_scale = sum(len(batches) for batches in batches_per_gpu) * micro_batch_size * seq_len
 
     for batch in batches_per_gpu:
         for micro_batch in batch:
             micro_batch["loss_scale"] = loss_scale
+            micro_batch["num_completion_tokens_full_batch"] = num_completion_tokens_full_batch
 
     return batches_per_gpu
 
@@ -238,8 +243,12 @@ def prepare_batch_packing(
             batches.append(micro_batches.pop(0))
         batches_per_gpu.append(batches)
 
+    num_completion_tokens_full_batch = sum(
+        micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch
+    )
+
     if loss_scale_type == "total_completion_tokens":
-        loss_scale = sum(micro_batch["num_completion_tokens"] for batch in batches_per_gpu for micro_batch in batch)
+        loss_scale = num_completion_tokens_full_batch
     elif loss_scale_type == "fixed":
         loss_scale = 0
         for batch in batches_per_gpu:
@@ -249,6 +258,7 @@ def prepare_batch_packing(
     for batch in batches_per_gpu:
         for micro_batch in batch:
             micro_batch["loss_scale"] = loss_scale
+            micro_batch["num_completion_tokens_full_batch"] = num_completion_tokens_full_batch
 
     return batches_per_gpu
 

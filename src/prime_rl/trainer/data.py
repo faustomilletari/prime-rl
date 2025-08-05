@@ -20,6 +20,7 @@ class MicroBatch(TypedDict):
     # Batch level
     temperature: float
     loss_scale: float
+    num_completion_tokens_full_batch: int
 
 
 class FakeDataLoader:
