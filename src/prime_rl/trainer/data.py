@@ -45,6 +45,7 @@ class FakeDataLoader:
             "temperature": 1.0,
             "loss_mask": torch.ones(self.micro_batch_size, self.seq_len, dtype=torch.int32),
             "loss_scale": self.micro_batch_size * self.seq_len,
+            "num_completion_tokens_full_batch": self.micro_batch_size * self.seq_len,
         }
 
 

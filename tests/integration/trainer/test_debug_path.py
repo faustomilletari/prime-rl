@@ -22,6 +22,7 @@ def create_sample(seq_len: int) -> BatchSample:
         "loss_mask": torch.ones(seq_len).long(),
         "logprobs": torch.randn(seq_len).float(),
         "loss_scale": seq_len,
+        "num_completion_tokens_full_batch": seq_len,
     }
 
 
