@@ -76,19 +76,20 @@ async def orchestrate(config: OrchestratorConfig):
     # Reset weights to base model if starting from scratch
     progress = Progress()
     ckpt_step = 0
-    if config.ckpt and ckpt_manager and config.ckpt.resume_step:
-        logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
-        ckpt_manager.load(progress, step=config.ckpt.resume_step)
-        ckpt_step = max(progress.step - config.async_level, 0)
-        await reload_weights(client, config.weights_path, ckpt_step)
-    else:
-        logger.info("Training from scratch. Resetting weights to base model")
-        await reset_weights(client)
+    # if config.ckpt and ckpt_manager and config.ckpt.resume_step:
+    #     logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
+    #     ckpt_manager.load(progress, step=config.ckpt.resume_step)
+    #     ckpt_step = max(progress.step - config.async_level, 0)
+    #     await reload_weights(client, config.weights_path, ckpt_step)
+    # else:
+    #     logger.info("Training from scratch. Resetting weights to base model")
+    #     await reset_weights(client)
 
     if config.start_step:
         # todo hack for now
         logger.info(f"Loading weights from step {config.start_step}")
         await reload_weights(client, config.weights_path, config.start_step)
+        ckpt_step = config.start_step
 
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
