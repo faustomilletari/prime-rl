@@ -382,6 +382,8 @@ class OrchestratorConfig(BaseSettings):
 
     seed: Annotated[int | None, Field(description="Random seed for the orchestrator.")] = None
 
+    start_step: Annotated[int | None, Field(description="Step to start the orchestrator from.")] = None
+
     @model_validator(mode="after")
     def validate_batch_size(self):
         if self.batch_size % self.rollouts_per_prompt != 0:

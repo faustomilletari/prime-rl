@@ -85,6 +85,10 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info("Training from scratch. Resetting weights to base model")
         await reset_weights(client)
 
+    if config.start_step:
+        # todo hack for now
+        await reload_weights(client, config.weights_path, config.start_step)
+
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
     vf_env = load_environment(config.environment.id, **config.environment.args)
