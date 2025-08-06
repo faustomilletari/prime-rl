@@ -233,12 +233,12 @@ async def orchestrate(config: OrchestratorConfig):
             completions, completion_ids, completion_logprobs, completion_masks = [], [], [], []
             for request_output in request_outputs:
                 prompts.append(request_output.prompt)
-                prompt_ids.append(request_output.prompt_token_ids)
+                prompt_ids.append(list(request_output.prompt_token_ids))
                 prompt_masks.append([0] * len(request_output.prompt_token_ids))
                 assert len(request_output.outputs) == 1, "Response should always have one choice"
                 completion_output = request_output.outputs[0]
                 completions.append(completion_output.text)
-                completion_ids.append(completion_output.token_ids)
+                completion_ids.append(list(completion_output.token_ids))
                 completion_output_logprobs = []
                 for logprobs in completion_output.logprobs:
                     assert len(list(logprobs.values())) == 1, "There should be only one logprob"
