@@ -1,3 +1,4 @@
+import json
 import asyncio
 import time
 from loguru import logger
@@ -9,7 +10,7 @@ from prime_rl.orchestrator import envs
 
 import lovely_tensors as lt
 import torch
-from vllm.sequence import TokensPrompt
+from vllm import SamplingParams, TokensPrompt
 from verifiers import load_environment
 from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
 from prime_rl.orchestrator.config import OrchestratorConfig
@@ -54,6 +55,7 @@ async def orchestrate(config: OrchestratorConfig):
         disable_async_output_proc=True,
         enable_chunked_prefill=True,
         max_model_len=config.seq_len,
+        enforce_eager=True,
     )
 
     # Load tokenizer
@@ -146,7 +148,7 @@ async def orchestrate(config: OrchestratorConfig):
             # Reload the weights
             logger.info(f"Reloading weight checkpoint {ckpt_step}")
             reload_weights_start_time = time.time()
-            weight_ckpt_path = config.weights_path / f"step_{ckpt_step}" / "model.pt"
+            weight_ckpt_path = config.weights_path / f"step_{ckpt_step}" / "pytorch_model.bin"
             llm = reload_model_weights(llm, weight_ckpt_path)
             reload_weights_time = time.time() - reload_weights_start_time
             logger.debug(f"Reloaded weights in {reload_weights_time:.2f}s")
@@ -194,27 +196,27 @@ async def orchestrate(config: OrchestratorConfig):
             problems = [problem for problem in problems for _ in range(config.rollouts_per_prompt)]
 
             # Get relevant columns
+            print(f"{problems=}")
             prompts = [problem["prompt"] for problem in problems]
-            task_types = [problem["task"] for problem in problems]
-            verification_infos = [problem.get("info", {}) for problem in problems]
-            target_lengths = [-1] * len(prompts)
+            task_types = [problem["task_type"] for problem in problems]
+            verification_infos = [json.loads(problem.get("verification_info", "{}")) for problem in problems]
+            print(f"{prompts[:config.rollouts_per_prompt]=}")
+            print(f"{task_types[:config.rollouts_per_prompt]=}")
+            print(f"{verification_infos[:config.rollouts_per_prompt]=}")
 
             # Format prompts
-            tokenized_prompts = format_prompts(
+            formatted_prompts = format_prompts(
                 prompts,
-                target_lengths,
-                len_rewards_config=None,
                 tokenizer=tokenizer,
                 enable_thinking=True,
                 tokenize=True,
             )
-
             token_prompts: list[TokensPrompt] = [
-                TokensPrompt(prompt_token_ids=prompt_token_ids) for prompt_token_ids in tokenized_prompts
+                TokensPrompt(prompt_token_ids=prompt_token_ids) for prompt_token_ids in formatted_prompts
             ]
-            from vllm import SamplingParams
 
             sampling_params = SamplingParams(**config.sampling.model_dump())
+            sampling_params.logprobs = 0
 
             # Prepare inputs for verifiers generation
             # TODO: Can we use `prime_rl.utils.utils.to_col_format` here?
@@ -242,11 +244,29 @@ async def orchestrate(config: OrchestratorConfig):
                 completion_output = request_output.outputs[0]
                 completions.append(completion_output.text)
                 completion_ids.append(completion_output.token_ids)
-                completion_logprobs.append(completion_output.logprobs)
+                completion_output_logprobs = []
+                for logprobs in completion_output.logprobs:
+                    assert len(list(logprobs.values())) == 1, "There should be only one logprob"
+                    logprob = list(logprobs.values())[0]
+                    completion_output_logprobs.append(logprob.logprob)
+                completion_logprobs.append(completion_output_logprobs)
                 completion_masks.append([1] * len(completion_output.token_ids))
+            assert (
+                len(prompts)
+                == len(prompt_ids)
+                == len(prompt_masks)
+                == len(completions)
+                == len(completion_ids)
+                == len(completion_logprobs)
+                == len(completion_masks)
+                == len(request_outputs)
+            )
+            print(f"{completions[:config.rollouts_per_prompt]=}")
+            print()
 
             # Compute rewards
             rewards = compute_rewards(completions, task_types, verification_infos)
+            print(f"{rewards=}")
 
             # sampling_args = dict(config.sampling)
             # sampling_args["logprobs"] = True
@@ -285,6 +305,7 @@ async def orchestrate(config: OrchestratorConfig):
                 samples_per_problem=config.rollouts_per_prompt,
                 advantage_type=config.advantage_type,
             )
+            print(f"{advantages=}")
 
             # Update pool
             rollouts = make_rollouts(
@@ -311,8 +332,8 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Unpack accepted rollouts
         problem_ids = [rollout.problem_id for rollout in accepted_rollouts]
-        rewards = torch.tensor([rollout.reward for rollout in accepted_rollouts])
-        advantages = torch.tensor([rollout.advantage for rollout in accepted_rollouts])
+        rewards = torch.tensor([rollout.reward for rollout in accepted_rollouts]).float()
+        advantages = torch.tensor([rollout.advantage for rollout in accepted_rollouts]).float()
         assert rewards.numel() == advantages.numel() == config.batch_size
         prompt_tokens = [rollout.prompt_tokens for rollout in accepted_rollouts]
         completion_tokens = [rollout.completion_tokens for rollout in accepted_rollouts]

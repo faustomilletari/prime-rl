@@ -6,6 +6,7 @@ import torch
 from openai.types.chat import ChatCompletion
 from rich.console import Console
 from rich.table import Table
+from transformers import AutoTokenizer
 from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 
@@ -191,9 +192,7 @@ def reload_model_weights(llm: LLM, ckpt_path: Path):
 
 def format_prompts(
     prompts: list[str],
-    target_lengths: list[int],
-    len_rewards_config: LenRewardsConfig | None,
-    tokenizer: AnyTokenizer,
+    tokenizer: AutoTokenizer,
     enable_thinking: bool = True,
     tokenize: bool = False,
 ) -> list[str] | list[list[int]]:
@@ -216,37 +215,12 @@ def format_prompts(
     Returns:
         A list of formatted prompts if tokenize=False, or a BatchEncoding if tokenize=True.
     """
-    # Apply length prompt additions
-    if len_rewards_config:
-        max_word = "maximally" if len_rewards_config.reward_type == "clip" else ""
-        if len_rewards_config.length_prompt_location == "system_prompt":  # Add length prompt to system prompt
-            messages = [
-                [
-                    {
-                        "role": "system",
-                        "content": f"Think for {max_word}{target_length} tokens before giving a response.",
-                    },
-                    {"role": "user", "content": prompt},
-                ]
-                for prompt, target_length in zip(prompts, target_lengths)
-            ]
-        else:  # Add length prompt to user prompt
-            messages = [
-                [
-                    {
-                        "role": "user",
-                        "content": prompt + f" Think for {max_word}{target_length} tokens before giving a response.",
-                    }
-                ]
-                for prompt, target_length in zip(prompts, target_lengths)
-            ]
-    else:
-        # No length prompt additions, just use the prompts as is
-        messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
+    # No length prompt additions, just use the prompts as is
+    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
 
     # Apply chat template
     formatted_prompts = tokenizer.apply_chat_template(
-        messages, tokenize=tokenize, add_generation_prompt=True, enable_thinking=enable_thinking
+        messages, tokenize=tokenize, enable_thinking=enable_thinking, add_generation_prompt=True
     )
 
     if not tokenize:
