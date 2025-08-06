@@ -55,7 +55,6 @@ async def orchestrate(config: OrchestratorConfig):
         disable_async_output_proc=True,
         enable_chunked_prefill=True,
         max_model_len=config.seq_len,
-        enforce_eager=True,
     )
 
     # Load tokenizer
@@ -196,13 +195,9 @@ async def orchestrate(config: OrchestratorConfig):
             problems = [problem for problem in problems for _ in range(config.rollouts_per_prompt)]
 
             # Get relevant columns
-            print(f"{problems=}")
             prompts = [problem["prompt"] for problem in problems]
             task_types = [problem["task_type"] for problem in problems]
             verification_infos = [json.loads(problem.get("verification_info", "{}")) for problem in problems]
-            print(f"{prompts[:config.rollouts_per_prompt]=}")
-            print(f"{task_types[:config.rollouts_per_prompt]=}")
-            print(f"{verification_infos[:config.rollouts_per_prompt]=}")
 
             # Format prompts
             formatted_prompts = format_prompts(
@@ -261,12 +256,9 @@ async def orchestrate(config: OrchestratorConfig):
                 == len(completion_masks)
                 == len(request_outputs)
             )
-            print(f"{completions[:config.rollouts_per_prompt]=}")
-            print()
 
             # Compute rewards
             rewards = compute_rewards(completions, task_types, verification_infos)
-            print(f"{rewards=}")
 
             # sampling_args = dict(config.sampling)
             # sampling_args["logprobs"] = True
@@ -305,7 +297,6 @@ async def orchestrate(config: OrchestratorConfig):
                 samples_per_problem=config.rollouts_per_prompt,
                 advantage_type=config.advantage_type,
             )
-            print(f"{advantages=}")
 
             # Update pool
             rollouts = make_rollouts(
