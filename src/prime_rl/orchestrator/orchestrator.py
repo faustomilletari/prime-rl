@@ -86,10 +86,11 @@ async def orchestrate(config: OrchestratorConfig):
     #     await reset_weights(client)
 
     if config.start_step:
-        # todo hack for now
-        logger.info(f"Loading weights from step {config.start_step}")
-        await reload_weights(client, config.weights_path, config.start_step)
-        ckpt_step = config.start_step
+        logger.info(f"Starting from step {config.start_step}")
+        progress.step = config.start_step
+        ckpt_step = max(config.start_step - config.async_level, 0)
+        logger.info(f"Loading weights from checkpoint step {ckpt_step} (async_level={config.async_level})")
+        await reload_weights(client, config.weights_path, ckpt_step)
 
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
@@ -105,8 +106,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
-    logger.info(f"Starting orchestrator loop ({max_steps=}")
-    ckpt_step = 0
+    logger.info(f"Starting orchestrator loop ({max_steps=})")
     last_eval_step = -1
     is_first_step = True
     while True:
