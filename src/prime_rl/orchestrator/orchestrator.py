@@ -333,6 +333,9 @@ async def orchestrate(config: OrchestratorConfig):
 
         # Log progress metrics to monitor
         progress_metrics = {
+            "progress/tokens": num_tokens,
+            "progress/samples": config.batch_size,
+            "progress/problems": config.batch_size // config.rollouts_per_prompt,
             "progress/total_tokens": progress.total_tokens,
             "progress/total_samples": progress.total_samples,
             "progress/total_problems": progress.total_problems,
@@ -346,8 +349,6 @@ async def orchestrate(config: OrchestratorConfig):
             "seq_len/mean": seq_lens.mean().item(),
             "seq_len/max": seq_lens.max().item(),
             "seq_len/min": seq_lens.min().item(),
-            "seq_len/std": seq_lens.std().item(),
-            "seq_len/sum": seq_lens.sum().item(),
             "step": progress.step,
         }
         monitor.log(seq_len_metrics)
@@ -356,8 +357,6 @@ async def orchestrate(config: OrchestratorConfig):
             "prompt_len/mean": prompt_lens.mean().item(),
             "prompt_len/max": prompt_lens.max().item(),
             "prompt_len/min": prompt_lens.min().item(),
-            "prompt_len/std": prompt_lens.std().item(),
-            "prompt_len/sum": prompt_lens.sum().item(),
             "step": progress.step,
         }
         monitor.log(prompt_len_metrics)
@@ -366,8 +365,6 @@ async def orchestrate(config: OrchestratorConfig):
             "completion_len/mean": completion_lens.mean().item(),
             "completion_len/max": completion_lens.max().item(),
             "completion_len/min": completion_lens.min().item(),
-            "completion_len/std": completion_lens.std().item(),
-            "completion_len/sum": completion_lens.sum().item(),
             "step": progress.step,
         }
         monitor.log(completion_len_metrics)
