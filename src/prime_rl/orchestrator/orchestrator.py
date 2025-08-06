@@ -87,6 +87,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     if config.start_step:
         # todo hack for now
+        logger.info(f"Loading weights from step {config.start_step}")
         await reload_weights(client, config.weights_path, config.start_step)
 
     # Load environment and extract dataset
