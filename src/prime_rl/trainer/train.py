@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import os
 import time
@@ -8,8 +9,8 @@ from copy import deepcopy
 from prime_rl.trainer import envs
 
 import shardcast
-import lovely_tensors as lt
 import torch
+import torch.distributed as dist
 from torch._guards import log as torch_log
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
@@ -33,8 +34,8 @@ from prime_rl.trainer.model import (
 from prime_rl.trainer.perf import get_perf_counter
 from prime_rl.trainer.utils import (
     OffloadedTensor,
-    TensorMetrics,
     copy_model_to_cpu,
+    flexible_all_gather,
     offload_model_to_cpu,
     wake_up_model_from_cpu,
     print_benchmark,
@@ -189,7 +190,7 @@ def train(config: TrainerConfig):
         # Optionally, compute the logprobs for the training batch
         compute_logprobs_time = 0
         num_micro_batches = len(micro_batches)
-        recomputed_logprob_errors = [torch.zeros_like(mb["logprobs"], device="cuda") for mb in micro_batches]
+        recomputed_logprob_errors = [torch.ones_like(mb["logprobs"], device="cuda") for mb in micro_batches]
         if config.recompute_logprobs:
             compute_logprobs_start_time = time.time()
             og_infer_step = progress.step - config.async_level
@@ -234,9 +235,12 @@ def train(config: TrainerConfig):
             torch.cuda.memory._record_memory_history()
 
         forward_backward_start_time = time.time()
-        tensor_metrics = TensorMetrics()
+        tensor_metrics = defaultdict(list)
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
+
+        batch_loss = torch.tensor(0.0, device="cuda")
+        batch_entropy = torch.tensor(0.0, device="cuda")
 
         # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
         loss_scale = torch.tensor(
@@ -260,7 +264,7 @@ def train(config: TrainerConfig):
             logprobs = selective_log_softmax(shifted_logits, input_ids)
 
             # Compute loss
-            loss, loss_tensors = compute_loss(
+            loss, importance_ratio, is_clipped = compute_loss(
                 logprobs=logprobs,
                 old_logprobs=old_logprobs,
                 advantages=advantages,
@@ -269,56 +273,29 @@ def train(config: TrainerConfig):
             )
 
             # Compute entropy
-            entropy = compute_entropy(shifted_logits)
+            entropy = (compute_entropy(shifted_logits) * loss_mask).sum()
+
+            batch_entropy += entropy
+            batch_loss += loss
 
             # Delete logits and shifted_logits to save memory
             del logits, shifted_logits
 
             # Scale loss by scale factor before backward pass
             loss = loss / loss_scale
-
-            # Backward pass (ensures loss reduction across FSDP ranks)
             loss.backward()
 
             # Add loss tensors for logging purposes
-            loss_tensors["recomputed_logprob_error"] = recomputed_logprob_errors[micro_step]
-            loss_tensors["old_logprobs"] = old_logprobs.detach()
-            loss_tensors["logprobs"] = logprobs.detach()
-            loss_tensors["entropy"] = entropy.detach()
-
-            # Apply loss mask to all loss tensors and update tensor metrics
-            for key, loss_tensor in loss_tensors.items():
-                assert loss_tensor.shape == loss_mask.shape, (
-                    f"{key} has shape {loss_tensor.shape} but loss_mask has shape {loss_mask.shape}"
-                )
-                assert loss_tensor.device == loss_mask.device, (
-                    f"{key} is on device {loss_tensor.device} but loss_mask is on device {loss_mask.device}"
-                )
-                loss_tensors[key] = loss_tensor[loss_mask.bool()]
-                if key == "is_clipped":
-                    tensor_metrics.update(key, loss_tensor, reduce_types=["sum", "mean"])
-                else:
-                    tensor_metrics.update(key, loss_tensor, reduce_types=["min", "max", "mean"])
-
-            # Compute micro batch metrics
-            micro_numel = loss_mask.sum().item()
-            micro_loss_metrics = {}
-            for k, v in loss_tensors.items():
-                micro_loss_metrics[f"micro_{k}"] = v.sum().item() / micro_numel if micro_numel > 0 else 0.0
+            tensor_metrics["recomputed_logprob_error"].append(
+                recomputed_logprob_errors[micro_step][loss_mask.bool()].to("cpu")
+            )
+            tensor_metrics["old_proba"].append(torch.exp(old_logprobs[loss_mask.bool()]).detach().to("cpu"))
+            tensor_metrics["proba"].append(torch.exp(logprobs[loss_mask.bool()]).detach().to("cpu"))
+            tensor_metrics["importance_ratio"].append(importance_ratio[loss_mask.bool()].detach().to("cpu"))
+            tensor_metrics["is_clipped"].append(is_clipped[loss_mask.bool()].detach().to("cpu"))
 
             # We report per-micro batch length normalized metrics here
-            logger.debug(
-                f"Completed micro batch {micro_step + 1}/{num_micro_batches} (loss={loss.item():.4f}, {', '.join(f'{k}={v:.4f}' for k, v in micro_loss_metrics.items())})"
-            )
-
-            if micro_step == 0:
-                logger.debug("Logging loss tensors at first micro step")
-                for k, v in loss_tensors.items():
-                    logger.debug(f"\t{k}={lt.lovely(v)}")
-
-        # Synchronize the batch metrics across all ranks
-        logger.debug(f"All-reduce tensor metrics with keys {list(tensor_metrics.keys())}")
-        tensor_metrics.sync()
+            logger.debug(f"Completed micro batch {micro_step + 1}/{num_micro_batches} (loss={loss.item():.4f})")
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.loss.max_norm}")
@@ -331,6 +308,29 @@ def train(config: TrainerConfig):
 
         # Update learning rate scheduler
         scheduler.step()
+
+        # sync all metrics across ranks
+        dist.all_reduce(batch_loss, op=dist.ReduceOp.SUM)
+        batch_loss /= loss_scale
+        dist.all_reduce(batch_entropy, op=dist.ReduceOp.SUM)
+        batch_entropy /= loss_scale
+
+        gathered_tensor_metrics = {}
+        for k, v in tensor_metrics.items():
+            concat_tensor = torch.cat(v, dim=0).to("cuda")
+            tensor = flexible_all_gather(concat_tensor)
+            gathered_tensor_metrics[f"{k}/mean"] = tensor.mean().item()
+            gathered_tensor_metrics[f"{k}/std"] = tensor.std().item()
+            gathered_tensor_metrics[f"{k}/min"] = tensor.min().item()
+            gathered_tensor_metrics[f"{k}/max"] = tensor.max().item()
+            gathered_tensor_metrics[f"{k}/90%"] = torch.quantile(tensor, 0.9).item()
+            gathered_tensor_metrics[f"{k}/95%"] = torch.quantile(tensor, 0.95).item()
+            gathered_tensor_metrics[f"{k}/99%"] = torch.quantile(tensor, 0.99).item()
+            gathered_tensor_metrics[f"{k}/1%"] = torch.quantile(tensor, 0.01).item()
+            gathered_tensor_metrics[f"{k}/5%"] = torch.quantile(tensor, 0.05).item()
+            gathered_tensor_metrics[f"{k}/10%"] = torch.quantile(tensor, 0.05).item()
+
+        monitor.log(gathered_tensor_metrics)
 
         forward_backward_time = time.time() - forward_backward_start_time
 
@@ -365,7 +365,7 @@ def train(config: TrainerConfig):
         # Log step metrics
         step_time = time.time() - step_start_time
         current_lr = optimizer.param_groups[0]["lr"]
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_metrics['loss/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | Entropy: {tensor_metrics['entropy/mean']:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {batch_loss.item():.4f} | Grad. Norm: {grad_norm:.4f} | Entropy: {batch_entropy.item():.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
@@ -385,12 +385,17 @@ def train(config: TrainerConfig):
         monitor.log(optim_metrics)
 
         # Log loss metrics
-        tensor_metrics["step"] = progress.step
-        for key, value in tensor_metrics.items():
-            assert isinstance(value, float) or isinstance(value, int), (
-                f"Expected float or int, got {type(value)} for key {key}"
-            )
-        monitor.log(tensor_metrics)
+
+        metrics = {
+            "loss/loss": batch_loss.item(),
+            "loss/entropy": batch_entropy.item(),
+            "step": progress.step,
+        }
+
+        for k, v in gathered_tensor_metrics.items():
+            metrics[k] = v
+
+        monitor.log(metrics)
 
         # Log time metrics
         time_metrics = {

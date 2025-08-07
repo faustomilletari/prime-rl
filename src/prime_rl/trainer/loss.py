@@ -14,7 +14,7 @@ def compute_loss(
     advantages: Float[Tensor, "B L"],
     loss_mask: Int[Tensor, "B L"],
     loss_config: LossConfig,
-) -> tuple[Tensor, dict[str, Tensor]]:
+) -> tuple[Tensor, Tensor, Tensor]:
     if loss_config.type == "clip":
         return grpo_loss_clip(
             logprobs=logprobs,
@@ -44,7 +44,7 @@ def grpo_loss_clip(
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
-) -> tuple[Tensor, dict[str, Tensor]]:
+) -> tuple[Tensor, Tensor, Tensor]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"
     assert advantages.dtype == torch.float32, "advantages must be float32"
@@ -61,13 +61,7 @@ def grpo_loss_clip(
     # Sum-reduce the loss for all unmasked tokens
     summed_loss = (loss * loss_mask).sum()
 
-    return summed_loss, {
-        "loss": loss.detach(),
-        "importance_ratio": importance_ratio.detach(),
-        "coef_1": coef_1.detach(),
-        "coef_2": coef_2.detach(),
-        "is_clipped": is_clipped.detach(),
-    }
+    return summed_loss, coef_2, is_clipped
 
 
 @jaxtyped(typechecker=typechecker)
@@ -77,7 +71,7 @@ def grpo_loss_ratio(
     advantages: Float[Tensor, "B L"],
     loss_mask: Int[Tensor, "B L"],
     clip_ratio: float,
-) -> tuple[Tensor, dict[str, Tensor]]:
+) -> tuple[Tensor, Tensor, Tensor]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"
     assert advantages.dtype == torch.float32, "advantages must be float32"
@@ -91,12 +85,7 @@ def grpo_loss_ratio(
     # Sum-reduce the loss for all unmasked tokens
     summed_loss = (loss * loss_mask).sum()
 
-    return summed_loss, {
-        "loss": loss.detach(),
-        "importance_ratio": importance_ratio.detach(),
-        "clipped_importance_ratio": clipped_importance_ratio.detach(),
-        "is_clipped": is_clipped.detach(),
-    }
+    return summed_loss, importance_ratio, is_clipped
 
 
 @jaxtyped(typechecker=typechecker)
