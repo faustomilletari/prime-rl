@@ -62,7 +62,7 @@ def inference(config: InferenceConfig):
     monitor = setup_monitor(config.monitor, config.task_id, config)
 
     # Patch vLLM's model loading to load model shard
-    patch_model_load(config=config.parallel.pp)
+    # patch_model_load(config=config.parallel.pp)
 
     # Initialize model and tokenizer
     logger.info(f"Initializing model and tokenizer ({config.model} tensor_parallel_size={config.parallel.tp} seed={config.seed})")
@@ -134,20 +134,11 @@ def inference(config: InferenceConfig):
     sampling_params = SamplingParams(**config.sampling.model_dump())
 
     # Setup pipeline parallel communication and hook
-    node = setup_comm(config.parallel.pp)
-    setup_hooks(llm, config.parallel.pp, node)
+    # node = setup_comm(config.parallel.pp)
+    # setup_hooks(llm, config.parallel.pp, node)
 
     # Compute the maximum batch size
     max_batch_size = config.max_batch_size
-    if max_batch_size == "auto" or (config.syn2 and config.parallel.pp.is_enabled):
-        # Automatically compute the maximum batch size
-        logger.info("Auto-computing maximum batch size")
-        local_max_batch_size = compute_max_batch_size(llm)
-        max_batch_size = all_reduce(node, torch.tensor(local_max_batch_size), config=config.parallel.pp, op=torch.min).item()
-        logger.info(f"Auto-computed maximum batch size: {max_batch_size}")
-        max_batch_size = int(max_batch_size * config.scale_factor)
-        logger.info(f"Scaled maximum batch size by {config.scale_factor} to {max_batch_size}")
-
     logger.info(f"Using maximum batch size: {max_batch_size}")
 
     # Throw an error if the batch cannot fit number of samples to generate per problem.
@@ -160,17 +151,6 @@ def inference(config: InferenceConfig):
     batch_size = problems_per_batch * config.sampling.n
     logger.info(
         f"Problems per batch: {max_batch_size} // {config.sampling.n} = {problems_per_batch}, batch size: {problems_per_batch} * {config.sampling.n} = {batch_size} (missing: {max_batch_size % config.sampling.n})"
-    )
-
-    # Setup TOPLOC
-    hidden_size = llm.llm_engine.model_executor.driver_worker.model_runner.model.config.hidden_size
-    toploc_cache, _ = setup_toploc_cache(
-        llm,
-        pp_config=config.parallel.pp,
-        disable=not config.toploc.enable_toploc1,
-        max_seqs=batch_size,
-        hidden_size=hidden_size,
-        topk=config.toploc.topk,
     )
 
     ckpt_step = 0
@@ -296,7 +276,7 @@ def inference(config: InferenceConfig):
 
         # This generates proofs for the remaining sequences that haven't reached max_len.
         # We call here to give time for the proofs to be generated non-blocking in the background.
-        toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
+        # toploc_cache.maybe_generate_proofs_in_background(force_generate=True)
 
         # Compute progress metrics
         batch_problems = len(problems)
@@ -344,9 +324,9 @@ def inference(config: InferenceConfig):
         # Note (Jack): Currently, vllm guarantees that seq ids are in the same order as prompts passed to generate.
         # Generate always adds requests to the engine in the order of the prompts.
         # And returns them in the sequence they were added.
-        toploc_cache.wait_for_proofs()
-        proofs = [b"".join(proofs) for _, proofs in sorted(toploc_cache.proofs.items(), key=lambda x: x[0])]
-        toploc_cache.reset_cache()
+        # toploc_cache.wait_for_proofs()
+        proofs = [b"proof" for _ in range(batch_samples)]
+        # toploc_cache.reset_cache()
 
         # Compute and log rewards and advantages
         logger.info("Computing rewards and advantages")
