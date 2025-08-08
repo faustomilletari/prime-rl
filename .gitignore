@@ -10,6 +10,8 @@ rollouts/*
 checkpoints/*
 *.ipynb
 *.jsonl
+exp-1
+exp-2
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
