@@ -76,8 +76,8 @@ def inference(config: InferenceConfig):
         enforce_eager=config.model.enforce_eager,
         device=config.model.device,
         tensor_parallel_size=config.parallel.tp,
-        disable_async_output_proc=True,  # We have an off by 1 error in toploc without this flag when cuda graph padding is enabled.
-        enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
+        # disable_async_output_proc=True,  # We have an off by 1 error in toploc without this flag when cuda graph padding is enabled.
+        # enable_chunked_prefill=False,  # This is required for toploc2 because chunked prefill seems to allow len(seq_groups) != len(selected_token_indices) which is unexpected
         seed=config.seed,
     )
     if config.toploc.enable_toploc2:
