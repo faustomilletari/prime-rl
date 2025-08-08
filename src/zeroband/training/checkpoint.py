@@ -105,7 +105,7 @@ def save_ckpt_for_rollout(
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
 
-    path_file = path / "model.safetensors"
+    path_file = path / "model.pt"
 
     start_time = time.time()
     logger.info(f"Saving rollout ckpt at {path}")
@@ -131,7 +131,8 @@ def save_ckpt_for_rollout(
 
     def _save():
         if world_info.rank == 0:
-            save_file(cpu_state, path_file, metadata={"format": "pt"})
+            torch.save(cpu_state, path_file)
+            # save_file(cpu_state, path_file, metadata={"format": "pt"})
 
             model.config.save_pretrained(path)
             model.generation_config.save_pretrained(path)

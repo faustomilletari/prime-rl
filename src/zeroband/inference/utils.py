@@ -8,6 +8,9 @@ from transformers.tokenization_utils_base import BatchEncoding
 from vllm import LLM
 from vllm.model_executor.model_loader.utils import process_weights_after_loading
 from vllm.transformers_utils.tokenizer import AnyTokenizer
+from vllm.v1.engine.llm_engine import LLMEngine
+from vllm.v1.engine.core_client import SyncMPClient
+from vllm.v1.executor.abstract import Executor
 
 from zeroband.inference.config import LenRewardsConfig
 from zeroband.inference.work_counting import get_inference_input_output_flops  # noqa: F401
@@ -34,24 +37,30 @@ def filter_data_by_prompt_length(data: Dataset, max_length: int, tokenizer: Auto
 
 def reload_model_weights(llm: LLM, ckpt_path: str):
     # Access the internal model from vLLM
-    model = llm.llm_engine.model_executor.driver_worker.model_runner.model
-    # Load state dict
-    with safe_open(ckpt_path, framework="pt", device="cpu") as f:
-        # Create a better weight iterator that filters out empty keys and handles prefixes
+    engine: LLMEngine = llm.llm_engine
+    engine_core: SyncMPClient = engine.engine_core
+
+    def reload_model_weights_on_worker(self, ckpt_path: str):
+        # Load state dict
+        model_runner = self.model_runner
+        model = model_runner.model
+        state_dict = torch.load(ckpt_path, map_location="cpu", mmap=True)
+
         def weights_iterator():
-            for key in f.keys():
-                # Skip empty keys
+            for key, value in state_dict.items():
                 if not key:
                     continue
-                yield key, f.get_tensor(key)
+                yield key, value
 
-        # Load weights
         model.load_weights(weights_iterator())
 
-    # Process weights after loading (important for some models)
-    model_config = llm.llm_engine.model_config
-    device = next(model.parameters()).device
-    process_weights_after_loading(model, model_config, device)
+        # Process weights after loading (important for some models)
+        model_config = model_runner.model_config
+        device = next(model.parameters()).device
+        process_weights_after_loading(model, model_config, device)
+
+    
+    engine_core.collective_rpc(reload_model_weights_on_worker, args=(ckpt_path,))
 
     return llm
 

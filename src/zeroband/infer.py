@@ -158,7 +158,7 @@ def inference(config: InferenceConfig):
     if config.rl and config.rl.ckpt_start_path is not None:
         logger.info(f"Resuming from checkpoint {config.rl.ckpt_start_path}")
         path = Path(config.rl.ckpt_start_path)
-        path_file = path / "model.safetensors"
+        path_file = path / "model.pt"
         if not path_file.exists():
             raise FileNotFoundError(f"Checkpoint file {path_file} does not exist")
         ckpt_step = int(path.name.split("_")[-1])
@@ -208,7 +208,7 @@ def inference(config: InferenceConfig):
                 stable_file = Path(config.rl.ckpt_path) / f"step_{ckpt_step}/stable"
                 if stable_file.exists():
                     logger.info(f"Reloading model weights for step {ckpt_step} from {stable_file}")
-                    llm = reload_model_weights(llm, Path(config.rl.ckpt_path) / f"step_{ckpt_step}/model.safetensors")
+                    llm = reload_model_weights(llm, Path(config.rl.ckpt_path) / f"step_{ckpt_step}/model.pt")
                     total_problems = 0
                     total_tokens = 0
                     logger.success(f"Reloaded model weights for step {ckpt_step} from {stable_file}")
