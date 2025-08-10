@@ -1,87 +1,58 @@
 # vf-alphabet-sort
 
-This task requires the model to maintain and update an alphabetically sorted list of names across multiple conversation turns, with new names being tagged appropriately. The dataset uses real author names from arXiv papers, with 1-3 turns per conversation and 2-5 total names (the turn and name counts are randomized during the data creation process by default).
+> Replace the placeholders below, then remove this callout. Keep the Evaluation Reports section at the bottom intact so reports can auto-render.
 
-The reward function uses difflib to calculate sequence similarity between predicted and expected outputs, with the final score raised to the nth power (similarity_power, defaults to 4) to emphasize precision.
+### Overview
+- **Environment ID**: `vf-alphabet-sort`
+- **Short description**: <one-sentence description>
+- **Tags**: <comma-separated tags>
 
-## Example Input/ Outputs
+### Datasets
+- **Primary dataset(s)**: <name(s) and brief description>
+- **Source links**: <links>
+- **Split sizes**: <train/eval counts>
 
-### Turn 1
+### Task
+- **Type**: <single-turn | multi-turn | tool use>
+- **Parser**: <e.g., ThinkParser, XMLParser, custom>
+- **Rubric overview**: <briefly list reward functions and key metrics>
 
-**Input**
+### Quickstart
+Run an evaluation with default settings:
 
-```txt
-Sort these names in alphabetical order by FIRST name: Johnson, Alice, Bob, Charlie
-
-Use exactly this format:
-<alphabetical_sorted>
-Name1
-Name2
-Name3
-Name4
-</alphabetical_sorted>
+```bash
+uv run vf-eval vf-alphabet-sort
 ```
 
-**Output**
+Configure model and sampling:
 
-```txt
-<alphabetical_sorted>
-Alice
-Bob
-Charlie
-Johnson
-</alphabetical_sorted>
+```bash
+uv run vf-eval vf-alphabet-sort   -m gpt-4.1-mini   -n 20 -r 3 -t 1024 -T 0.7   -a '{"key": "value"}'  # env-specific args as JSON
 ```
 
-### Turn 2
+Notes:
+- Use `-a` / `--env-args` to pass environment-specific configuration as a JSON object.
+- Reports are written under `./environments/vf_alphabet_sort/reports/` and auto-embedded below.
 
-**Input**
+### Environment Arguments
+Document any supported environment arguments and their meaning. Example:
 
-```txt
-Now sort ALL of these names alphabetically by FIRST name: David, Emily
+| Arg | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `foo` | str | `"bar"` | What this controls |
+| `max_examples` | int | `-1` | Limit on dataset size (use -1 for all) |
 
-These are in addition to the prior list. Mark any NEW names (that weren't in the prior list) with `// new name!` at the end.
+### Metrics
+Summarize key metrics your rubric emits and how they’re interpreted.
 
-Use exactly this format:
-<combined_alphabetical_sorted>
-Name1
-Name2
-Name3 // new name!
-Name4
-Name5 // new name!
-Name6
-</combined_alphabetical_sorted>
-```
+| Metric | Meaning |
+| ------ | ------- |
+| `reward` | Main scalar reward (weighted sum of criteria) |
+| `accuracy` | Exact match on target answer |
 
-**Output**
+## Evaluation Reports
 
-```txt
-<combined_alphabetical_sorted>
-Alice
-Bob
-Charlie
-David // new name!
-Emily // new name!
-Johnson
-</combined_alphabetical_sorted>
-```
-
-### Turn 3
-
-```txt
-Now sort ALL of these names alphabetically by FIRST name: Frank
-
-These are in addition to the prior list. Mark any NEW names (that weren't in the prior list) with `// new name!` at the end. Follow the same format as before.
-```
-
-```txt
-<combined_alphabetical_sorted>
-Alice
-Bob
-Charlie
-David
-Emily
-Frank // new name!
-Johnson
-</combined_alphabetical_sorted>
-```
+<!-- Do not edit below this line. Content is auto-generated. -->
+<!-- vf:begin:reports -->
+<p>No reports found. Run <code>uv run vf-eval vf-alphabet-sort -a '{"key": "value"}'</code> to generate one.</p>
+<!-- vf:end:reports -->
