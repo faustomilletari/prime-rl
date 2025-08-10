@@ -2,7 +2,7 @@
 
 ### Overview
 - **Environment ID**: `vf-alphabet-sort`
-- **Short description**: Multi-turn sorting task: sort names alphabetically by first name across turns, tagging new names; scored by sequence similarity per turn with power weighting.
+- **Short description**: This task requires the model to maintain and update an alphabetically sorted list of names across multiple conversation turns, with new names being tagged appropriately. The dataset uses real author names from arXiv papers, with 1-3 turns per conversation and 2-5 total names (the turn and name counts are randomized during the data creation process by default).
 - **Tags**: sorting, names, multi-turn, xml, synthetic, tools
 
 ### Datasets
@@ -13,7 +13,7 @@
 ### Task
 - **Type**: multi-turn
 - **Parser**: `XMLParser(["alphabetical_sorted"])` on turn 1; `XMLParser(["combined_alphabetical_sorted"])` on later turns
-- **Rubric overview**: For each turn, parses the turn-specific XML block and compares to the ground truth list. Final reward is average per-turn similarity raised to `similarity_power`.
+- **Rubric overview**: The reward function uses difflib to calculate sequence similarity between predicted and expected outputs, with the final score raised to the nth power (similarity_power, defaults to 4) to emphasize precision.
 
 ### Quickstart
 Run an evaluation with default settings:
