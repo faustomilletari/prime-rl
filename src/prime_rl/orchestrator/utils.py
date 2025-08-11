@@ -138,7 +138,7 @@ def apply_shortest_correct_bonus(
     new_rewards = list(rewards)
     for start in range(0, len(rewards), rollouts_per_prompt):
         group_rewards = new_rewards[start : start + rollouts_per_prompt]
-        if all(r == 1.0 for r in group_rewards):
+        if sum(group_rewards) == rollouts_per_prompt:
             group_lengths = completion_lengths[start : start + rollouts_per_prompt]
             min_len = min(group_lengths)
             for idx, length in enumerate(group_lengths):
