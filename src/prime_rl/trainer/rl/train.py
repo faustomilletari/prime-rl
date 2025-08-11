@@ -297,8 +297,8 @@ def train(config: RLTrainerConfig):
             )
 
         # Optionally, clip the gradients
-        logger.debug(f"Clipping gradients to {config.loss.max_norm}")
-        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.loss.max_norm).full_tensor()
+        logger.debug(f"Clipping gradients to {config.optim.max_norm}")
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
         # Update the model parameters
         optimizer.step()

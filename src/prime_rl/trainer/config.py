@@ -87,6 +87,9 @@ class OptimizerConfig(BaseConfig):
     betas1: Annotated[float, Field(ge=0)] = 0.9
     betas2: Annotated[float, Field(ge=0)] = 0.999
 
+    # Gradient clipping
+    max_norm: Annotated[float, Field(ge=0, description="Maximum gradient norm to clip.")] = 1.0
+
     # LR Scheduler configuration
     scheduler: SchedulerConfig = Field(discriminator="type", default=ConstantSchedulerConfig())
 

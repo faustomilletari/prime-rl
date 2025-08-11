@@ -11,8 +11,6 @@ from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 class BaseLossConfig(BaseModel):
     """Base config for loss."""
 
-    max_norm: Annotated[float, Field(ge=0, description="Maximum gradient norm to clip.")] = 1.0
-
 
 class ClippingLossConfig(BaseLossConfig):
     """Configures the clipping loss."""

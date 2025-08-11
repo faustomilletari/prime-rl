@@ -4,10 +4,11 @@ import time
 # ruff: noqa: I001
 
 import torch
+import torch.nn as nn
+from torch import Tensor
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
-from prime_rl.trainer.config import TrainerConfig
-from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
+from prime_rl.trainer.sft.config import SFTTrainerConfig
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.scheduler import create_lr_scheduler
 from prime_rl.trainer.model import (
@@ -16,6 +17,7 @@ from prime_rl.trainer.model import (
     setup_model,
 )
 from prime_rl.trainer.perf import get_perf_counter
+from prime_rl.trainer.sft.data import get_dataloader, get_dataset
 from prime_rl.trainer.utils import (
     Tensors,
     print_benchmark,
@@ -28,7 +30,7 @@ from prime_rl.utils.utils import clean_exit, to_col_format
 
 @clean_exit
 @logger.catch(reraise=True)
-def train(config: TrainerConfig):
+def train(config: SFTTrainerConfig):
     # Setup world and logger
     world = get_world()
     logger = setup_logger(config.log, world)
@@ -53,7 +55,6 @@ def train(config: TrainerConfig):
 
     # Set up the optimizer
     logger.info(f"Initializing optimizer ({config.optim})")
-    logger.info(f"Using `{config.loss.type}` loss ({config.loss})")
     optimizer = torch.optim.AdamW(
         params=model.parameters(),
         lr=config.optim.lr,
@@ -61,12 +62,14 @@ def train(config: TrainerConfig):
         betas=(config.optim.betas1, config.optim.betas2),
     )
 
+    # Set up cross-entropy loss
+    loss_fn = nn.CrossEntropyLoss(reduction="none")
+
     # Set up the learning rate scheduler
     scheduler = create_lr_scheduler(optimizer, config.optim.scheduler, config.max_steps)
     logger.info(f"Using `{config.optim.scheduler.type}` scheduler ({config.optim.scheduler})")
 
-    # Get checkpoint managers
-    logger.info(f"Initializing weight checkpoint manager ({config.weights})")
+    # Get checkpoint manager
     if config.ckpt:
         logger.info(f"Initializing checkpoint manager ({config.ckpt})")
         ckpt_manager = CheckpointManager(config.outputs_dir, config.ckpt)
@@ -80,11 +83,10 @@ def train(config: TrainerConfig):
         f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
     )
 
-    # Set up the data loader (Optionally, use a fake data loader for debugging)
-    logger.info(f"Initializing data loader ({config.data})")
-    dataloader = DataLoader(config.outputs_dir, progress.step)
-    if config.data.fake:
-        dataloader = FakeDataLoader(config.data.fake)
+    # Set up the dataset and dataloader (optionaly, use a fake dataset for debugging)
+    logger.info(f"Initializing dataset and dataloader ({config.data})")
+    dataset = get_dataset(tokenizer, config=config.data)
+    dataloader = get_dataloader(dataset, batch_size=config.data.micro_batch_size)
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
@@ -113,36 +115,35 @@ def train(config: TrainerConfig):
         logger.info(f"Starting training step {progress.step}")
         step_start_time = time.time()
 
-        # Load the training batch
-        logger.debug("Loading batch")
-        load_data_start_time = time.time()
-        micro_batches = dataloader.get_batch()
-        load_data_time = time.time() - load_data_start_time
-        logger.debug(f"Loaded batch in {load_data_time:.2f} seconds")
-
         if config.profile_path and world.rank == 0:
             torch.cuda.memory._record_memory_history()
 
         forward_backward_start_time = time.time()
-        micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
-        num_micro_batches = len(micro_batches)
-        batch_size = micro_batch_size * num_micro_batches
-
-        logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
-        for micro_step, micro_batch in enumerate(micro_batches):
+        num_micro_batches = config.data.batch_size // config.data.micro_batch_size
+        for micro_step in range(num_micro_batches):
+            micro_batch = next(dataloader)
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
-            advantages = micro_batch["advantages"].to("cuda")
+            target_ids = micro_batch["target_ids"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
             micro_batch_size, seq_len = input_ids.shape
 
             # Forward pass
             logits = forward(model, input_ids, position_ids).contiguous()
+            _, _, V = logits.shape
 
             # Compute loss
-            # TBD
-            loss, loss_tensors = ...
+            loss: Tensor = loss_fn(logits.reshape(-1, V), target_ids.reshape(-1))
+
+            # Add relevant tensors to tensor dict for logging purposes
+            tensors["loss"].append(loss[loss_mask.reshape(-1)].detach().to("cpu"))
+
+            # Mean reduction of unmasked tokens
+            loss = loss[loss_mask.reshape(-1)].mean()
+
+            # Scale loss by number of micro steps (=gradient accumulation steps)
+            loss /= num_micro_batches
 
             # Delete logits before backward pass to avoid memory spike
             del logits
@@ -150,20 +151,12 @@ def train(config: TrainerConfig):
             # Backward pass
             loss.backward()
 
-            # Add relevant tensors to tensor dict for logging purposes
-            tensors["probs"].append(torch.exp(logits)[loss_mask.bool()].detach().to("cpu"))
-
-            # Add loss tensors to tensor dict for logging purposes
-            for key, loss_tensor in loss_tensors.items():
-                loss_tensor = loss_tensor.detach()[loss_mask.bool()].detach().to("cpu")
-                tensors[key].append(loss_tensor)
-
             # Debug log with *local, micro step* stats
             logger.debug(f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f}")
 
         # Optionally, clip the gradients
-        logger.debug(f"Clipping gradients to {config.loss.max_norm}")
-        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.loss.max_norm).full_tensor()
+        logger.debug(f"Clipping gradients to {config.optim.max_norm}")
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
         # Update the model parameters
         optimizer.step()
@@ -226,7 +219,6 @@ def train(config: TrainerConfig):
         # Log time metrics
         time_metrics = {
             "time/step": step_time,
-            "time/load_data": load_data_time,
             "time/save_ckpt": save_ckpt_time,
             "time/forward_backward": forward_backward_time,
             "step": progress.step,
@@ -264,7 +256,7 @@ def train(config: TrainerConfig):
 
 
 def main():
-    train(parse_argv(TrainerConfig))
+    train(parse_argv(SFTTrainerConfig))
 
 
 if __name__ == "__main__":
