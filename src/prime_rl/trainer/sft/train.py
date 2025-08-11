@@ -112,12 +112,10 @@ def train(config: SFTTrainerConfig):
         if config.max_steps is not None and progress.step >= config.max_steps:
             break
 
-        logger.info(f"Starting training step {progress.step}")
-        step_start_time = time.time()
-
         if config.profile_path and world.rank == 0:
             torch.cuda.memory._record_memory_history()
 
+        step_start_time = time.time()
         forward_backward_start_time = time.time()
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
         num_micro_batches = config.data.batch_size // config.data.micro_batch_size

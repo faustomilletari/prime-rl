@@ -8,18 +8,13 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 
-class FakeDataLoaderConfig(BaseConfig):
-    """Configures a fake data loader for debugging.."""
-
-
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
-    path: Annotated[Path, Field(description="Path to a HF dataset.")] = Path(
-        "mikasenghaas/reverse_text_dataset_debug_50_seq_len"
-    )
+    path: Annotated[str, Field(description="Path to a HF dataset.")] = "mikasenghaas/reverse_text_sft"
+    split: Annotated[str, Field(description="Split to use from the HF dataset.")] = "train"
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
-    batch_size: Annotated[int, Field(ge=1)] = 8
+    batch_size: Annotated[int, Field(ge=1)] = 128
     seq_len: Annotated[int, Field(ge=1)] = 128
 
     fake: Annotated[bool, Field(description="Whether to use a fake dataset.")] = False
