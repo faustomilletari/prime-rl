@@ -10,7 +10,7 @@ import torch
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
 from prime_rl.trainer.rl.weights import WeightCheckpointManager
-from prime_rl.trainer.config import TrainerConfig
+from prime_rl.trainer.rl.config import RLTrainerConfig
 from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.rl.loss import (
@@ -43,7 +43,7 @@ from prime_rl.utils.utils import clean_exit, to_col_format
 
 @clean_exit
 @logger.catch(reraise=True)
-def train(config: TrainerConfig):
+def train(config: RLTrainerConfig):
     # Setup world and logger
     world = get_world()
     logger = setup_logger(config.log, world)
@@ -410,7 +410,7 @@ def train(config: TrainerConfig):
 
 
 def main():
-    train(parse_argv(TrainerConfig))
+    train(parse_argv(RLTrainerConfig))
 
 
 if __name__ == "__main__":

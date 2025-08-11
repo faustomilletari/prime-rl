@@ -4,7 +4,7 @@ from typing import TypedDict
 import torch
 from jaxtyping import Float, Int
 
-from prime_rl.trainer.config import FakeDataLoaderConfig
+from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.utils import get_rollout_dir, wait_for_path
 
