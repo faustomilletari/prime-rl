@@ -36,7 +36,7 @@ dependencies = [
 
 [project.scripts]
 rl = "prime_rl.rl:main"
-trainer = "prime_rl.trainer.train:main"
+trainer = "prime_rl.trainer.rl.train:main"
 orchestrator = "prime_rl.orchestrator.orchestrator:main"
 inference = "prime_rl.inference.server:main"
 eval = "prime_rl.eval.eval:main"

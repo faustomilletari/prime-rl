@@ -7,7 +7,7 @@ from torch import Tensor
 from transformers import AutoTokenizer
 
 from prime_rl.orchestrator.buffer import Rollout
-from prime_rl.trainer.data import MicroBatch
+from prime_rl.trainer.rl.data import MicroBatch
 
 
 class BatchSample(TypedDict):

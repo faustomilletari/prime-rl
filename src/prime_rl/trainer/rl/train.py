@@ -12,11 +12,11 @@ import torch
 from torch._guards import log as torch_log
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
-from prime_rl.trainer.weights import WeightCheckpointManager
+from prime_rl.trainer.rl.weights import WeightCheckpointManager
 from prime_rl.trainer.config import TrainerConfig
-from prime_rl.trainer.data import DataLoader, FakeDataLoader
+from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger
-from prime_rl.trainer.loss import (
+from prime_rl.trainer.rl.loss import (
     compute_loss,
     shift_logits,
     selective_log_softmax,

@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from prime_rl.orchestrator.batch import BatchSample
-from prime_rl.trainer.data import MicroBatch
+from prime_rl.trainer.rl.data import MicroBatch
 from prime_rl.utils.utils import get_rollout_dir
 from tests import Command, Environment, ProcessResult
 
