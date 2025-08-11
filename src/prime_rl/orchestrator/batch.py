@@ -20,6 +20,7 @@ class BatchSample(TypedDict):
 
 def prepare_sample(
     rollout: Rollout,
+    group_tokens: int,
     seq_len: int,
     tokenizer: AutoTokenizer,
     pad: bool,
@@ -43,6 +44,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
+    group_level_loss_scale = torch.tensor(group_tokens).repeat(len(input_ids)).float()
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -59,6 +61,7 @@ def prepare_sample(
         position_ids = torch.cat([position_ids, torch.zeros(num_padding_tokens)]).long()
         logprobs = torch.cat([logprobs, torch.zeros(num_padding_tokens)]).float()
         advantages = torch.cat([advantages, torch.zeros(num_padding_tokens)]).float()
+        group_level_loss_scale = torch.cat([group_level_loss_scale, torch.ones(num_padding_tokens)]).float()
 
     assert len(input_ids) == len(advantages) == len(loss_mask) == len(position_ids) == len(logprobs), (
         f"input_ids: {len(input_ids)}, advantages: {len(advantages)}, loss_mask: {len(loss_mask)}, position_ids: {len(position_ids)}, logprobs: {len(logprobs)}"
@@ -69,13 +72,14 @@ def prepare_sample(
         "loss_mask": loss_mask,
         "position_ids": position_ids,
         "logprobs": logprobs,
+        "group_level_loss_scale": group_level_loss_scale,
     }
 
 
 def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
     micro_batch = {}
 
-    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
+    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids", "group_level_loss_scale"]:
         micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
 
     micro_batch["temperature"] = temperature
@@ -85,6 +89,7 @@ def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
 
 def prepare_batch_padding(
     rollouts: list[Rollout],
+    group_level_loss_scale: Tensor,
     temperature: float,
     tokenizer: AutoTokenizer,
     batch_size: int,
@@ -110,6 +115,7 @@ def prepare_batch_padding(
             for _ in range(micro_batch_size):
                 sample = prepare_sample(
                     rollouts.pop(),
+                    group_level_loss_scale.pop(),
                     seq_len,
                     tokenizer,
                     pad=True,
@@ -161,7 +167,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
         "Total tokens of samples is greater than max sequence length"
     )
 
-    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs"]:
+    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs", "group_level_loss_scale"]:
         micro_batch[key] = torch.cat([sample[key] for sample in samples], dim=0).unsqueeze(0)
 
     micro_batch["temperature"] = temperature
@@ -171,6 +177,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
 
 def prepare_batch_packing(
     rollouts: list[Rollout],
+    group_level_loss_scale: Tensor,
     temperature: float,
     tokenizer: AutoTokenizer,
     batch_size: int,
@@ -188,11 +195,12 @@ def prepare_batch_packing(
     all_samples = [
         prepare_sample(
             rollout,
+            group_level_loss_scale,
             max_seq_len,
             tokenizer,
             pad=False,
         )
-        for rollout in rollouts
+        for rollout, group_level_loss_scale in zip(rollouts, group_level_loss_scale)
     ]
 
     micro_batches_list = packed_samples_into_micro_bs(all_samples, max_seq_len)
@@ -227,6 +235,7 @@ def prepare_batch_packing(
 
 def prepare_batch(
     rollouts: list[Rollout],
+    group_level_loss_scale: Tensor,
     temperature: float,
     tokenizer: AutoTokenizer,
     batch_size: int,
@@ -242,6 +251,7 @@ def prepare_batch(
         case "padding":
             return prepare_batch_padding(
                 rollouts,
+                group_level_loss_scale,
                 temperature,
                 tokenizer,
                 batch_size,
@@ -252,6 +262,7 @@ def prepare_batch(
         case "packing":
             return prepare_batch_packing(
                 rollouts,
+                group_level_loss_scale,
                 temperature,
                 tokenizer,
                 batch_size,

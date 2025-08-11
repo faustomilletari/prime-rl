@@ -234,12 +234,11 @@ def train(config: TrainerConfig):
         micro_batch_size, seq_len = micro_batches[0]["input_ids"].shape
         batch_size = micro_batch_size * num_micro_batches
 
-        # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = torch.tensor(
+        total_batch_tokens = torch.tensor(
             sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches), device="cuda"
         )
 
-        logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale.item()=})")
+        logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {total_batch_tokens.item()=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
         for micro_step, micro_batch in enumerate(micro_batches):
             input_ids = micro_batch["input_ids"].to("cuda")
@@ -247,6 +246,7 @@ def train(config: TrainerConfig):
             advantages = micro_batch["advantages"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
             old_logprobs = micro_batch["logprobs"].to("cuda")
+            group_level_loss_scale = micro_batch["group_level_loss_scale"].to("cuda")
             temperature = micro_batch["temperature"]
             micro_batch_size, seq_len = input_ids.shape
 
@@ -269,7 +269,7 @@ def train(config: TrainerConfig):
                 entropy = compute_entropy(shifted_logits)
 
             # Reduce the loss
-            loss = (loss * loss_mask).sum() / loss_scale
+            loss = (((loss / group_level_loss_scale) * loss_mask).sum(dim=-1)).sum()
 
             # Delete logits and shifted_logits before backward pass to avoid memory spike
             del logits, shifted_logits

@@ -19,7 +19,7 @@ from prime_rl.orchestrator.client import (
     check_has_model,
     check_health,
     reload_weights,
-    update_weights,
+    reset_weights,
     setup_client,
 )
 from prime_rl.orchestrator.config import OrchestratorConfig
@@ -30,7 +30,7 @@ from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import wait_for_weight_checkpoint, print_benchmark, parse_truncated_completions
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
-from prime_rl.utils.utils import clean_exit, format_num, get_rollout_dir, get_weights_dir, to_col_format
+from prime_rl.utils.utils import clean_exit, to_col_format, format_num
 
 
 @clean_exit
@@ -56,7 +56,7 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Setup monitor
     logger.info(f"Initializing monitor ({config.monitor})")
-    monitor = setup_monitor(config.monitor, outputs_dir=config.outputs_dir, tokenizer=tokenizer, run_config=config)
+    monitor = setup_monitor(config.monitor, None, tokenizer, config)
 
     # Check health of the client
     logger.info("Waiting for inference pool to be ready")
@@ -68,7 +68,7 @@ async def orchestrate(config: OrchestratorConfig):
     ckpt_manager = None
     if config.ckpt:
         logger.info(f"Initializing checkpoint manager ({config.ckpt})")
-        ckpt_manager = CheckpointManager(config.outputs_dir, config.ckpt)
+        ckpt_manager = CheckpointManager(config.ckpt)
 
     # Reset weights to base model if starting from scratch
     progress = Progress()
@@ -77,10 +77,10 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
         ckpt_manager.load(progress, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
-        await update_weights(client, get_weights_dir(config.outputs_dir), ckpt_step)
+        await reload_weights(client, config.weights_path, ckpt_step)
     else:
         logger.info("Training from scratch. Resetting weights to base model")
-        await reload_weights(client)
+        await reset_weights(client)
 
     # Load environment and extract dataset
     logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
@@ -120,7 +120,7 @@ async def orchestrate(config: OrchestratorConfig):
         step_start_time = time.time()
 
         # Optionally, wait for the next checkpoint to be available
-        wait_for_weight_ckpt_time, update_weights_time = 0, 0
+        wait_for_weight_ckpt_time, reload_weights_time = 0, 0
         if progress.step - ckpt_step > config.async_level:
             logger.debug(
                 f"Hit async barrier because step {progress.step} is {progress.step - ckpt_step} (>{config.async_level}) steps ahead of checkpoint step {ckpt_step}."
@@ -130,16 +130,16 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weight checkpoint {ckpt_step}")
             wait_for_weight_ckpt_start_time = time.time()
-            wait_for_weight_checkpoint(get_weights_dir(config.outputs_dir), ckpt_step)
+            wait_for_weight_checkpoint(config.weights_path, ckpt_step)
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
             logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
 
-            # Update the weights
-            logger.info(f"Updating weights to weight checkpoint {ckpt_step}")
-            update_weights_start_time = time.time()
-            await update_weights(client, get_weights_dir(config.outputs_dir), ckpt_step)
-            update_weights_time = time.time() - update_weights_start_time
-            logger.debug(f"Updated weights in {update_weights_time:.2f}s")
+            # Reload the weights
+            logger.info(f"Reloading weight checkpoint {ckpt_step}")
+            reload_weights_start_time = time.time()
+            await reload_weights(client, config.weights_path, ckpt_step)
+            reload_weights_time = time.time() - reload_weights_start_time
+            logger.debug(f"Reloaded weights in {reload_weights_time:.2f}s")
 
         # Optionally, run online evals at the specified interval
         eval_time = 0
@@ -313,6 +313,8 @@ async def orchestrate(config: OrchestratorConfig):
         # Write serialized batch to disk for trainer workers to consume
         all_data_ranks_batches = prepare_batch(
             rollouts=rollouts,
+            group_level_loss_scale=completion_lens.sum(dim=-1).repeat_interleave(config.rollouts_per_prompt)
+            / (config.batch_size // config.rollouts_per_prompt),
             temperature=config.sampling.temperature,
             tokenizer=tokenizer,
             batch_size=config.batch_size,
@@ -322,7 +324,7 @@ async def orchestrate(config: OrchestratorConfig):
             collate_mode=config.collate_mode,
         )
 
-        step_path = get_rollout_dir(config.outputs_dir) / f"step_{progress.step}"
+        step_path = Path(config.rollout_path) / f"step_{progress.step}"
         step_path.mkdir(parents=True, exist_ok=True)
         for i, batches in enumerate(all_data_ranks_batches):
             batch_path = step_path / f"rank_{i}.pt"
@@ -413,7 +415,7 @@ async def orchestrate(config: OrchestratorConfig):
             "time/step": step_time,
             "time/wait_for_weight_ckpt": wait_for_weight_ckpt_time,
             "time/generate_completions": generate_completions_time,
-            "time/update_weights": update_weights_time,
+            "time/reload_weights": reload_weights_time,
             "time/save_ckpt": save_ckpt_time,
             "time/eval": eval_time,
             "step": progress.step,
