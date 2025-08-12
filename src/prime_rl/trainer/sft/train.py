@@ -121,24 +121,25 @@ def train(config: SFTTrainerConfig):
         num_micro_batches = config.data.batch_size // config.data.micro_batch_size
         for micro_step in range(num_micro_batches):
             micro_batch = next(dataloader)
+            micro_batch = {k: v.to("cuda") for k, v in micro_batch.items()}
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
-            micro_batch_size, seq_len = input_ids.shape
+            assert input_ids.shape[0] == position_ids.shape[0] == config.data.micro_batch_size
 
             # Forward pass
             logits = forward(model, input_ids, position_ids).contiguous()
-            _, _, V = logits.shape
+            B, L, V = logits.shape
 
-            # Compute loss
-            loss: Tensor = loss_fn(logits.reshape(-1, V), target_ids.reshape(-1))
+            # Compute loss (flatten to conform to cross-entropy loss API)
+            loss: Tensor = loss_fn(logits.reshape(-1, V), target_ids.reshape(-1)).reshape(B, L)
 
             # Add relevant tensors to tensor dict for logging purposes
-            tensors["loss"].append(loss[loss_mask.reshape(-1)].detach().to("cpu"))
+            tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
 
             # Mean reduction of unmasked tokens
-            loss = loss[loss_mask.reshape(-1)].mean()
+            loss = loss[loss_mask].mean()
 
             # Scale loss by number of micro steps (=gradient accumulation steps)
             loss /= num_micro_batches
@@ -178,12 +179,11 @@ def train(config: SFTTrainerConfig):
         tensor_stats = tensors.compute_stats()
 
         # Compute step metrics
-        num_local_tokens = micro_batch_size * seq_len * num_micro_batches
+        num_local_tokens = config.data.batch_size * config.data.seq_len
         num_tokens = world.world_size * num_local_tokens
-        batch_size = micro_batch_size * num_micro_batches
         progress.total_tokens += num_tokens
-        progress.total_samples += batch_size
-        perf_counter = get_perf_counter(model, seq_len)
+        progress.total_samples += config.data.batch_size
+        perf_counter = get_perf_counter(model, config.data.seq_len)
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
         mfu = perf_counter.get_mfu() or 0

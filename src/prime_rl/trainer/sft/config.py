@@ -11,7 +11,7 @@ from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
-    path: Annotated[str, Field(description="Path to a HF dataset.")] = "mikasenghaas/reverse_text_sft"
+    path: Annotated[str, Field(description="Path to a HF dataset.")] = "willcb/R1-reverse-wikipedia-paragraphs-v1-1000"
     split: Annotated[str, Field(description="Split to use from the HF dataset.")] = "train"
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128
@@ -38,7 +38,7 @@ class SFTTrainerConfig(BaseSettings):
     data: DataConfig = DataConfig()
 
     # The optimizer configuration
-    optim: OptimizerConfig = OptimizerConfig()
+    optim: OptimizerConfig = OptimizerConfig(lr=5e-5)
 
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
@@ -77,7 +77,7 @@ class SFTTrainerConfig(BaseSettings):
         if self.bench:
             self.max_steps = 4  # 1 Warmup + 3 Benchmark
             if not self.data.fake:
-                self.data.fake = FakeDataLoaderConfig()
+                self.data.fake = True
         return self
 
     @model_validator(mode="after")
