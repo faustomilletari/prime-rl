@@ -1,4 +1,5 @@
 from typing import TypedDict
+from functools import partial
 
 import torch
 from datasets import Dataset as HFDataset
@@ -101,18 +102,6 @@ class SFTDataset(Dataset):
             "loss_mask": [0] * len(prompt_ids) + [1] * (len(prompt_completion_ids) - len(prompt_ids)),
         }
 
-        # Truncate and pad sample
-        seq_len = self.config.seq_len + 1  # Because we shift and lose one token
-        if len(sample["input_ids"]) > seq_len:  # Truncate
-            self._logger.warning(f"Truncated sample {index} from {len(sample['input_ids'])} to {seq_len} tokens")
-            sample["input_ids"] = sample["input_ids"][:seq_len]
-            sample["loss_mask"] = sample["loss_mask"][:seq_len]
-            sample["position_ids"] = sample["position_ids"][:seq_len]
-        if len(sample["input_ids"]) < seq_len:  # Pad
-            num_pad_tokens = seq_len - len(sample["input_ids"])
-            sample["input_ids"] += [self.tokenizer.pad_token_id] * num_pad_tokens
-            sample["loss_mask"] += [0] * num_pad_tokens
-            sample["position_ids"] += [0] * num_pad_tokens
 
         return sample
 
@@ -129,10 +118,24 @@ def get_dataset(tokenizer, config: DataConfig) -> Dataset:
         return FakeDataset(tokenizer, config)
     return SFTDataset(tokenizer, config)
 
-def padding_collate(batch: list[Sample]) -> Batch:
-    batch_input_ids = torch.stack([torch.tensor(item["input_ids"]) for item in batch]).long()
-    batch_position_ids = torch.stack([torch.tensor(item["position_ids"]) for item in batch]).long()
-    batch_loss_mask = torch.stack([torch.tensor(item["loss_mask"]) for item in batch]).bool()
+def padding_collate(samples: list[Sample], seq_len: int, tokenizer: AutoTokenizer) -> Batch:
+    seq_len += 1  # One more token because we lose one
+    # Truncate and pad samples
+    for sample in samples:
+        if len(sample["input_ids"]) > seq_len:  # Truncate
+            sample["input_ids"] = sample["input_ids"][:seq_len]
+            sample["loss_mask"] = sample["loss_mask"][:seq_len]
+            sample["position_ids"] = sample["position_ids"][:seq_len]
+        if len(sample["input_ids"]) < seq_len:  # Pad
+            num_pad_tokens = seq_len - len(sample["input_ids"])
+            sample["input_ids"] += [tokenizer.pad_token_id] * num_pad_tokens
+            sample["loss_mask"] += [0] * num_pad_tokens
+            sample["position_ids"] += [0] * num_pad_tokens
+
+    # Stack tensors into tensors of size (batch_size, seq_len)
+    batch_input_ids = torch.stack([torch.tensor(sample["input_ids"]) for sample in samples]).long()
+    batch_position_ids = torch.stack([torch.tensor(sample["position_ids"]) for sample in samples]).long()
+    batch_loss_mask = torch.stack([torch.tensor(sample["loss_mask"]) for sample in samples]).bool()
 
     return {
         "input_ids": batch_input_ids[:, :-1].contiguous(),
@@ -141,12 +144,12 @@ def padding_collate(batch: list[Sample]) -> Batch:
         "loss_mask": batch_loss_mask[:, :-1].contiguous(),
     }
 
-def packing_collate(batch: list[Sample]) -> Batch:
-    return padding_collate(batch)
+def packing_collate(samples: list[Sample]) -> Batch:
+    raise NotImplementedError("Packing is not yet implemented")
 
 
-def get_dataloader(dataset: Dataset, config: DataConfig) -> DataLoader:
+def get_dataloader(dataset: Dataset, tokenizer: AutoTokenizer, config: DataConfig) -> DataLoader:
     # Initialize rank-aware sampler
-    collate_fn = padding_collate if config.collate_mode == "padding" else packing_collate
+    collate_fn = partial(padding_collate, seq_len=config.seq_len, tokenizer=tokenizer) if config.collate_mode == "padding" else packing_collate
     sampler = DistributedSampler(dataset, shuffle=config.shuffle, drop_last=True)
     return iter(DataLoader(dataset, batch_size=config.micro_batch_size, collate_fn=collate_fn, sampler=sampler))

@@ -115,7 +115,7 @@ def train(config: SFTTrainerConfig):
 
         # Re-initialize the dataloader if we are the beginning of an epoch
         if epoch_step == 0:
-            dataloader = get_dataloader(dataset, config=config.data)
+            dataloader = get_dataloader(dataset, tokenizer, config=config.data)
             epoch += 1 if progress.step > 0 else 0  # Only increment epoch if we are not at the first step
 
         if config.profile_path and world.rank == 0:
