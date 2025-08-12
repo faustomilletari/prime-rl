@@ -92,7 +92,7 @@ def train(config: SFTTrainerConfig):
     epoch, epoch_step = 0, 0
     while True:
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
-        is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
+        is_last_step = progress.step == config.max_steps - 1
         save_ckpt_time = 0
         if (
             config.ckpt
@@ -110,7 +110,7 @@ def train(config: SFTTrainerConfig):
             ckpt_manager.maybe_clean()
 
         # Break if we have reached the maximum number of steps
-        if config.max_steps is not None and progress.step >= config.max_steps:
+        if progress.step >= config.max_steps:
             break
 
         # Re-initialize the dataloader if we are the beginning of an epoch

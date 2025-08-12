@@ -67,11 +67,12 @@ class SFTTrainerConfig(BaseSettings):
     ] = Path("outputs")
 
     max_steps: Annotated[
-        int | None,
+        int,
         Field(
-            description="Maximum number of steps to run training for. If None, will run indefinitely.",
+            ge=1,
+            description="Maximum number of steps to run training for.",
         ),
-    ] = None
+    ] = 100
 
     profile_path: Annotated[Path | None, Field(description="Path to write memory profile to.")] = None
 
@@ -95,10 +96,6 @@ class SFTTrainerConfig(BaseSettings):
         # Constant scheduler does not require any validation/ setup
         if self.optim.scheduler.type == "constant":
             return self
-
-        # Must specify max_steps when using a scheduler other than `constant`
-        if self.max_steps is None:
-            raise ValueError("Must specify max_steps when using a scheduler other than `constant`")
 
         # If decay_steps is not specified, use remaining steps after warmup
         if self.optim.scheduler.decay_steps is None:
