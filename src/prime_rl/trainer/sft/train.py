@@ -4,7 +4,7 @@ import time
 # ruff: noqa: I001
 
 import torch
-from torch.nn.functional import cross_entropy
+from torch.nn.functional import cross_entropy, softmax
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
 from prime_rl.trainer.sft.config import SFTTrainerConfig
@@ -128,11 +128,17 @@ def train(config: SFTTrainerConfig):
             logits = forward(model, input_ids, position_ids).contiguous()
             B, L, V = logits.shape
 
-            # Compute loss (flatten to conform to cross-entropy loss API)
+            # Compute loss
             loss = cross_entropy(logits.view(-1, V), target_ids.view(-1), reduction="none").view(B, L)
 
-            # Add relevant tensors to tensor dict for logging purposes
+            # Compute accuracy
+            probs = softmax(logits, dim=-1)
+            pred_ids = probs.argmax(dim=-1)
+            accuracy = torch.eq(pred_ids, target_ids).float()
+
+            # Add tensors to tensor dict for logging purposes
             tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
+            tensors["accuracy"].append(accuracy[loss_mask].detach().to("cpu"))
 
             # Mean reduction of unmasked tokens
             loss = loss[loss_mask].mean()
@@ -147,7 +153,9 @@ def train(config: SFTTrainerConfig):
             loss.backward()
 
             # Debug log with *local, micro step* stats
-            logger.debug(f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f}")
+            logger.debug(
+                f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
+            )
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.optim.max_norm}")
@@ -187,7 +195,7 @@ def train(config: SFTTrainerConfig):
         # Log step metrics
         step_time = time.time() - step_start_time
         current_lr = optimizer.param_groups[0]["lr"]
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
 
         # Log performance metrics
