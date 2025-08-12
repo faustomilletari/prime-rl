@@ -1,5 +1,5 @@
-from typing import TypedDict
 from functools import partial
+from typing import TypedDict
 
 import torch
 from datasets import Dataset as HFDataset
@@ -25,6 +25,7 @@ class Batch(TypedDict):
     position_ids: Int[Tensor, "batch seq"]
     loss_mask: Bool[Tensor, "batch seq"]
     target_ids: Int[Tensor, "batch seq"]
+
 
 class FakeDataset(Dataset):
     """A dataset of fake tokens"""
@@ -112,7 +113,7 @@ class SFTDataset(Dataset):
         sorted_samples = sorted(samples, key=lambda x: len(x["input_ids"]), reverse=True)
 
         # Create packed samples
-        packed_samples : list[Sample] = []
+        packed_samples: list[Sample] = []
         for sample in sorted_samples:
             # Try to find a packed sample that can fit this sequence
             packed_sample_found = False
@@ -144,9 +145,10 @@ def get_dataset(tokenizer, config: DataConfig) -> Dataset:
         return FakeDataset(tokenizer, config)
     return SFTDataset(tokenizer, config)
 
+
 def collate_padding(samples: list[Sample], seq_len: int, tokenizer: AutoTokenizer) -> Batch:
     seq_len += 1  # One more token because we lose one
-    for sample in samples: 
+    for sample in samples:
         if len(sample["input_ids"]) > seq_len:  # Truncate
             sample["input_ids"] = sample["input_ids"][:seq_len]
             sample["loss_mask"] = sample["loss_mask"][:seq_len]
