@@ -57,7 +57,7 @@ class SFTDataset(Dataset):
         self._logger = get_logger()
 
         # Load dataset
-        self.dataset: HFDataset = load_dataset(config.path, split=config.split)
+        self.dataset: HFDataset = load_dataset(config.name, split=config.split)
 
         # Assert that the dataset has a 'text' column
         if "prompt" not in self.dataset.column_names or "completion" not in self.dataset.column_names:
