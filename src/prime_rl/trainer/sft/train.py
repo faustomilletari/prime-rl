@@ -4,8 +4,7 @@ import time
 # ruff: noqa: I001
 
 import torch
-import torch.nn as nn
-from torch import Tensor
+from torch.nn.functional import cross_entropy
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
 from prime_rl.trainer.sft.config import SFTTrainerConfig
@@ -61,9 +60,6 @@ def train(config: SFTTrainerConfig):
         weight_decay=config.optim.weight_decay,
         betas=(config.optim.betas1, config.optim.betas2),
     )
-
-    # Set up cross-entropy loss
-    loss_fn = nn.CrossEntropyLoss(reduction="none")
 
     # Set up the learning rate scheduler
     scheduler = create_lr_scheduler(optimizer, config.optim.scheduler, config.max_steps)
@@ -133,7 +129,7 @@ def train(config: SFTTrainerConfig):
             B, L, V = logits.shape
 
             # Compute loss (flatten to conform to cross-entropy loss API)
-            loss: Tensor = loss_fn(logits.reshape(-1, V), target_ids.reshape(-1)).reshape(B, L)
+            loss = cross_entropy(logits.view(-1, V), target_ids.view(-1), reduction="none").view(B, L)
 
             # Add relevant tensors to tensor dict for logging purposes
             tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
