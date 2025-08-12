@@ -81,13 +81,13 @@ def train(config: SFTTrainerConfig):
         f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
     )
 
-    # Set up the dataset and dataloader (optionaly, use a fake dataset for debugging)
-    logger.info(f"Initializing dataset and dataloader ({config.data})")
+    # Set up the dataset (optionaly, use a fake dataset for debugging)
+    logger.info(f"Initializing dataset ({config.data})")
     dataset = get_dataset(tokenizer, config=config.data)
+    logger.info(f"Initialized {dataset.__class__.__name__} for `{config.data.name}` with {len(dataset)}{' packed' if config.data.collate_mode == 'packing' else ''} samples")
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
-    assert len(dataset) % config.data.batch_size == 0, "Dataset size is expected to be divisible by batch size"
     steps_per_epoch = len(dataset) // config.data.batch_size
     epoch, epoch_step = 0, 0
     while True:
@@ -124,7 +124,7 @@ def train(config: SFTTrainerConfig):
         step_start_time = time.time()
         forward_backward_start_time = time.time()
         tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
-        grad_accum_steps = config.data.batch_size // config.data.micro_batch_size // world.world_size
+        grad_accum_steps = config.data.batch_size // (config.data.micro_batch_size * world.world_size)
         for micro_step in range(grad_accum_steps):
             micro_batch = next(dataloader)
             input_ids = micro_batch["input_ids"].to("cuda")
