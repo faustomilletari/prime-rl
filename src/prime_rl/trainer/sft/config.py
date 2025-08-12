@@ -22,6 +22,7 @@ class DataConfig(BaseConfig):
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128
     seq_len: Annotated[int, Field(ge=1)] = 128
+    shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
 
     fake: Annotated[FakeDataConfig | None, Field(description="Whether to use a fake dataset.")] = None
 

@@ -84,7 +84,6 @@ def train(config: SFTTrainerConfig):
     # Set up the dataset and dataloader (optionaly, use a fake dataset for debugging)
     logger.info(f"Initializing dataset and dataloader ({config.data})")
     dataset = get_dataset(tokenizer, config=config.data)
-    dataloader = get_dataloader(dataset, batch_size=config.data.micro_batch_size)
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
@@ -116,7 +115,7 @@ def train(config: SFTTrainerConfig):
 
         # Re-initialize the dataloader if we are the beginning of an epoch
         if epoch_step == 0:
-            dataloader = get_dataloader(dataset, batch_size=config.data.micro_batch_size)
+            dataloader = get_dataloader(dataset, config=config.data)
             epoch += 1 if progress.step > 0 else 0  # Only increment epoch if we are not at the first step
 
         if config.profile_path and world.rank == 0:

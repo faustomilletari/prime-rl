@@ -27,7 +27,7 @@ class Batch(TypedDict):
 
 
 class FakeDataset(Dataset):
-    """An infinite dataset of fake tokens"""
+    """A dataset of fake tokens"""
 
     def __init__(self, tokenizer: AutoTokenizer, config: DataConfig):
         self.config = config
@@ -46,13 +46,9 @@ class FakeDataset(Dataset):
             "loss_mask": loss_mask,
         }
 
-    def __iter__(self):
-        while True:
-            yield self.fake_sample()
-
 
 class SFTDataset(Dataset):
-    """Standard PyTorch dataset which wraps a HF SFT dataset in prompt + completion format."""
+    """A dataset wrapping a HF SFT dataset with prompt + completion format."""
 
     def __init__(self, tokenizer: AutoTokenizer, config: DataConfig):
         assert not config.fake, "HFDataset does not support fake data"
@@ -134,7 +130,7 @@ def get_dataset(tokenizer, config: DataConfig) -> Dataset:
     return SFTDataset(tokenizer, config)
 
 
-def get_dataloader(dataset: Dataset, batch_size: int) -> DataLoader:
+def get_dataloader(dataset: Dataset, config: DataConfig) -> DataLoader:
     def collate_fn(batch: list[Sample]) -> Batch:
         batch_input_ids = torch.stack([torch.tensor(item["input_ids"]) for item in batch]).long()
         batch_position_ids = torch.stack([torch.tensor(item["position_ids"]) for item in batch]).long()
@@ -148,6 +144,6 @@ def get_dataloader(dataset: Dataset, batch_size: int) -> DataLoader:
         }
 
     # Initialize rank-aware sampler
-    sampler = DistributedSampler(dataset, drop_last=True)
+    sampler = DistributedSampler(dataset, shuffle=config.shuffle, drop_last=True)
 
-    return iter(DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, sampler=sampler))
+    return iter(DataLoader(dataset, batch_size=config.micro_batch_size, collate_fn=collate_fn, sampler=sampler))
