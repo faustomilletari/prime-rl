@@ -267,6 +267,7 @@ def train(config: SFTTrainerConfig):
     if config.ckpt:
         logger.info("Writing final checkpoint")
         ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
+        weight_ckpt_manager.save(model, tokenizer, step=progress.step)
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("SFT trainer finished!")
