@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import Field, model_validator
 
-from prime_rl.trainer.config import CheckpointConfig, ModelConfig, OptimizerConfig
+from prime_rl.trainer.config import CheckpointConfig, ModelConfig, OptimizerConfig, WeightCheckpointConfig
 from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
@@ -48,6 +48,9 @@ class SFTTrainerConfig(BaseSettings):
 
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
+
+    # The weight checkpoint configuration
+    weights: WeightCheckpointConfig = WeightCheckpointConfig()
 
     # The logging configuration
     log: LogConfig = LogConfig()

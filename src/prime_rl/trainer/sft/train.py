@@ -7,6 +7,7 @@ import torch
 from torch.nn.functional import cross_entropy, softmax
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
+from prime_rl.trainer.weights import WeightCheckpointManager
 from prime_rl.trainer.sft.config import SFTTrainerConfig
 from prime_rl.trainer.logger import setup_logger
 from prime_rl.trainer.scheduler import create_lr_scheduler
@@ -68,6 +69,7 @@ def train(config: SFTTrainerConfig):
     # Get checkpoint manager
     if config.ckpt:
         logger.info(f"Initializing checkpoint manager ({config.ckpt})")
+        weight_ckpt_manager = WeightCheckpointManager(config.outputs_dir, config.weights, config.ckpt, async_level=0)
         ckpt_manager = CheckpointManager(config.outputs_dir, config.ckpt)
 
     # Optionally, resume training from a checkpoint
@@ -102,6 +104,7 @@ def train(config: SFTTrainerConfig):
             logger.info(f"Saving checkpoint at step {progress.step}")
             save_ckpt_start_time = time.time()
             ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
+            weight_ckpt_manager.save(model, tokenizer, step=progress.step)
             save_ckpt_time = time.time() - save_ckpt_start_time
 
             # Maybe clean up old trainer checkpoints

@@ -97,7 +97,7 @@ class OptimizerConfig(BaseConfig):
 class CheckpointConfig(BaseConfig):
     """Configures checkpointing the full model, optimizer and training state for resuming training."""
 
-    interval: Annotated[int, Field(ge=1, description="Interval at which to save the checkpoint.")] = 50
+    interval: Annotated[int, Field(ge=1, description="Interval at which to save the checkpoint. If None, will only checkpoint at the end of training.")] = None
 
     save_async: Annotated[
         bool,
@@ -121,3 +121,15 @@ class CheckpointConfig(BaseConfig):
             description="Keep at most this many recent step checkpoints on disk. If None, never clean old checkpoints.",
         ),
     ] = None
+
+class WeightCheckpointConfig(BaseConfig):
+    """Configures checkpointing the model weights for updating the inference engines (RL trainer) or continued post-training (on SFT trainer)."""
+
+    interval: Annotated[int | None, Field(ge=1, description="Interval at which to save the weights. If None, will only keep necessary weight checkpoints for resuming training.")] = None
+
+    save_async: Annotated[
+        bool,
+        Field(
+            description="Whether to save the weights asynchronously.",
+        ),
+    ] = True

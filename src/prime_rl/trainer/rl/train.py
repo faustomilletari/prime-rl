@@ -9,7 +9,7 @@ import shardcast
 import torch
 from loguru import logger
 from prime_rl.trainer.ckpt import CheckpointManager, Progress
-from prime_rl.trainer.rl.weights import WeightCheckpointManager
+from prime_rl.trainer.weights import WeightCheckpointManager
 from prime_rl.trainer.rl.config import RLTrainerConfig
 from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
 from prime_rl.trainer.logger import setup_logger

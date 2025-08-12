@@ -3,7 +3,7 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, Field, model_validator
 
-from prime_rl.trainer.config import CheckpointConfig, ModelConfig, OptimizerConfig
+from prime_rl.trainer.config import CheckpointConfig, ModelConfig, OptimizerConfig, WeightCheckpointConfig
 from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
@@ -29,24 +29,6 @@ class RatioLossConfig(BaseLossConfig):
 
 
 LossConfig: TypeAlias = ClippingLossConfig | RatioLossConfig
-
-
-class WeightCheckpointConfig(BaseConfig):
-    """Configures checkpointing the model weights for updating the inference engines."""
-
-    interval: Annotated[
-        int | None,
-        Field(
-            description="Interval of checkpoints to save. If None, will automatically delete weight checkpoints that are more than `async_level` steps old. This is useful to keep some weight-only checkpoints for online evals.",
-        ),
-    ] = None
-
-    save_async: Annotated[
-        bool,
-        Field(
-            description="Whether to save the weights asynchronously.",
-        ),
-    ] = True
 
 
 class FakeDataLoaderConfig(BaseConfig):
