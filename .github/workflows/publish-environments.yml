@@ -113,10 +113,10 @@ jobs:
       - name: Ensure uv is on PATH
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install prime-cli
-        run: uv pip install --system prime-cli
+      - name: Install prime
+        run: uv pip install --system prime
 
-      - name: Configure prime-cli
+      - name: Configure prime CLI
         run: |
           if [ -n "${PRIME_BASE_URL}" ]; then
             prime config set-base-url "${PRIME_BASE_URL}"
