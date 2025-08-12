@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
@@ -19,6 +19,7 @@ class DataConfig(BaseConfig):
 
     name: Annotated[str, Field(description="Name or path of the HF dataset to use.")] = "PrimeIntellect/Reverse-Text-SFT"
     split: Annotated[str, Field(description="Split to use from the HF dataset.")] = "train"
+    collate_mode: Annotated[Literal["padding", "packing"], Field(description="Collate mode to use.")] = "padding"
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128
     seq_len: Annotated[int, Field(ge=1)] = 128

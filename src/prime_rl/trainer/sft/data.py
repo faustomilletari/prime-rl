@@ -129,21 +129,24 @@ def get_dataset(tokenizer, config: DataConfig) -> Dataset:
         return FakeDataset(tokenizer, config)
     return SFTDataset(tokenizer, config)
 
+def padding_collate(batch: list[Sample]) -> Batch:
+    batch_input_ids = torch.stack([torch.tensor(item["input_ids"]) for item in batch]).long()
+    batch_position_ids = torch.stack([torch.tensor(item["position_ids"]) for item in batch]).long()
+    batch_loss_mask = torch.stack([torch.tensor(item["loss_mask"]) for item in batch]).bool()
+
+    return {
+        "input_ids": batch_input_ids[:, :-1].contiguous(),
+        "target_ids": batch_input_ids[:, 1:].contiguous(),
+        "position_ids": batch_position_ids[:, :-1].contiguous(),
+        "loss_mask": batch_loss_mask[:, :-1].contiguous(),
+    }
+
+def packing_collate(batch: list[Sample]) -> Batch:
+    return padding_collate(batch)
+
 
 def get_dataloader(dataset: Dataset, config: DataConfig) -> DataLoader:
-    def collate_fn(batch: list[Sample]) -> Batch:
-        batch_input_ids = torch.stack([torch.tensor(item["input_ids"]) for item in batch]).long()
-        batch_position_ids = torch.stack([torch.tensor(item["position_ids"]) for item in batch]).long()
-        batch_loss_mask = torch.stack([torch.tensor(item["loss_mask"]) for item in batch]).bool()
-
-        return {
-            "input_ids": batch_input_ids[:, :-1].contiguous(),
-            "target_ids": batch_input_ids[:, 1:].contiguous(),
-            "position_ids": batch_position_ids[:, :-1].contiguous(),
-            "loss_mask": batch_loss_mask[:, :-1].contiguous(),
-        }
-
     # Initialize rank-aware sampler
+    collate_fn = padding_collate if config.collate_mode == "padding" else packing_collate
     sampler = DistributedSampler(dataset, shuffle=config.shuffle, drop_last=True)
-
     return iter(DataLoader(dataset, batch_size=config.micro_batch_size, collate_fn=collate_fn, sampler=sampler))
