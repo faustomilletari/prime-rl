@@ -117,7 +117,6 @@ def train(config: SFTTrainerConfig):
         num_micro_batches = config.data.batch_size // config.data.micro_batch_size
         for micro_step in range(num_micro_batches):
             micro_batch = next(dataloader)
-            micro_batch = {k: v.to("cuda") for k, v in micro_batch.items()}
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
