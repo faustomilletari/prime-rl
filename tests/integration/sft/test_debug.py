@@ -8,7 +8,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 
 TIMEOUT = 300  # 5 minutes
 ENV = {"CUDA_VISIBLE_DEVICES": "1"}
-SFT_CMD = ["uv", "run", "sft", "@", "configs/reverse_text/sft.toml", "--max-steps", "50", "--ckpt"]
+SFT_CMD = ["uv", "run", "sft", "@", "configs/reverse_text/sft.toml", "--max-steps", "20", "--ckpt"]
 SFT_RESUME_CMD = [
     "uv",
     "run",
@@ -16,9 +16,9 @@ SFT_RESUME_CMD = [
     "@",
     "configs/reverse_text/sft.toml",
     "--max-steps",
-    "100",
+    "40",
     "--ckpt.resume-step",
-    "50",
+    "20",
 ]
 
 

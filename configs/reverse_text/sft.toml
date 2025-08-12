@@ -1,4 +1,7 @@
-max_steps = 100 # ~1.5 Epochs
+max_steps = 40
+
+[model]
+name = "PrimeIntellect/Qwen3-0.6B"
 
 [data]
 batch_size = 16
