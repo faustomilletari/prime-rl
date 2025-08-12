@@ -8,6 +8,12 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 
+class FakeDataConfig(BaseConfig):
+    """Configures a fake dataset for debugging."""
+
+    n: Annotated[int, Field(ge=1)] = 1000
+
+
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
@@ -17,7 +23,7 @@ class DataConfig(BaseConfig):
     batch_size: Annotated[int, Field(ge=1)] = 128
     seq_len: Annotated[int, Field(ge=1)] = 128
 
-    fake: Annotated[bool, Field(description="Whether to use a fake dataset.")] = False
+    fake: Annotated[FakeDataConfig | None, Field(description="Whether to use a fake dataset.")] = None
 
     @model_validator(mode="after")
     def validate_batch_size(self):

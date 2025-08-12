@@ -1,11 +1,12 @@
-from typing import Iterator, TypedDict
+from typing import TypedDict
 
 import torch
 from datasets import Dataset as HFDataset
 from datasets import load_dataset
 from jaxtyping import Bool, Int
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset, IterableDataset
+from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.distributed import DistributedSampler
 from transformers import AutoTokenizer
 
 from prime_rl.trainer.sft.config import DataConfig
@@ -25,14 +26,17 @@ class Batch(TypedDict):
     target_ids: Int[Tensor, "batch seq"]
 
 
-class FakeDataset(IterableDataset):
+class FakeDataset(Dataset):
     """An infinite dataset of fake tokens"""
 
     def __init__(self, tokenizer: AutoTokenizer, config: DataConfig):
         self.config = config
         self.vocab_size = tokenizer.vocab_size
 
-    def fake_sample(self) -> Sample:
+    def __len__(self) -> int:
+        return self.config.fake.n // self.config.batch_size * self.config.batch_size  # We drop the last batch
+
+    def __getitem__(self, index: int) -> Sample:
         input_ids = torch.randint(0, self.vocab_size, (self.config.seq_len + 1,)).long()
         position_ids = torch.arange(len(input_ids)).long()
         loss_mask = torch.ones(len(input_ids)).bool()
@@ -47,7 +51,7 @@ class FakeDataset(IterableDataset):
             yield self.fake_sample()
 
 
-class SFTDataset(IterableDataset):
+class SFTDataset(Dataset):
     """Standard PyTorch dataset which wraps a HF SFT dataset in prompt + completion format."""
 
     def __init__(self, tokenizer: AutoTokenizer, config: DataConfig):
@@ -116,10 +120,11 @@ class SFTDataset(IterableDataset):
 
         return sample
 
-    def __iter__(self) -> Iterator[Sample]:
-        while True:
-            yield self.samples[self.index]
-            self.index = (self.index + 1) % len(self.samples)
+    def __len__(self) -> int:
+        return len(self.samples) // self.config.batch_size * self.config.batch_size  # We drop the last batch
+
+    def __getitem__(self, index: int) -> Sample:
+        return self.samples[index]
 
 
 def get_dataset(tokenizer, config: DataConfig) -> Dataset:
@@ -142,4 +147,7 @@ def get_dataloader(dataset: Dataset, batch_size: int) -> DataLoader:
             "loss_mask": batch_loss_mask[:, :-1].contiguous(),
         }
 
-    return iter(DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn))
+    # Initialize rank-aware sampler
+    sampler = DistributedSampler(dataset, drop_last=True)
+
+    return iter(DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, sampler=sampler))

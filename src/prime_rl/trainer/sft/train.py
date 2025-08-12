@@ -86,6 +86,9 @@ def train(config: SFTTrainerConfig):
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
+    assert len(dataset) % config.data.batch_size == 0, "Dataset size is expected to be divisible by batch size"
+    steps_per_epoch = len(dataset) // config.data.batch_size
+    epoch, epoch_step = 0, 0
     while True:
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
         is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
@@ -108,14 +111,19 @@ def train(config: SFTTrainerConfig):
         if config.max_steps is not None and progress.step >= config.max_steps:
             break
 
+        # Re-initialize the dataloader if we are the beginning of an epoch
+        if epoch_step == 0:
+            dataloader = get_dataloader(dataset, batch_size=config.data.micro_batch_size)
+            epoch += 1 if progress.step > 0 else 0  # Only increment epoch if we are not at the first step
+
         if config.profile_path and world.rank == 0:
             torch.cuda.memory._record_memory_history()
 
         step_start_time = time.time()
         forward_backward_start_time = time.time()
-        tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
-        num_micro_batches = config.data.batch_size // config.data.micro_batch_size
-        for micro_step in range(num_micro_batches):
+        tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
+        grad_accum_steps = config.data.batch_size // config.data.micro_batch_size // world.world_size
+        for micro_step in range(grad_accum_steps):
             micro_batch = next(dataloader)
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
@@ -142,8 +150,8 @@ def train(config: SFTTrainerConfig):
             # Mean reduction of unmasked tokens
             loss = loss[loss_mask].mean()
 
-            # Scale loss by number of micro steps (=gradient accumulation steps)
-            loss /= num_micro_batches
+            # Scale loss by number of gradient accumulation steps
+            loss /= grad_accum_steps
 
             # Delete logits before backward pass to avoid memory spike
             del logits
@@ -182,8 +190,7 @@ def train(config: SFTTrainerConfig):
         tensor_stats = tensors.compute_stats()
 
         # Compute step metrics
-        num_local_tokens = config.data.batch_size * config.data.seq_len
-        num_tokens = world.world_size * num_local_tokens
+        num_tokens = config.data.batch_size * config.data.seq_len
         progress.total_tokens += num_tokens
         progress.total_samples += config.data.batch_size
         perf_counter = get_perf_counter(model, config.data.seq_len)
@@ -196,6 +203,16 @@ def train(config: SFTTrainerConfig):
         current_lr = optimizer.param_groups[0]["lr"]
         step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
         logger.success(step_message)
+
+        # Log progress metrics
+        progress_metrics = {
+            "progress/epoch": epoch,
+            "progress/epoch_step": epoch_step,
+            "progress/total_samples": progress.total_samples,
+            "progress/total_tokens": progress.total_tokens,
+            "step": progress.step,
+        }
+        monitor.log(progress_metrics)
 
         # Log performance metrics
         perf_metrics = {
@@ -235,8 +252,9 @@ def train(config: SFTTrainerConfig):
                 step=progress.step,
             )
 
-        progress.step += 1
         is_first_step = False
+        progress.step += 1
+        epoch_step = (epoch_step + 1) % steps_per_epoch
 
     # Log final (immutable) distributions to W&B table
     if monitor.wandb:
