@@ -279,16 +279,16 @@ def train(config: RLTrainerConfig):
             loss.backward()
 
             # Add relevant tensors to tensor dict for logging purposes
-            tensors["probs"].append(torch.exp(logprobs)[loss_mask.bool()].detach().to("cpu"))
-            tensors["old_probs"].append(torch.exp(old_logprobs)[loss_mask.bool()].detach().to("cpu"))
-            tensors["entropy"].append(entropy[loss_mask.bool()].detach().to("cpu"))
+            tensors["probs"].append(torch.exp(logprobs)[loss_mask].detach().to("cpu"))
+            tensors["old_probs"].append(torch.exp(old_logprobs)[loss_mask].detach().to("cpu"))
+            tensors["entropy"].append(entropy[loss_mask].detach().to("cpu"))
             tensors["recomputed_logprob_error"].append(
-                recomputed_logprob_errors[micro_step][loss_mask.bool()].detach().to("cpu")
+                recomputed_logprob_errors[micro_step][loss_mask].detach().to("cpu")
             )
 
             # Add loss tensors to tensor dict for logging purposes
             for key, loss_tensor in loss_tensors.items():
-                loss_tensor = loss_tensor.detach()[loss_mask.bool()].detach().to("cpu")
+                loss_tensor = loss_tensor.detach()[loss_mask].detach().to("cpu")
                 tensors[key].append(loss_tensor)
 
             # Debug log with *local, micro step* stats
