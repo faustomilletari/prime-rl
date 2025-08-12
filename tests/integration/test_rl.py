@@ -18,8 +18,6 @@ RL_CMD = [
     "--orchestrator",
     "@",
     "configs/reverse_text/orch.toml",
-    "--model-name",
-    "outputs/weights/step_40",  # Use the SFT checkpoint
     "--orchestrator.sampling.max-tokens",
     "128",
     "--ckpt",
@@ -54,7 +52,6 @@ def wandb_project(username: str) -> str:
 @pytest.fixture(scope="module")
 def rl_process(
     vllm_server,  # Can only run with vLLM server
-    sft_resume_process,  # Can only run after the resumed SFT process is finished
     run_process: Callable[[Command, Environment, int], ProcessResult],
     wandb_project: str,
     branch_name: str,
