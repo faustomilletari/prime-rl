@@ -2,7 +2,7 @@ import copy
 from typing import Literal, TypedDict
 
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Bool, Float, Int
 from torch import Tensor
 from transformers import AutoTokenizer
 
