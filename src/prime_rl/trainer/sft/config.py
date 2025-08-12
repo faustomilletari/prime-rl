@@ -17,7 +17,7 @@ class FakeDataConfig(BaseConfig):
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
-    path: Annotated[str, Field(description="Path to a HF dataset.")] = "willcb/R1-reverse-wikipedia-paragraphs-v1-1000"
+    path: Annotated[str, Field(description="Path to a HF dataset.")] = "PrimeIntellect/Reverse-Text-SFT"
     split: Annotated[str, Field(description="Split to use from the HF dataset.")] = "train"
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128
