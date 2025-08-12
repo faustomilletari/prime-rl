@@ -1,4 +1,4 @@
-name: Publish new environments versions to the Prime Intellect Environment Hub
+name: Publish environments
 
 on:
   push:
