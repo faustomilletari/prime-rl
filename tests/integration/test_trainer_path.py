@@ -20,7 +20,7 @@ def create_sample(seq_len: int) -> BatchSample:
         "input_ids": torch.randint(0, 100, (seq_len,)).long(),
         "position_ids": torch.zeros(seq_len).long(),
         "advantages": torch.randn(seq_len).float(),
-        "loss_mask": torch.ones(seq_len).long(),
+        "loss_mask": torch.ones(seq_len).bool(),
         "logprobs": torch.randn(seq_len).float(),
         "total_tokens": seq_len,
     }
