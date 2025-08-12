@@ -39,7 +39,9 @@ def sft_process(
 ) -> ProcessResult:
     wandb_name = f"{branch_name}-{commit_hash}"
 
-    return run_process(SFT_CMD + ["--monitor.wandb.project", wandb_project, "--monitor.wandb.name", wandb_name], ENV)
+    return run_process(
+        SFT_CMD + ["--monitor.wandb.project", wandb_project, "--monitor.wandb.name", wandb_name], ENV, TIMEOUT
+    )
 
 
 @pytest.fixture
@@ -54,7 +56,7 @@ def sft_resume_process(
 
     return run_process(
         SFT_RESUME_CMD + ["--monitor.wandb.project", wandb_project, "--monitor.wandb.name", wandb_name],
-        {},
+        ENV,
         TIMEOUT,
     )
 
