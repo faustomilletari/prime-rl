@@ -1,5 +1,3 @@
-import os
-import subprocess
 from typing import Callable
 
 import pytest
@@ -42,32 +40,9 @@ RL_RESUME_CMD = [
     "20",
 ]
 
-
-@pytest.fixture(scope="module")
-def username() -> str:
-    return os.environ.get("USERNAME_CI", os.getlogin())
-
-
-@pytest.fixture(scope="module")
-def branch_name() -> str:
-    branch_name_ = os.environ.get("GITHUB_REF_NAME", None)
-
-    if branch_name_ is None:
-        branch_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode("utf-8").strip()
-    else:
-        branch_name = branch_name_.replace("/merge", "")
-        branch_name = f"pr-{branch_name}"
-    return branch_name
-
-
-@pytest.fixture(scope="module")
-def commit_hash() -> str:
-    return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode("utf-8").strip()
-
-
 @pytest.fixture(scope="module")
 def wandb_project(username: str) -> str:
-    project = "ci-reverse-text"
+    project = "ci-reverse-text-rl"
     if username != "CI_RUNNER":
         project += "-local"
     return project
