@@ -31,7 +31,7 @@ from prime_rl.orchestrator.utils import (
     wait_for_weight_checkpoint,
     print_benchmark,
     parse_truncated_completions,
-    apply_shortest_correct_bonus,
+    apply_length_bonus,
 )
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
