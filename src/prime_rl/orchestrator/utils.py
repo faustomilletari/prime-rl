@@ -124,7 +124,7 @@ def compute_rewards(
         rewards.append(reward)
     return rewards
 
-def apply_shortest_correct_bonus(
+def apply_length_bonus(
     rewards: list[float],
     completion_lengths: list[int],
     rollouts_per_prompt: int,
