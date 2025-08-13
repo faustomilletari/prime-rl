@@ -233,7 +233,7 @@ async def orchestrate(config: OrchestratorConfig):
                     rewards=processed_outputs.rewards,
                     completion_lengths=list(map(len, processed_outputs.completion_ids)),
                     rollouts_per_prompt=config.rollouts_per_prompt,
-                    bonus=config.apply_shortest_correct_bonus,
+                    bonus=config.length_bonus,
                 )
             else:
                 train_rewards = processed_outputs.rewards
