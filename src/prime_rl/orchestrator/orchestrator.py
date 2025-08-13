@@ -228,8 +228,8 @@ async def orchestrate(config: OrchestratorConfig):
                 mask_truncated_completions=config.mask_truncated_completions,
             )
 
-            if config.apply_shortest_correct_bonus is not None:
-                train_rewards = apply_shortest_correct_bonus(
+            if config.length_bonus is not None:
+                train_rewards = apply_length_bonus(
                     rewards=processed_outputs.rewards,
                     completion_lengths=list(map(len, processed_outputs.completion_ids)),
                     rollouts_per_prompt=config.rollouts_per_prompt,
