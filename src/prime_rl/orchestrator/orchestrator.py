@@ -160,13 +160,11 @@ async def orchestrate(config: OrchestratorConfig):
             num_examples_list: list[int] = (
                 config.eval.num_examples if config.eval.num_examples is not None else [-1 for _ in config.eval.ids]
             )
+            tasks = []
             for env_id, num_examples, rollouts_per_example in zip(
                 config.eval.ids, num_examples_list, config.eval.rollouts_per_example
             ):
                 env_args = config.eval.args.get(env_id, {}) if isinstance(config.eval.args, dict) else {}
-                logger.info(
-                    f"Evaluating {env_id} (num_examples={num_examples}, rollouts_per_example={rollouts_per_example}) with args {env_args}"
-                )
 
                 # Build eval sampling args from eval.sampling (shared across evals)
                 sampling_args = dict(config.eval.sampling)
@@ -178,38 +176,56 @@ async def orchestrate(config: OrchestratorConfig):
                 # Load eval environment
                 vf_eval = load_environment(env_id, **env_args)
 
-                # Run evaluation (sync via thread to avoid blocking event loop)
-                results = await asyncio.to_thread(
-                    vf_eval.evaluate,
-                    client,
-                    config.model.name,
-                    sampling_args,
-                    num_examples,
-                    rollouts_per_example,
-                    True,  # score_rollouts
-                )
+                async def eval_one(
+                    env_id: str = env_id,
+                    num_examples: int = num_examples,
+                    rollouts_per_example: int = rollouts_per_example,
+                    env_args: dict = env_args,
+                    sampling_args: dict = sampling_args,
+                    vf_eval=vf_eval,
+                ) -> dict:
+                    logger.info(
+                        f"Evaluating {env_id} (num_examples={num_examples}, rollouts_per_example={rollouts_per_example}) with args {env_args}"
+                    )
 
-                # Average reward
-                rewards = np.array(results.reward, dtype=float)
-                avg_reward = float(rewards.mean()) if rewards.size > 0 else 0.0
+                    # Run evaluation (sync via thread to avoid blocking event loop)
+                    results = await asyncio.to_thread(
+                        vf_eval.evaluate,
+                        client,
+                        config.model.name,
+                        sampling_args,
+                        num_examples,
+                        rollouts_per_example,
+                        True,  # score_rollouts
+                    )
 
-                # Pass@k (if binary and k>1)
-                k = int(rollouts_per_example)
-                could_be_binary = set(np.unique(rewards)).issubset({0.0, 1.0})
-                metrics = {f"eval/{env_id}/avg@{k}": avg_reward}
-                if k > 1 and could_be_binary:
-                    try:
-                        # Group rewards per original example: results are repeated k times in-order
-                        assert rewards.size % k == 0
-                        grouped = rewards.reshape(-1, k)
-                        pass_k = grouped.max(axis=1).mean().item()
-                        metrics[f"eval/{env_id}/pass@{k}"] = float(pass_k)
-                    except Exception:
-                        # If reshaping assumptions break, skip pass@k for now
-                        pass
+                    # Average reward
+                    rewards = np.array(results.reward, dtype=float)
+                    avg_reward = float(rewards.mean()) if rewards.size > 0 else 0.0
 
-                # Log metrics with step and ckpt context
-                metrics.update({"progress/ckpt_step": ckpt_step, "step": progress.step})
+                    # Pass@k (if binary and k>1)
+                    k = int(rollouts_per_example)
+                    could_be_binary = set(np.unique(rewards)).issubset({0.0, 1.0})
+                    metrics = {f"eval/{env_id}/avg@{k}": avg_reward}
+                    if k > 1 and could_be_binary:
+                        try:
+                            # Group rewards per original example: results are repeated k times in-order
+                            assert rewards.size % k == 0
+                            grouped = rewards.reshape(-1, k)
+                            pass_k = grouped.max(axis=1).mean().item()
+                            metrics[f"eval/{env_id}/pass@{k}"] = float(pass_k)
+                        except Exception:
+                            # If reshaping assumptions break, skip pass@k for now
+                            pass
+
+                    # Add step context; logging happens after gather
+                    metrics.update({"progress/ckpt_step": ckpt_step, "step": progress.step})
+                    return metrics
+
+                tasks.append(eval_one())
+
+            results_list = await asyncio.gather(*tasks)
+            for metrics in results_list:
                 monitor.log(metrics)
 
             eval_time = time.time() - eval_start_time
