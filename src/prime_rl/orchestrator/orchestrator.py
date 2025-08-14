@@ -14,7 +14,7 @@ from verifiers.types import GenerateOutputs, ProcessedOutputs
 from transformers import AutoTokenizer
 
 from prime_rl.eval.utils import run_benchmark
-from prime_rl.orchestrator.ckpt import CheckpointManager, Progress
+from prime_rl.orchestrator.ckpt import CheckpointManager, RLProgress as Progress
 from prime_rl.orchestrator.client import (
     check_has_model,
     check_health,
@@ -116,6 +116,9 @@ async def orchestrate(config: OrchestratorConfig):
             save_ckpt_start_time = time.time()
             ckpt_manager.save(progress, step=progress.step)
             save_ckpt_time = time.time() - save_ckpt_start_time
+
+            # Maybe clean up old orchestrator checkpoints
+            ckpt_manager.maybe_clean()
 
         # Break if we have reached the maximum number of steps
         if config.max_steps and progress.step >= config.max_steps:

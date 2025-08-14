@@ -21,7 +21,8 @@ from prime_rl.inference.config import InferenceConfig
 from prime_rl.orchestrator.config import CheckpointConfig as OrchestratorCheckpointConfig
 from prime_rl.orchestrator.config import OrchestratorConfig
 from prime_rl.trainer.config import CheckpointConfig as TrainerCheckpointConfig
-from prime_rl.trainer.config import FakeDataLoaderConfig, TrainerConfig
+from prime_rl.trainer.rl.config import FakeDataLoaderConfig
+from prime_rl.trainer.rl.config import RLTrainerConfig as TrainerConfig
 from prime_rl.utils.config import WandbMonitorConfig
 from prime_rl.utils.logger import format_message, format_time, get_logger, set_logger, setup_handlers
 from prime_rl.utils.pydantic_config import BaseSettings, get_temp_toml_file, parse_argv
@@ -74,6 +75,14 @@ class CheckpointConfig(BaseSettings):
 
     resume_step: Annotated[
         int | None, Field(description="The step to resume from. If None, will not resume from a checkpoint.")
+    ] = None
+
+    keep: Annotated[
+        int | None,
+        Field(
+            ge=1,
+            description="Keep at most this many recent step checkpoints on disk. If None, never clean old checkpoints.",
+        ),
     ] = None
 
 
@@ -216,6 +225,11 @@ class RLConfig(BaseSettings):
             if self.ckpt.resume_step:
                 self.trainer.ckpt.resume_step = self.ckpt.resume_step
                 self.orchestrator.ckpt.resume_step = self.ckpt.resume_step
+
+            # If specified, propagate keep policy
+            if self.ckpt.keep:
+                self.trainer.ckpt.keep = self.ckpt.keep
+                self.orchestrator.ckpt.keep = self.ckpt.keep
 
         validate_shared_ckpt_config(self.trainer, self.orchestrator)
 
@@ -517,7 +531,7 @@ def rl(config: RLConfig):
             f"--rdzv-id={uuid.uuid4().hex}",
             "--nproc-per-node",
             str(config.trainer_gpus),
-            "src/prime_rl/trainer/train.py",
+            "src/prime_rl/trainer/rl/train.py",
             "@",
             trainer_file.as_posix(),
         ]
