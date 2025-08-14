@@ -83,13 +83,8 @@ def train(config: SFTTrainerConfig):
     )
 
     # Set up the dataset and dataloader (optionaly, use a fake dataset for debugging)
-    logger.info(f"Initializing dataset (name={config.data.name}, splits={config.data.splits})")
+    logger.info(f"Initializing data ({config.data})")
     dataset = setup_dataset(tokenizer, config.data)
-
-    # Set up the dataloader over micro batches
-    logger.info(
-        f"Initializing dataloader (micro_batch_size={config.data.micro_batch_size}, batch_size={config.data.batch_size}, collate_mode={config.data.collate_mode})"
-    )
     dataloader = iter(setup_dataloader(dataset, tokenizer, config.data))
 
     logger.info(f"Starting training loop ({config.max_steps=})")

@@ -39,6 +39,14 @@ class DataConfig(BaseConfig):
             raise ValueError("Batch size must be greater than or equal to micro batch size")
         return self
 
+    def __str__(self):
+        if self.fake:
+            data_str = f"fake={self.fake}"
+        else:
+            data_str = f"name={self.name}, splits={self.splits}, collate_mode={self.collate_mode}, shuffle={self.shuffle}"
+
+        return f"{data_str}, micro_batch_size={self.micro_batch_size}, batch_size={self.batch_size}, seq_len={self.seq_len}"
+
 
 class SFTTrainerConfig(BaseSettings):
     """Configures the SFT trainer"""
@@ -92,8 +100,6 @@ class SFTTrainerConfig(BaseSettings):
     def auto_setup_bench(self):
         if self.bench:
             self.max_steps = 4  # 1 Warmup + 3 Benchmark
-            if not self.data.fake:
-                self.data.fake = True
         return self
 
     @model_validator(mode="after")
