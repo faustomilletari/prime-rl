@@ -25,10 +25,20 @@ from prime_rl.orchestrator.buffer import setup_buffer, make_rollouts, Rollout
 from prime_rl.orchestrator.batch import prepare_batch
 from prime_rl.orchestrator.logger import setup_logger
 from prime_rl.orchestrator.advantage import compute_advantages
-from prime_rl.orchestrator.utils import wait_for_weight_checkpoint, print_benchmark, parse_truncated_completions
+from prime_rl.orchestrator.utils import (
+    wait_for_weight_checkpoint,
+    print_benchmark,
+    parse_truncated_completions,
+)
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
-from prime_rl.utils.utils import clean_exit, format_num, get_rollout_dir, get_weights_dir, to_col_format
+from prime_rl.utils.utils import (
+    clean_exit,
+    format_num,
+    get_rollout_dir,
+    get_weights_dir,
+    to_col_format,
+)
 import numpy as np
 
 
@@ -46,7 +56,9 @@ async def orchestrate(config: OrchestratorConfig):
         )
 
     # Setup client
-    logger.info(f"Initializing OpenAI client ({config.client.host}:{config.client.port})")
+    logger.info(
+        f"Initializing OpenAI client ({config.client.host}:{config.client.port})"
+    )
     client = setup_client(config.client)
 
     # Load tokenizer
@@ -55,7 +67,12 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Setup monitor
     logger.info(f"Initializing monitor ({config.monitor})")
-    monitor = setup_monitor(config.monitor, outputs_dir=config.outputs_dir, tokenizer=tokenizer, run_config=config)
+    monitor = setup_monitor(
+        config.monitor,
+        outputs_dir=config.outputs_dir,
+        tokenizer=tokenizer,
+        run_config=config,
+    )
 
     # Check health of the client
     logger.info("Waiting for inference pool to be ready")
@@ -71,7 +88,9 @@ async def orchestrate(config: OrchestratorConfig):
     progress = Progress()
     ckpt_step = 0
     if config.ckpt and ckpt_manager and config.ckpt.resume_step:
-        logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
+        logger.info(
+            f"Resuming training from checkpoint step `{config.ckpt.resume_step}`"
+        )
         ckpt_manager.load(progress, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
         await update_weights(client, get_weights_dir(config.outputs_dir), ckpt_step)
@@ -80,7 +99,9 @@ async def orchestrate(config: OrchestratorConfig):
         await reload_weights(client)
 
     # Load environment and extract dataset
-    logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
+    logger.info(
+        f"Loading environment {config.environment.id} with args {config.environment.args}"
+    )
     vf_env = load_environment(config.environment.id, **config.environment.args)
     dataset = vf_env.get_dataset(seed=config.seed)
 
@@ -96,7 +117,9 @@ async def orchestrate(config: OrchestratorConfig):
     is_first_step = True
     while True:
         # Save checkpoint (if we are at an interval step and not at the first or last step)
-        is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
+        is_last_step = (
+            config.max_steps is not None and progress.step == config.max_steps - 1
+        )
         save_ckpt_time = 0
         if (
             ckpt_manager is not None
@@ -132,7 +155,9 @@ async def orchestrate(config: OrchestratorConfig):
             wait_for_weight_ckpt_start_time = time.time()
             wait_for_weight_checkpoint(get_weights_dir(config.outputs_dir), ckpt_step)
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
-            logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
+            logger.debug(
+                f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint"
+            )
 
             # Update the weights
             logger.info(f"Updating weights to weight checkpoint {ckpt_step}")
@@ -158,20 +183,32 @@ async def orchestrate(config: OrchestratorConfig):
             assert config.eval is not None
             # Ensure type-safe list for num_examples (validator fills None -> [-1, ...] at runtime)
             num_examples_list: list[int] = (
-                config.eval.num_examples if config.eval.num_examples is not None else [-1 for _ in config.eval.ids]
+                config.eval.num_examples
+                if config.eval.num_examples is not None
+                else [-1 for _ in config.eval.ids]
             )
             tasks = []
             for env_id, num_examples, rollouts_per_example in zip(
                 config.eval.ids, num_examples_list, config.eval.rollouts_per_example
             ):
-                env_args = config.eval.args.get(env_id, {}) if isinstance(config.eval.args, dict) else {}
+                env_args = (
+                    config.eval.args.get(env_id, {})
+                    if isinstance(config.eval.args, dict)
+                    else {}
+                )
 
                 # Build eval sampling args from eval.sampling (shared across evals)
                 sampling_args = dict(config.eval.sampling)
                 sampling_args["top_p"] = 1.0
                 sampling_args["logprobs"] = True
-                sampling_args["extra_body"] = {"return_tokens_as_token_ids": True, "top_k": -1, "min_p": 0.0}
-                sampling_args["extra_body"]["min_tokens"] = sampling_args.pop("min_tokens")
+                sampling_args["extra_body"] = {
+                    "return_tokens_as_token_ids": True,
+                    "top_k": -1,
+                    "min_p": 0.0,
+                }
+                sampling_args["extra_body"]["min_tokens"] = sampling_args.pop(
+                    "min_tokens"
+                )
 
                 # Load eval environment
                 vf_eval = load_environment(env_id, **env_args)
@@ -187,16 +224,25 @@ async def orchestrate(config: OrchestratorConfig):
                     logger.info(
                         f"Evaluating {env_id} (num_examples={num_examples}, rollouts_per_example={rollouts_per_example}) with args {env_args}"
                     )
+                    # Build inputs dataset (mirror Environment.evaluate but async)
+                    if getattr(vf_eval, "eval_dataset", None) is None:
+                        logger.info(
+                            f"eval_dataset is not set for {env_id}, falling back to train dataset"
+                        )
+                        inputs = vf_eval.get_dataset(n=num_examples)
+                    else:
+                        inputs = vf_eval.get_eval_dataset(n=num_examples)
+                    assert inputs is not None
+                    if rollouts_per_example > 1:
+                        inputs = inputs.repeat(rollouts_per_example)
 
-                    # Run evaluation (sync via thread to avoid blocking event loop)
-                    results = await asyncio.to_thread(
-                        vf_eval.evaluate,
-                        client,
-                        config.model.name,
-                        sampling_args,
-                        num_examples,
-                        rollouts_per_example,
-                        True,  # score_rollouts
+                    # Run async generation and scoring
+                    results = await vf_eval.a_generate(
+                        inputs=inputs,
+                        client=client,
+                        model=config.model.name,
+                        sampling_args=sampling_args,
+                        score_rollouts=True,
                     )
 
                     # Average reward
@@ -219,7 +265,9 @@ async def orchestrate(config: OrchestratorConfig):
                             pass
 
                     # Add step context; logging happens after gather
-                    metrics.update({"progress/ckpt_step": ckpt_step, "step": progress.step})
+                    metrics.update(
+                        {"progress/ckpt_step": ckpt_step, "step": progress.step}
+                    )
                     return metrics
 
                 tasks.append(eval_one())
@@ -240,8 +288,16 @@ async def orchestrate(config: OrchestratorConfig):
             problem_ids, problems = buffer.sample_problems(problems_to_sample)
 
             # Duplicate problems `rollouts_per_example` times
-            problem_ids = [problem_id for problem_id in problem_ids for _ in range(config.rollouts_per_example)]
-            problems = [problem for problem in problems for _ in range(config.rollouts_per_example)]
+            problem_ids = [
+                problem_id
+                for problem_id in problem_ids
+                for _ in range(config.rollouts_per_example)
+            ]
+            problems = [
+                problem
+                for problem in problems
+                for _ in range(config.rollouts_per_example)
+            ]
 
             # Prepare inputs for verifiers generation
             # TODO: Can we use `prime_rl.utils.utils.to_col_format` here?
@@ -257,14 +313,21 @@ async def orchestrate(config: OrchestratorConfig):
             sampling_args = dict(config.sampling)
             sampling_args["top_p"] = 1.0
             sampling_args["logprobs"] = True
-            sampling_args["extra_body"] = {"return_tokens_as_token_ids": True, "top_k": -1, "min_p": 0.0}
+            sampling_args["extra_body"] = {
+                "return_tokens_as_token_ids": True,
+                "top_k": -1,
+                "min_p": 0.0,
+            }
             sampling_args["extra_body"]["min_tokens"] = sampling_args.pop("min_tokens")
 
             # Generate completions + rewards with verifiers
             logger.info(f"Sending {len(problems)} requests to environments")
             generate_completions_start_time = time.time()
             generate_outputs: GenerateOutputs = await vf_env.a_generate(
-                inputs=inputs, client=client, model=config.model.name, sampling_args=sampling_args
+                inputs=inputs,
+                client=client,
+                model=config.model.name,
+                sampling_args=sampling_args,
             )
             generate_completions_time = time.time() - generate_completions_start_time
             problem_requests += problems_to_sample
@@ -335,14 +398,28 @@ async def orchestrate(config: OrchestratorConfig):
             .float()
         )
         assert (
-            rewards.shape == advantages.shape == is_truncated.shape == (problems_per_batch, config.rollouts_per_example)
+            rewards.shape
+            == advantages.shape
+            == is_truncated.shape
+            == (problems_per_batch, config.rollouts_per_example)
         )
-        assert rewards.numel() == advantages.numel() == is_truncated.numel() == config.batch_size
+        assert (
+            rewards.numel()
+            == advantages.numel()
+            == is_truncated.numel()
+            == config.batch_size
+        )
         prompt_tokens = [rollout.prompt_tokens for rollout in accepted_rollouts]
         completion_tokens = [rollout.completion_tokens for rollout in accepted_rollouts]
-        prompt_lens = torch.tensor([len(p) for p in prompt_tokens]).float().reshape(-1, config.rollouts_per_example)
+        prompt_lens = (
+            torch.tensor([len(p) for p in prompt_tokens])
+            .float()
+            .reshape(-1, config.rollouts_per_example)
+        )
         completion_lens = (
-            torch.tensor([len(c) for c in completion_tokens]).float().reshape(-1, config.rollouts_per_example)
+            torch.tensor([len(c) for c in completion_tokens])
+            .float()
+            .reshape(-1, config.rollouts_per_example)
         )
         seq_lens = prompt_lens + completion_lens
         assert (
@@ -351,12 +428,19 @@ async def orchestrate(config: OrchestratorConfig):
             == completion_lens.shape
             == (problems_per_batch, config.rollouts_per_example)
         )
-        assert seq_lens.numel() == prompt_lens.numel() == completion_lens.numel() == config.batch_size
+        assert (
+            seq_lens.numel()
+            == prompt_lens.numel()
+            == completion_lens.numel()
+            == config.batch_size
+        )
         assert is_truncated.shape == (problems_per_batch, config.rollouts_per_example)
         assert is_truncated.numel() == config.batch_size
 
         logger.debug(f"Got rewards: {lt.lovely(rewards)}")
-        logger.debug(f"Got advantages ({config.advantage_type}): {lt.lovely(advantages)}")
+        logger.debug(
+            f"Got advantages ({config.advantage_type}): {lt.lovely(advantages)}"
+        )
 
         # Compute progress metrics and throughput
         num_tokens = int(seq_lens.sum().item())
@@ -366,7 +450,9 @@ async def orchestrate(config: OrchestratorConfig):
         throughput = num_tokens / (generate_completions_time)
 
         # Compute solve all and none tensors
-        solve_all = rewards.sum(-1).eq(config.rollouts_per_example).float().mean().item()
+        solve_all = (
+            rewards.sum(-1).eq(config.rollouts_per_example).float().mean().item()
+        )
         solve_none = rewards.sum(-1).eq(0).float().mean().item()
         effective_batch_size = 1 - solve_none - solve_all
 
@@ -387,7 +473,9 @@ async def orchestrate(config: OrchestratorConfig):
         for i, batches in enumerate(all_data_ranks_batches):
             batch_path = step_path / f"rank_{i}.pt"
             tmp_path = batch_path.with_suffix(".tmp")
-            logger.debug(f"Saving rollouts for step {progress.step} for rank {i} to {batch_path}")
+            logger.debug(
+                f"Saving rollouts for step {progress.step} for rank {i} to {batch_path}"
+            )
             torch.save(batches, tmp_path)
             tmp_path.rename(batch_path)
 
