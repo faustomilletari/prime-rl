@@ -1,4 +1,5 @@
 import asyncio
+import random
 import time
 from loguru import logger
 from pathlib import Path
@@ -233,6 +234,33 @@ async def orchestrate(config: OrchestratorConfig):
                 samples_per_problem=config.rollouts_per_prompt,
                 advantage_type=config.advantage_type,
             )
+
+            if config.replace_zero_advantage:
+                group_size = config.rollouts_per_prompt
+
+                zero_prompt_indices = []
+                non_zero_prompt_indices = []
+
+                group_advs = [advantages[i : i + group_size] for i in range(0, len(advantages), group_size)]
+                zero_prompt_indices = [i for i, advs in enumerate(group_advs) if all(a == 0 for a in advs)]
+                non_zero_prompt_indices = [i for i, advs in enumerate(group_advs) if any(a != 0 for a in advs)]
+
+                for zp_idx in zero_prompt_indices:
+                    repl_idx = random.choice(non_zero_prompt_indices)
+
+                    for offset in range(group_size):
+                        src = repl_idx * group_size + offset
+                        tgt = zp_idx * group_size + offset
+
+                        advantages[tgt] = advantages[src]
+                        processed_outputs.rewards[tgt] = processed_outputs.rewards[src]
+                        processed_outputs.completion_ids[tgt] = processed_outputs.completion_ids[src]
+                        processed_outputs.completion_mask[tgt] = processed_outputs.completion_mask[src]
+                        processed_outputs.completion_logprobs[tgt] = processed_outputs.completion_logprobs[src]
+                        processed_outputs.prompt_ids[tgt] = processed_outputs.prompt_ids[src]
+                        processed_outputs.prompt_mask[tgt] = processed_outputs.prompt_mask[src]
+
+                        problem_ids[tgt] = problem_ids[src]
 
             # Parse whether the completions were truncated
             is_truncated = parse_truncated_completions(states=generate_outputs.state)
