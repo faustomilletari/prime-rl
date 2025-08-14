@@ -34,7 +34,7 @@ class ClientConfig(BaseConfig):
 
 
 class SamplingConfig(BaseConfig):
-    """Configures how tokens are sampled from the model. Largely follows the vLLM sampling parameters."""
+    """Configures how tokens are sampled from the model for training. Largely follows the vLLM sampling parameters."""
 
     temperature: Annotated[
         float,
@@ -43,6 +43,65 @@ class SamplingConfig(BaseConfig):
             description="Scales the output probability distribution. Lower values => more deterministic, higher values => more random. If 0, will sample greedily.",
         ),
     ] = 1.0
+
+    max_tokens: Annotated[
+        int | None,
+        Field(
+            description="Maximum number of output tokens to generate per turn. If None, will generate until maximum context length or EOS token is hit.",
+        ),
+    ] = None
+
+    min_tokens: Annotated[
+        int,
+        Field(
+            ge=0,
+            description="Minimum number of output tokens to generate per sequence.",
+        ),
+    ] = 0
+
+    seed: Annotated[
+        int | None,
+        Field(
+            description="Random seed to use for sampling. If None, no seeding is used.",
+        ),
+    ] = None
+
+
+class EvalSamplingConfig(BaseConfig):
+    """Configures how tokens are sampled from the model for evaluation. Largely follows the vLLM sampling parameters."""
+
+    temperature: Annotated[
+        float,
+        Field(
+            ge=0,
+            description="Scales the output probability distribution. Lower values => more deterministic, higher values => more random. If 0, will sample greedily.",
+        ),
+    ] = 1.0
+
+    top_p: Annotated[
+        float,
+        Field(
+            gt=0,
+            le=1,
+            description="Cumulative probability of the top tokens to consider. If 1, all tokens are considered.",
+        ),
+    ] = 1
+
+    top_k: Annotated[
+        int,
+        Field(
+            ge=-1,
+            description="Number of top tokens to consider. If -1, all tokens are considered.",
+        ),
+    ] = -1
+
+    min_p: Annotated[
+        float,
+        Field(
+            ge=0,
+            description="Minimum probability for a token to be considered, relative to the probability of the most likely token. If 0, all tokens are considered.",
+        ),
+    ] = 0.0
 
     max_tokens: Annotated[
         int | None,
@@ -85,21 +144,21 @@ class EvalConfig(BaseConfig):
     ] = []
 
     num_examples: Annotated[
-        list[int] | None,
+        list[int],
         Field(
             description="Number of examples to evaluate per environment. Set all or none; if None, defaults to -1 for every ID."
         ),
-    ] = None
+    ] = []
 
     rollouts_per_example: Annotated[
         list[int],
         Field(
             description="Number of samples to generate per example for each environment (length must match eval.ids)."
         ),
-    ] = [1]
+    ] = []
 
-    sampling: SamplingConfig = Field(
-        default_factory=SamplingConfig,
+    sampling: EvalSamplingConfig = Field(
+        default_factory=EvalSamplingConfig,
         description="Shared sampling configuration for evals; can differ from training sampling.",
     )
 
@@ -109,6 +168,30 @@ class EvalConfig(BaseConfig):
             description="Per-environment overrides keyed by ID; forwarded as kwargs to verifiers.load_environment(id, **args)."
         ),
     ] = {}
+
+    @model_validator(mode="after")
+    def _validate_and_fill_eval_lists(self):
+        # Validate ids
+        if not isinstance(self.ids, list):
+            raise ValueError("eval.ids must be a list of environment IDs")
+
+        # If rollouts_per_example is empty, default to 1 for all ids
+        if len(self.rollouts_per_example) == 0:
+            self.rollouts_per_example = [1 for _ in self.ids]
+        elif len(self.rollouts_per_example) != len(self.ids):
+            raise ValueError("Number of rollouts_per_example entries must match number of ids")
+
+        # num_examples: if empty/unspecified, default to -1 for all; else length must match ids
+        if len(self.num_examples) == 0:
+            self.num_examples = [-1 for _ in self.ids]
+        elif len(self.num_examples) != len(self.ids):
+            raise ValueError("Number of num_examples entries must match number of ids")
+
+        return self
+
+
+class OnlineEvalConfig(EvalConfig):
+    """Configures online evaluation."""
 
     interval: Annotated[
         int,
@@ -125,23 +208,28 @@ class EvalConfig(BaseConfig):
         ),
     ] = True
 
-    @model_validator(mode="after")
-    def _validate_and_fill_eval_lists(self):
-        # Validate ids
-        if not isinstance(self.ids, list):
-            raise ValueError("eval.ids must be a list of environment IDs")
 
-        # rollouts_per_example length must match ids
-        if len(self.rollouts_per_example) != len(self.ids):
-            raise ValueError("Number of rollouts_per_example entries must match number of ids")
+class OfflineEvalConfig(EvalConfig, BaseSettings):
+    """Configures evaluation."""
 
-        # num_examples: if None, default to -1 for all; else length must match ids
-        if self.num_examples is None:
-            self.num_examples = [-1 for _ in self.ids]
-        elif len(self.num_examples) != len(self.ids):
-            raise ValueError("Number of num_examples entries must match number of ids")
+    # The client configuration
+    client: ClientConfig = ClientConfig()
 
-        return self
+    # The model configuration
+    model: ModelConfig = ModelConfig()
+
+    # The monitor configuration
+    monitor: MultiMonitorConfig = MultiMonitorConfig()
+
+    # The logging configuration
+    log: LogConfig = LogConfig()
+
+    use_tqdm: Annotated[
+        bool,
+        Field(
+            description="Whether to use tqdm to display progress bars during model generation.",
+        ),
+    ] = False
 
 
 class CheckpointConfig(BaseConfig):
@@ -267,7 +355,7 @@ class OrchestratorConfig(BaseSettings):
     environment: EnvironmentConfig = EnvironmentConfig()
 
     # The evaluation configuration
-    eval: EvalConfig | None = None
+    eval: OnlineEvalConfig | None = None
 
     # Data buffer configuration
     buffer: Annotated[DataBufferConfigType, Field(discriminator="type")] = SimpleBufferConfig()

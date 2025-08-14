@@ -13,6 +13,7 @@ from verifiers.types import GenerateOutputs, ProcessedOutputs
 from transformers import AutoTokenizer
 
 from prime_rl.orchestrator.ckpt import RLProgress as Progress, setup_ckpt_manager
+from prime_rl.eval.utils import run_eval
 from prime_rl.orchestrator.client import (
     check_has_model,
     check_health,
@@ -178,104 +179,27 @@ async def orchestrate(config: OrchestratorConfig):
             last_eval_step = ckpt_step
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             eval_start_time = time.time()
-
-            # Evaluate each verifiers environment in series
-            assert config.eval is not None
-            # Ensure type-safe list for num_examples (validator fills None -> [-1, ...] at runtime)
-            num_examples_list: list[int] = (
-                config.eval.num_examples
-                if config.eval.num_examples is not None
-                else [-1 for _ in config.eval.ids]
-            )
-            tasks = []
-            for env_id, num_examples, rollouts_per_example in zip(
-                config.eval.ids, num_examples_list, config.eval.rollouts_per_example
-            ):
-                env_args = (
-                    config.eval.args.get(env_id, {})
-                    if isinstance(config.eval.args, dict)
-                    else {}
-                )
-
-                # Build eval sampling args from eval.sampling (shared across evals)
-                sampling_args = dict(config.eval.sampling)
-                sampling_args["top_p"] = 1.0
-                sampling_args["logprobs"] = True
-                sampling_args["extra_body"] = {
-                    "return_tokens_as_token_ids": True,
-                    "top_k": -1,
-                    "min_p": 0.0,
-                }
-                sampling_args["extra_body"]["min_tokens"] = sampling_args.pop(
-                    "min_tokens"
-                )
-
-                # Load eval environment
-                vf_eval = load_environment(env_id, **env_args)
-
-                async def eval_one(
-                    env_id: str = env_id,
-                    num_examples: int = num_examples,
-                    rollouts_per_example: int = rollouts_per_example,
-                    env_args: dict = env_args,
-                    sampling_args: dict = sampling_args,
-                    vf_eval=vf_eval,
-                ) -> dict:
-                    logger.info(
-                        f"Evaluating {env_id} (num_examples={num_examples}, rollouts_per_example={rollouts_per_example}) with args {env_args}"
-                    )
-                    # Build inputs dataset (mirror Environment.evaluate but async)
-                    if getattr(vf_eval, "eval_dataset", None) is None:
-                        logger.info(
-                            f"eval_dataset is not set for {env_id}, falling back to train dataset"
-                        )
-                        inputs = vf_eval.get_dataset(n=num_examples)
-                    else:
-                        inputs = vf_eval.get_eval_dataset(n=num_examples)
-                    assert inputs is not None
-                    if rollouts_per_example > 1:
-                        inputs = inputs.repeat(rollouts_per_example)
-
-                    # Run async generation and scoring
-                    results = await vf_eval.a_generate(
-                        inputs=inputs,
+            await asyncio.gather(
+                *[
+                    run_eval(
                         client=client,
-                        model=config.model.name,
-                        sampling_args=sampling_args,
-                        score_rollouts=True,
+                        eval_id=eval_id,
+                        env_args=config.eval.args.get(eval_id, {}),
+                        model_config=config.model,
+                        sampling_config=config.eval.sampling,
+                        num_examples=num_examples,
+                        rollouts_per_example=rollouts_per_example,
+                        ckpt_step=ckpt_step,
+                        monitor=monitor,
+                        step=progress.step,
                     )
-
-                    # Average reward
-                    rewards = np.array(results.reward, dtype=float)
-                    avg_reward = float(rewards.mean()) if rewards.size > 0 else 0.0
-
-                    # Pass@k (if binary and k>1)
-                    k = int(rollouts_per_example)
-                    could_be_binary = set(np.unique(rewards)).issubset({0.0, 1.0})
-                    metrics = {f"eval/{env_id}/avg@{k}": avg_reward}
-                    if k > 1 and could_be_binary:
-                        try:
-                            # Group rewards per original example: results are repeated k times in-order
-                            assert rewards.size % k == 0
-                            grouped = rewards.reshape(-1, k)
-                            pass_k = grouped.max(axis=1).mean().item()
-                            metrics[f"eval/{env_id}/pass@{k}"] = float(pass_k)
-                        except Exception:
-                            # If reshaping assumptions break, skip pass@k for now
-                            pass
-
-                    # Add step context; logging happens after gather
-                    metrics.update(
-                        {"progress/ckpt_step": ckpt_step, "step": progress.step}
+                    for eval_id, num_examples, rollouts_per_example in zip(
+                        config.eval.ids,
+                        config.eval.num_examples,
+                        config.eval.rollouts_per_example,
                     )
-                    return metrics
-
-                tasks.append(eval_one())
-
-            results_list = await asyncio.gather(*tasks)
-            for metrics in results_list:
-                monitor.log(metrics)
-
+                ]
+            )
             eval_time = time.time() - eval_start_time
             logger.info(f"Evaluated in {eval_time:.2f}s")
 
