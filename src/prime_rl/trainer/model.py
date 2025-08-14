@@ -77,6 +77,6 @@ def setup_model(config: ModelConfig) -> Model:
 
 @jaxtyped(typechecker=typechecker)
 def forward(
-    model: Model, input_ids: Int[Tensor, "batch seq"], position_ids: Int[Tensor, "batch seq"]
+    model: nn.Module, input_ids: Int[Tensor, "batch seq"], position_ids: Int[Tensor, "batch seq"]
 ) -> Float[Tensor, "batch seq vocab"]:
     return model(input_ids=input_ids, position_ids=position_ids).logits.float()
