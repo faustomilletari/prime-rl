@@ -51,7 +51,7 @@ class FakeDataset(IterableDataset):
                 "target_ids": input_ids[1:] + [0],
                 "epoch": 0,
             }
-            return fake_sample
+            yield fake_sample
 
 
 class SFTDataset(IterableDataset):
