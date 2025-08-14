@@ -38,17 +38,14 @@ class FakeDataset(IterableDataset):
 
     def __iter__(self) -> Iterator[Sample]:
         while True:
-            rand_seq_len = int(torch.randint(1, self.config.seq_len + 1, (1,)).item())
-            # simulate different sequence lengths
-            input_ids = torch.randint(0, self.vocab_size, (rand_seq_len + 1,)).long().tolist()
-            position_ids = torch.arange(len(input_ids)).long()
-            loss_mask = torch.ones(len(input_ids)).bool()
-            loss_mask[-1] = False
+            input_ids = torch.randint(0, self.vocab_size, (self.config.seq_len+1,)).long().tolist()
+            position_ids = list(range(self.config.seq_len))
+            loss_mask = [True] * self.config.seq_len
             fake_sample = {
-                "input_ids": input_ids,
+                "input_ids": input_ids[:-1],
+                "target_ids": input_ids[1:],
                 "position_ids": position_ids,
                 "loss_mask": loss_mask,
-                "target_ids": input_ids[1:] + [0],
                 "epoch": 0,
             }
             yield fake_sample
