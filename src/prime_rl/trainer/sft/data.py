@@ -35,14 +35,14 @@ class FakeDataset(IterableDataset):
     def __init__(self, tokenizer: PreTrainedTokenizer, config: DataConfig):
         self.config = config
         assert self.config.fake is not None, "Fake dataset must be specified"
-        self.fake_config = self.config.fake
+        self.fake_type = self.config.fake
         self.vocab_size = tokenizer.vocab_size
 
     def __iter__(self) -> Iterator[Sample]:
         while True:
             seq_len = (
                 int(torch.randint(0, self.config.seq_len, (1,)).item())
-                if self.fake_config.type == "variable"
+                if self.fake_type == "variable"
                 else self.config.seq_len
             )
             input_ids = torch.randint(0, self.vocab_size, (seq_len + 1,)).long().tolist()
