@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
@@ -16,6 +16,21 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 
+class FixedLengthFakeDataConfig(BaseConfig):
+    """Configures fixed-length fake data. Will generate sequences of length `seq_len`."""
+
+    type: Literal["fixed"] = "fixed"
+
+
+class VariableLengthFakeDataConfig(BaseConfig):
+    """Configures variable-length fake data with uniform distribution from [0,seq_len]."""
+
+    type: Literal["variable"] = "variable"
+
+
+FakeDataConfigType: TypeAlias = FixedLengthFakeDataConfig | VariableLengthFakeDataConfig
+
+
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
@@ -29,7 +44,12 @@ class DataConfig(BaseConfig):
     seq_len: Annotated[int, Field(ge=1)] = 128
     shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
 
-    fake: Annotated[bool, Field(description="Whether to use a fake dataset.")] = False
+    fake: Annotated[
+        FakeDataConfigType | None,
+        Field(
+            description="How to generate fake data, mostly used for benchmarking. If None, will use the regular dataset."
+        ),
+    ] = None
 
     @model_validator(mode="after")
     def validate_batch_size(self):
@@ -43,7 +63,9 @@ class DataConfig(BaseConfig):
         if self.fake:
             data_str = f"fake={self.fake}"
         else:
-            data_str = f"name={self.name}, splits={self.splits}, collate_mode={self.collate_mode}, shuffle={self.shuffle}"
+            data_str = (
+                f"name={self.name}, splits={self.splits}, collate_mode={self.collate_mode}, shuffle={self.shuffle}"
+            )
 
         return f"{data_str}, micro_batch_size={self.micro_batch_size}, batch_size={self.batch_size}, seq_len={self.seq_len}"
 
@@ -100,9 +122,9 @@ class SFTTrainerConfig(BaseSettings):
     def auto_setup_bench(self):
         if self.bench:
             self.max_steps = 4  # 1 Warmup + 3 Benchmark
-            if self.monitor.wandb: # Do not log extras
+            if self.monitor.wandb:  # Do not log extras
                 self.monitor.wandb.log_extras = None
-            if self.ckpt: # Do not checkpoint
+            if self.ckpt:  # Do not checkpoint
                 self.ckpt = None
         return self
 
