@@ -42,7 +42,7 @@ async def run_eval(
 
     # Build inputs dataset (mirror Environment.evaluate but async)
     if vf_eval.eval_dataset is None:
-        logger.info(f"eval_dataset is not set for {eval_id}, falling back to train dataset")
+        logger.warning(f"Did not find eval dataset for {eval_id}, falling back to train dataset")
         inputs = vf_eval.get_dataset(n=num_examples)
     else:
         inputs = vf_eval.get_eval_dataset(n=num_examples)
