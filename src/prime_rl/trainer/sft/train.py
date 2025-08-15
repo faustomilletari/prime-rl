@@ -1,5 +1,4 @@
 import time
-from time import perf_counter as timer
 
 # Import environment before any other imports
 # ruff: noqa: I001
@@ -92,101 +91,83 @@ def train(config: SFTTrainerConfig):
     is_first_step = True
     while True:
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
-        # is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
-        # save_ckpt_time = 0
-        # if (
-        #     ckpt_manager is not None
-        #     and weight_ckpt_manager is not None
-        #     and config.ckpt
-        #     and config.ckpt.interval
-        #     and not (is_first_step or is_last_step)
-        #     and progress.step % config.ckpt.interval == 0
-        # ):
-        #     logger.info(f"Saving checkpoint at step {progress.step}")
-        #     save_ckpt_start_time = time.time()
-        #     ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
-        #     weight_ckpt_manager.save(model, tokenizer, step=progress.step)
-        #     save_ckpt_time = time.time() - save_ckpt_start_time
+        is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
+        save_ckpt_time = 0
+        if (
+            ckpt_manager is not None
+            and weight_ckpt_manager is not None
+            and config.ckpt
+            and config.ckpt.interval
+            and not (is_first_step or is_last_step)
+            and progress.step % config.ckpt.interval == 0
+        ):
+            logger.info(f"Saving checkpoint at step {progress.step}")
+            save_ckpt_start_time = time.time()
+            ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
+            weight_ckpt_manager.save(model, tokenizer, step=progress.step)
+            save_ckpt_time = time.time() - save_ckpt_start_time
 
-        #     # Maybe clean up old trainer checkpoints
-        #     ckpt_manager.maybe_clean()
+            # Maybe clean up old trainer checkpoints
+            ckpt_manager.maybe_clean()
 
         # Break if we have reached the maximum number of steps
         if config.max_steps is not None and progress.step >= config.max_steps:
             break
 
-        # if config.profile_path and world.rank == 0:
-        #     torch.cuda.memory._record_memory_history()
+        if config.profile_path and world.rank == 0:
+            torch.cuda.memory._record_memory_history()
 
         step_start_time = time.time()
         forward_backward_start_time = time.time()
-        # tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
+        tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
         grad_accum_steps = config.data.batch_size // (config.data.micro_batch_size * world.world_size)
         for micro_step in range(grad_accum_steps):
-            t0 = timer()
             micro_batch = next(dataloader)
-            t1 = timer()
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
             epoch = micro_batch["epoch"]
-            torch.cuda.synchronize()
-            t2 = timer()
             assert input_ids.shape[0] == position_ids.shape[0]
 
             # Forward pass
             logits = forward(model, input_ids, position_ids).contiguous()
-            torch.cuda.synchronize()
-            t3 = timer()
             B, L, V = logits.shape
 
             # Compute loss
             loss = cross_entropy(logits.view(-1, V), target_ids.view(-1), reduction="none").view(B, L)
-            torch.cuda.synchronize()
-            t4 = timer()
 
             # Compute accuracy
-            with torch.no_grad():
-                probs = softmax(logits, dim=-1)
-                pred_ids = probs.argmax(dim=-1)
-                accuracy = torch.eq(pred_ids, target_ids).float()
-            torch.cuda.synchronize()
-            t5 = timer()
+            probs = softmax(logits, dim=-1)
+            pred_ids = probs.argmax(dim=-1)
+            accuracy = torch.eq(pred_ids, target_ids).float()
 
             # Add tensors to tensor dict for logging purposes
-            # tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
-            # tensors["accuracy"].append(accuracy[loss_mask].detach().to("cpu"))
+            tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
+            tensors["accuracy"].append(accuracy[loss_mask].detach().to("cpu"))
 
             # Mean reduction of unmasked tokens
             loss = loss[loss_mask].mean()
 
             # Scale loss by number of gradient accumulation steps
             loss /= grad_accum_steps
-            t6 = timer()
 
             # Delete logits before backward pass to avoid memory spike
             del logits
-            t7 = timer()
 
             # Backward pass
             loss.backward()
-            torch.cuda.synchronize()
-            t8 = timer()
-
-            logger.debug(f"Total: {1000 * (t8 - t0):.2f}ms | Load micro batch: {1000 * (t1 - t0):.2f}ms | Move to GPU: {1000 * (t2 - t1):.2f}ms | Forward pass: {1000 * (t3 - t2):.2f}ms | Compute loss: {1000 * (t4 - t3):.2f}ms | Compute accuracy: {1000 * (t5 - t4):.2f}ms | Scale loss: {1000 * (t6 - t5):.2f}ms | Delete logits: {1000 * (t7 - t6):.2f}ms | Backward pass: {1000 * (t8 - t7):.2f}ms")
 
             # Debug log with *local, micro step* stats
-            # logger.debug(
-            #     f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
-            # )
+            logger.debug(
+                f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
+            )
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.optim.max_norm}")
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
         # Update the model parameters
-        logger.debug(f"Optmizer step")
         optimizer.step()
         optimizer.zero_grad()
 
@@ -196,16 +177,16 @@ def train(config: SFTTrainerConfig):
         forward_backward_time = time.time() - forward_backward_start_time
 
         # Optionally, dump memory snapshot
-        # if config.profile_path and progress.step == 2 and world.rank == 0:
-        #     logger.debug("Dumping memory snapshot")
-        #     profile_path = config.profile_path
-        #     if not profile_path.suffix == ".pickle":
-        #         profile_path = profile_path.with_suffix(".pickle")
-        #     torch.cuda.memory._dump_snapshot(profile_path.as_posix())
-        #     torch.cuda.memory._record_memory_history(enabled=None)
+        if config.profile_path and progress.step == 2 and world.rank == 0:
+            logger.debug("Dumping memory snapshot")
+            profile_path = config.profile_path
+            if not profile_path.suffix == ".pickle":
+                profile_path = profile_path.with_suffix(".pickle")
+            torch.cuda.memory._dump_snapshot(profile_path.as_posix())
+            torch.cuda.memory._record_memory_history(enabled=None)
 
         # Synchronize the tensor metrics across all steps and ranks
-        # tensor_stats = tensors.compute_stats()
+        tensor_stats = tensors.compute_stats()
 
         # Compute step metrics
         num_tokens = config.data.batch_size * config.data.seq_len
@@ -218,20 +199,20 @@ def train(config: SFTTrainerConfig):
 
         # Log step metrics
         step_time = time.time() - step_start_time
-        # current_lr = optimizer.param_groups[0]["lr"]
-        # step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
-        # logger.success(step_message)
+        current_lr = optimizer.param_groups[0]["lr"]
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        logger.success(step_message)
 
-        # # Log progress metrics
-        # progress_metrics = {
-        #     "progress/epoch": epoch,
-        #     "progress/total_samples": progress.total_samples,
-        #     "progress/total_tokens": progress.total_tokens,
-        #     "step": progress.step,
-        # }
-        # monitor.log(progress_metrics)
+        # Log progress metrics
+        progress_metrics = {
+            "progress/epoch": epoch,
+            "progress/total_samples": progress.total_samples,
+            "progress/total_tokens": progress.total_tokens,
+            "step": progress.step,
+        }
+        monitor.log(progress_metrics)
 
-        # # Log performance metrics
+        # Log performance metrics
         perf_metrics = {
             "perf/throughput": throughput,
             "perf/mfu": mfu,
@@ -239,49 +220,49 @@ def train(config: SFTTrainerConfig):
         }
         monitor.log(perf_metrics)
 
-        # # Log optimizer metrics
-        # optim_metrics = {
-        #     "optim/lr": current_lr,
-        #     "optim/grad_norm": grad_norm.item(),
-        #     "step": progress.step,
-        # }
-        # monitor.log(optim_metrics)
+        # Log optimizer metrics
+        optim_metrics = {
+            "optim/lr": current_lr,
+            "optim/grad_norm": grad_norm.item(),
+            "step": progress.step,
+        }
+        monitor.log(optim_metrics)
 
-        # # Log tensor stats
-        # tensor_stats["step"] = progress.step
-        # monitor.log(tensor_stats)
+        # Log tensor stats
+        tensor_stats["step"] = progress.step
+        monitor.log(tensor_stats)
 
-        # # Log time metrics
+        # Log time metrics
         time_metrics = {
             "time/step": step_time,
-            # "time/save_ckpt": save_ckpt_time,
+            "time/save_ckpt": save_ckpt_time,
             "time/forward_backward": forward_backward_time,
             "step": progress.step,
         }
         monitor.log(time_metrics)
 
-        # # Log distributions to W&B table if enabled
-        # if monitor.wandb:
-        #     assert all(len(tensors) == 1 for tensors in tensors.values()), "Tensors must be lists of length 1"
-        #     distributions = {key: tensors[key][0] for key in tensors.keys()}
-        #     monitor.wandb.log_distributions(
-        #         distributions=distributions,
-        #         step=progress.step,
-        #     )
+        # Log distributions to W&B table if enabled
+        if monitor.wandb:
+            assert all(len(tensors) == 1 for tensors in tensors.values()), "Tensors must be lists of length 1"
+            distributions = {key: tensors[key][0] for key in tensors.keys()}
+            monitor.wandb.log_distributions(
+                distributions=distributions,
+                step=progress.step,
+            )
 
-        # is_first_step = False
+        is_first_step = False
         progress.step += 1
 
     # Log final (immutable) distributions to W&B table
-    # if monitor.wandb:
-    #     logger.info("Logging final distributions as W&B table")
-    #     monitor.wandb.log_final_distributions()
+    if monitor.wandb:
+        logger.info("Logging final distributions as W&B table")
+        monitor.wandb.log_final_distributions()
 
-    # # Write final checkpoint
-    # if config.ckpt and ckpt_manager is not None and weight_ckpt_manager is not None:
-    #     logger.info("Writing final checkpoint")
-    #     ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
-    #     weight_ckpt_manager.save(model, tokenizer, step=progress.step)
+    # Write final checkpoint
+    if config.ckpt and ckpt_manager is not None and weight_ckpt_manager is not None:
+        logger.info("Writing final checkpoint")
+        ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
+        weight_ckpt_manager.save(model, tokenizer, step=progress.step)
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("SFT trainer finished!")
