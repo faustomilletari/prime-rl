@@ -171,10 +171,6 @@ class EvalConfig(BaseConfig):
 
     @model_validator(mode="after")
     def _validate_and_fill_eval_lists(self):
-        # Validate ids
-        if not isinstance(self.ids, list):
-            raise ValueError("eval.ids must be a list of environment IDs")
-
         # If rollouts_per_example is empty, default to 1 for all ids
         if len(self.rollouts_per_example) == 0:
             self.rollouts_per_example = [1 for _ in self.ids]
