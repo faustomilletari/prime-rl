@@ -365,7 +365,6 @@ class MultiMonitor:
         run_config: BaseSettings | None = None,
     ):
         self.logger = get_logger()
-        assert self.logger is not None, "Logger is required for monitor initialization"
         self.history: list[dict[str, Any]] = []
         self.outputs_dir = outputs_dir
         # Initialize outputs
