@@ -17,7 +17,7 @@ id = "vf-hendrycks-math"
 interval = 10
 
 [eval]
-interval = 5
+interval = 50
 ids = ["vf-math500", "vf-aime2024", "vf-aime2025"]
 rollouts_per_example = [1, 16, 16]
 
