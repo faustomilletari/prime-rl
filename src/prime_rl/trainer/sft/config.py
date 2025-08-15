@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
@@ -16,21 +16,6 @@ from prime_rl.utils.config import LogConfig, MultiMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 
 
-class FixedLengthFakeDataConfig(BaseConfig):
-    """Configures fixed-length fake data. Will generate sequences of length `seq_len`."""
-
-    type: Literal["fixed"] = "fixed"
-
-
-class VariableLengthFakeDataConfig(BaseConfig):
-    """Configures variable-length fake data with uniform distribution from [0,seq_len]."""
-
-    type: Literal["variable"] = "variable"
-
-
-FakeDataConfigType: TypeAlias = FixedLengthFakeDataConfig | VariableLengthFakeDataConfig
-
-
 class DataConfig(BaseConfig):
     """Configures the data used for training."""
 
@@ -45,9 +30,9 @@ class DataConfig(BaseConfig):
     shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
 
     fake: Annotated[
-        FakeDataConfigType | None,
+        Literal["fixed", "variable"] | None,
         Field(
-            description="How to generate fake data, mostly used for benchmarking. If None, will use the regular dataset."
+            description="How to generate fake data, mostly used for benchmarking. If fixed, each fake sample will be of length `seq_len`. If variable, each fake sample will be of length `seq_len` with uniform distribution from [0,seq_len]. If None, will use the regular dataset."
         ),
     ] = None
 
