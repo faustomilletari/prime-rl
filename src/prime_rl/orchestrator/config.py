@@ -209,29 +209,6 @@ class OnlineEvalConfig(EvalConfig):
     ] = True
 
 
-class OfflineEvalConfig(EvalConfig, BaseSettings):
-    """Configures evaluation."""
-
-    # The client configuration
-    client: ClientConfig = ClientConfig()
-
-    # The model configuration
-    model: ModelConfig = ModelConfig()
-
-    # The monitor configuration
-    monitor: MultiMonitorConfig = MultiMonitorConfig()
-
-    # The logging configuration
-    log: LogConfig = LogConfig()
-
-    use_tqdm: Annotated[
-        bool,
-        Field(
-            description="Whether to use tqdm to display progress bars during model generation.",
-        ),
-    ] = False
-
-
 class CheckpointConfig(BaseConfig):
     """Configures checkpointing the orchestrator."""
 

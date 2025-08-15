@@ -1,5 +1,6 @@
 import asyncio
 
+from prime_rl.eval.config import OfflineEvalConfig
 from prime_rl.eval.utils import run_eval
 from prime_rl.orchestrator.client import (
     check_has_model,
@@ -7,7 +8,6 @@ from prime_rl.orchestrator.client import (
     reload_weights,
     setup_client,
 )
-from prime_rl.orchestrator.config import OfflineEvalConfig
 from prime_rl.orchestrator.logger import setup_logger
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
