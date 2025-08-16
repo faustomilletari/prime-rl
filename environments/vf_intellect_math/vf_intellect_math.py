@@ -19,7 +19,10 @@ def load_environment(
             "task": "intellect-math",
         }
     )
-    dataset = dataset.select_columns(["question", "answer", "task"])
+    columns = ["question", "answer", "task"]
+    if solve_rate_field is not None:
+        columns.append(solve_rate_field)
+    dataset = dataset.select_columns(columns)
 
     # Offline difficulty filtering
     if solve_rate_field is not None:
