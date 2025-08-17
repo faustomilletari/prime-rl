@@ -181,3 +181,5 @@ async def run_eval(
         }
         with open(report_path, "w") as f:
             json.dump(report, f, indent=2)
+
+        logger.info(f"Saved samples and report to {eval_dir}")
