@@ -164,7 +164,7 @@ async def run_eval(
     # If specified, save eval artifacts
     if save:
         # Save samples as dataset
-        eval_dir = get_eval_dir(outputs_dir) / eval_id
+        eval_dir = get_eval_dir(outputs_dir) / f"step_{ckpt_step}" / eval_id
         dataset = vf_eval.make_dataset(results)
         dataset.save_to_disk(eval_dir)
 
