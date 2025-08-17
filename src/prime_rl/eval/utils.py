@@ -141,9 +141,6 @@ async def run_eval(
     # Log statistics to monitor
     eval_metrics = {
         f"avg@{k}": float(sample_stats.reward.mean()),
-        "completion_len": float(avg_completion_len),
-        "max_completion_len": float(max_avg_completion_len),
-        "min_completion_len": float(min_avg_completion_len),
     }
     if could_be_binary:
         assert pass_at_k is not None
@@ -174,5 +171,13 @@ async def run_eval(
         # Save "report"
         # TODO: Make this into an actually nice report, for now just JSON-dump eval metrics
         report_path = eval_dir / "report.json"
+        report = {
+            "metrics": eval_metrics,
+            "completion_len": {
+                "avg": float(avg_completion_len),
+                "max": float(max_avg_completion_len),
+                "min": float(min_avg_completion_len),
+            },
+        }
         with open(report_path, "w") as f:
-            json.dump(eval_metrics, f, indent=2)
+            json.dump(report, f, indent=2)
