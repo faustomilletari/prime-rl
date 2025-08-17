@@ -2154,7 +2154,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
     { name = "vf-aime2024", url = "https://hub.primeintellect.ai/will/vf-aime2024/@latest/vf_aime2024-0.1.7-py3-none-any.whl" },
     { name = "vf-aime2025", url = "https://hub.primeintellect.ai/will/vf-aime2025/@latest/vf_aime2025-0.1.7-py3-none-any.whl" },
     { name = "vf-alphabet-sort", marker = "extra == 'vf'", editable = "environments/vf_alphabet_sort" },
@@ -3327,7 +3327,7 @@ wheels = [
 [[package]]
 name = "verifiers"
 version = "0.1.2.post0"
-source = { git = "https://github.com/willccbb/verifiers?rev=4ac1178#4ac1178c7295944875be8e15b8c3652f0add9639" }
+source = { git = "https://github.com/willccbb/verifiers?rev=9cf207a#9cf207a90af3a4b9b1222c7ce5d096f93d9c7e23" }
 dependencies = [
     { name = "datasets" },
     { name = "jinja2" },
@@ -3381,7 +3381,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
 
 [[package]]
 name = "vf-ascii-tree"
@@ -3392,7 +3392,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
 
 [[package]]
 name = "vf-hendrycks-math"
@@ -3406,7 +3406,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "datasets" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
 ]
 
 [[package]]
@@ -3418,7 +3418,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
 
 [[package]]
 name = "vf-math500"
@@ -3452,7 +3452,7 @@ dependencies = [
 requires-dist = [
     { name = "datasets" },
     { name = "pydantic" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
 ]
 
 [[package]]
@@ -3464,7 +3464,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
 
 [[package]]
 name = "vf-skywork-math"
@@ -3475,7 +3475,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" }]
+requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
 
 [[package]]
 name = "vf-unscramble"
@@ -3489,7 +3489,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "datasets" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=4ac1178" },
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
 ]
 
 [[package]]
