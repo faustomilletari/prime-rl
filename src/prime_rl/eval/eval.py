@@ -25,7 +25,7 @@ async def eval(config: OfflineEvalConfig):
 
     # Initialize the monitor
     logger.info(f"Initializing monitor ({config.monitor})")
-    monitor = setup_monitor(
+    setup_monitor(
         config=config.monitor,
         outputs_dir=None,
         run_config=config,
