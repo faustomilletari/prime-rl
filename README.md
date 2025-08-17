@@ -370,6 +370,8 @@ uv run vf-eval vf-custom-environment # -h for config options; defaults to gpt-4.
 
 For training, create `trainer`/`inference`/`orchestrator` config files following the aforementioned examples, then set `id = vf-custom-environment` in the `[environment]` section of your `orchestrator` config (along with any desired Environment-level args in `[environment.args]`).
 
+Examples of built-in environments include `vf-reverse-text`, `vf-ascii-tree`, `vf-hendrycks-math`, `vf-skywork-math`, `vf-pydantic-adherence`, `vf-alphabet-sort`, `vf-unscramble`, and `vf-ifeval`.
+
 ### W&B
 
 For any serious run we recommend logging to W&B. Since it is disabled by default, you have to set up W&B. First, make sure that you are logged in.
