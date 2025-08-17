@@ -11,7 +11,7 @@ from verifiers import load_environment
 from prime_rl.orchestrator.config import EvalSamplingConfig, ModelConfig
 from prime_rl.orchestrator.utils import parse_completion_tokens
 from prime_rl.utils.logger import get_logger
-from prime_rl.utils.monitor import MultiMonitor
+from prime_rl.utils.monitor import get_monitor
 from prime_rl.utils.utils import capitalize, get_eval_dir
 
 
@@ -31,11 +31,11 @@ async def run_eval(
     save: bool,
     outputs_dir: Path,
     ckpt_step: int,
-    monitor: MultiMonitor,
     step: int | None = None,
 ) -> None:
     # Get the logger
     logger = get_logger()
+    monitor = get_monitor()
     assert logger is not None
     eval_start_time = time.time()
 

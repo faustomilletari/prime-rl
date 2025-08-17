@@ -30,13 +30,6 @@ class OfflineEvalConfig(EvalConfig, BaseSettings):
         ),
     ] = Path("outputs")
 
-    save: Annotated[
-        bool,
-        Field(
-            description="Whether to save the evaluation artifacts to the outputs directory.",
-        ),
-    ] = False
-
     use_tqdm: Annotated[
         bool,
         Field(
