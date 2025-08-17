@@ -348,21 +348,20 @@ tmux kill-session -t prime-rl
 
 ### Environments
 
-`prime-rl` supports Environment modules built with `verifiers` ([repo](https://github.com/willccbb/verifiers)) for training tasks. To create a new Environment module template in the `environments/` folder, do:
+`prime-rl` supports Environment modules built with `verifiers` ([repo](https://github.com/willccbb/verifiers)) for training tasks. All of our current research environments live in a separate [Prime Environments](https://github.com/PrimeIntellect-ai/prime-environments) repository. 
 
-```bash
-uv run vf-init custom-environment
-```
-Then, populate the `load_environment` function in `environments/vf_custom_environment/vf_custom_environment.py` with your instantiation logic, and declare any Environment-level dependencies in `environments/vf_custom_environment/pyproject.toml`.
+To add a new training or evaluation environment, please follow the instructions in the [Prime Environments](https://github.com/PrimeIntellect-ai/prime-environments) repository.
+
+To then use it as part of `prime-rl`, install the newly pushed environment via the Environment Hub. 
 
 To install your Environment module temporarily within `prime-rl`, do:
 ```bash
-uv run vf-install custom-environment
+uv run prime env install custom-environment
 ```
 
 To persist your Environment module installation in the package-wide `pyproject.toml`, do:
 ```bash
-uv add --optional vf "custom-environment @ ./environments/vf_custom_environment"
+uv add --optional vf "custom-environment @ https://hub.primeintellect.ai/your-username/custom-environment/@latest/custom-environment-0.1.3-py2.py3-none-any.whl"
 ```
 
 For quick API-based testing post-installation, do:
