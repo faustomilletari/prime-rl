@@ -169,7 +169,7 @@ class EvalConfig(BaseConfig):
         Field(
             description="Whether to save the evaluation artifacts to the outputs directory.",
         ),
-    ] = False
+    ] = True
 
     @model_validator(mode="after")
     def _validate_and_fill_eval_lists(self):
