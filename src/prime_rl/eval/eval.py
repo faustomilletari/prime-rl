@@ -21,7 +21,7 @@ async def eval(config: OfflineEvalConfig):
     logger.info("Starting evaluation")
     logger.info(f"Model: {config.model}")
     logger.info(f"Sampling: {config.sampling}")
-    logger.info(f"Eval IDs: {config.ids}")
+    logger.info(f"Eval IDs: {config.environment_ids}")
 
     # Initialize the monitor
     logger.info(f"Initializing monitor ({config.monitor})")
@@ -61,7 +61,7 @@ async def eval(config: OfflineEvalConfig):
                 monitor=monitor,
             )
             for eval_id, num_examples, rollouts_per_example in zip(
-                config.ids, config.num_examples, config.rollouts_per_example
+                config.environment_ids, config.num_examples, config.rollouts_per_example
             )
         ]
     )
