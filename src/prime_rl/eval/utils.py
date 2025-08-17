@@ -1,4 +1,6 @@
+import json
 import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,7 +12,7 @@ from prime_rl.orchestrator.config import EvalSamplingConfig, ModelConfig
 from prime_rl.orchestrator.utils import parse_completion_tokens
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.monitor import MultiMonitor
-from prime_rl.utils.utils import capitalize
+from prime_rl.utils.utils import capitalize, get_eval_dir
 
 
 def compute_pass_at_k(rewards: list[int]) -> dict[str, float]:
@@ -26,6 +28,8 @@ async def run_eval(
     sampling_config: EvalSamplingConfig,
     num_examples: int,
     rollouts_per_example: int,
+    save: bool,
+    outputs_dir: Path,
     ckpt_step: int,
     monitor: MultiMonitor,
     step: int | None = None,
@@ -159,3 +163,16 @@ async def run_eval(
         f"time/eval/{eval_id}/generate_and_score_rollouts": run_eval_time,
     }
     monitor.log(time_metrics)
+
+    # If specified, save eval artifacts
+    if save:
+        # Save samples as dataset
+        eval_dir = get_eval_dir(outputs_dir) / eval_id
+        dataset = vf_eval.make_dataset(results)
+        dataset.save_to_disk(eval_dir)
+
+        # Save "report"
+        # TODO: Make this into an actually nice report, for now just JSON-dump eval metrics
+        report_path = eval_dir / "report.json"
+        with open(report_path, "w") as f:
+            json.dump(eval_metrics, f, indent=2)

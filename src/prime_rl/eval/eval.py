@@ -57,6 +57,8 @@ async def eval(config: OfflineEvalConfig):
                 sampling_config=config.sampling,
                 num_examples=num_examples,
                 rollouts_per_example=rollouts_per_example,
+                save=config.save,
+                outputs_dir=config.outputs_dir,
                 ckpt_step=0,
                 monitor=monitor,
             )
