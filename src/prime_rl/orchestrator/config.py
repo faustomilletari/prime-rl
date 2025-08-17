@@ -138,6 +138,13 @@ class EvalConfig(BaseConfig):
         ),
     ] = []
 
+    environment_args: Annotated[
+        dict[str, dict],
+        Field(
+            description="Per-environment overrides keyed by ID; forwarded as kwargs to verifiers.load_environment(id, **args)."
+        ),
+    ] = {}
+
     num_examples: Annotated[
         list[int],
         Field(
@@ -156,13 +163,6 @@ class EvalConfig(BaseConfig):
         default_factory=EvalSamplingConfig,
         description="Shared sampling configuration for evals; can differ from training sampling.",
     )
-
-    args: Annotated[
-        dict[str, dict],
-        Field(
-            description="Per-environment overrides keyed by ID; forwarded as kwargs to verifiers.load_environment(id, **args)."
-        ),
-    ] = {}
 
     @model_validator(mode="after")
     def _validate_and_fill_eval_lists(self):

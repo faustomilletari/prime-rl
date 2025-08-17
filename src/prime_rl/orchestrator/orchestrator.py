@@ -174,7 +174,7 @@ async def orchestrate(config: OrchestratorConfig):
                     run_eval(
                         client=client,
                         eval_id=eval_id,
-                        env_args=config.eval.args.get(eval_id, {}),
+                        env_args=config.eval.environment_args.get(eval_id, {}),
                         model_config=config.model,
                         sampling_config=config.eval.sampling,
                         num_examples=num_examples,

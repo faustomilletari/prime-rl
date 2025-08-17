@@ -52,7 +52,7 @@ async def eval(config: OfflineEvalConfig):
             run_eval(
                 client=client,
                 eval_id=eval_id,
-                env_args=config.args.get(eval_id, {}),
+                env_args=config.environment_args.get(eval_id, {}),
                 model_config=config.model,
                 sampling_config=config.sampling,
                 num_examples=num_examples,
