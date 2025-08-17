@@ -127,11 +127,11 @@ async def run_eval(
 
     # Log statistics
     eval_time = time.time() - eval_start_time
-    message = f"Evaluated {eval_id} in {eval_time:.2f}s (Avg@{k}={sample_stats.reward.mean():.2f}"
+    message = f"Evaluated {eval_id} in {eval_time:.2f}s (Avg@{k}={sample_stats.reward.mean():.4f}"
     if could_be_binary:
         assert pass_at_k is not None
         for pass_rate, pass_rate_score in pd.Series(pass_at_k.mean()).items():
-            message += f", {capitalize(str(pass_rate))}: {pass_rate_score:.2f}"
+            message += f", {capitalize(str(pass_rate))}: {pass_rate_score:.4f}"
     message += (
         f", Seq. Len: {avg_completion_len:.2f}, Max Seq. Len: {max_avg_completion_len:.2f}, "
         f"Min Seq. Len: {min_avg_completion_len:.2f}"
