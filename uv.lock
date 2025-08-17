@@ -9,19 +9,6 @@ resolution-markers = [
 [options]
 prerelease-mode = "allow"
 
-[manifest]
-members = [
-    "prime-rl",
-    "vf-alphabet-sort",
-    "vf-ascii-tree",
-    "vf-hendrycks-math",
-    "vf-intellect-math",
-    "vf-pydantic-adherence",
-    "vf-reverse-text",
-    "vf-skywork-math",
-    "vf-unscramble",
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -79,6 +66,20 @@ wheels = [
 ]
 
 [[package]]
+name = "alphabet-sort"
+version = "0.1.3"
+source = { url = "https://hub.primeintellect.ai/primeintellect/alphabet-sort/@latest/alphabet_sort-0.1.3-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/alphabet-sort/@latest/alphabet_sort-0.1.3-py2.py3-none-any.whl", hash = "sha256:11ee26d5f01c182cc4b5ce04152150e6c3cd81ad39e2afd7ba0ff8115f0eb3bb" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", specifier = ">=0.1.2" }]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -118,6 +119,20 @@ sdist = { url = "https://files.pythonhosted.org/packages/35/5d/752690df9ef5b76e1
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/29/5ecc3a15d5a33e31b26c11426c45c501e439cb865d0bff96315d86443b78/appnope-0.1.4-py2.py3-none-any.whl", hash = "sha256:502575ee11cd7a28c0205f379b525beefebab9d161b7c964670864014ed7213c", size = 4321, upload-time = "2024-02-06T09:43:09.663Z" },
 ]
+
+[[package]]
+name = "ascii-tree"
+version = "0.1.4"
+source = { url = "https://hub.primeintellect.ai/primeintellect/ascii-tree/@latest/ascii_tree-0.1.4-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/ascii-tree/@latest/ascii_tree-0.1.4-py2.py3-none-any.whl", hash = "sha256:338637acd6bbd5c2b3c635dec5ff43a91fd50aefaff80ead2efd877e64af1f41" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", specifier = ">=0.1.2" }]
 
 [[package]]
 name = "astor"
@@ -874,6 +889,24 @@ wheels = [
 ]
 
 [[package]]
+name = "hendrycks-math"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/hendrycks-math/@latest/hendrycks_math-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "datasets" },
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/hendrycks-math/@latest/hendrycks_math-0.1.1-py2.py3-none-any.whl", hash = "sha256:29c5d0490ca9e68cbdbc420d655e1f34c130ab3d64b69eee69819ac19567f292" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "datasets" },
+    { name = "verifiers", specifier = ">=0.1.2" },
+]
+
+[[package]]
 name = "hf-xet"
 version = "1.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -981,6 +1014,20 @@ sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c9
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050, upload-time = "2025-03-19T20:10:01.071Z" },
 ]
+
+[[package]]
+name = "intellect-math"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/intellect-math/@latest/intellect_math-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/intellect-math/@latest/intellect_math-0.1.1-py2.py3-none-any.whl", hash = "sha256:5611c274720473f3d0eda957886e13bdb41108607b04158214cc5d0c2ff0655c" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", specifier = ">=0.1.2" }]
 
 [[package]]
 name = "interegular"
@@ -2046,14 +2093,14 @@ flash-infer = [
     { name = "flashinfer-python" },
 ]
 vf = [
-    { name = "vf-alphabet-sort" },
-    { name = "vf-ascii-tree" },
-    { name = "vf-hendrycks-math" },
-    { name = "vf-intellect-math" },
-    { name = "vf-pydantic-adherence" },
-    { name = "vf-reverse-text" },
-    { name = "vf-skywork-math" },
-    { name = "vf-unscramble" },
+    { name = "alphabet-sort" },
+    { name = "ascii-tree" },
+    { name = "hendrycks-math" },
+    { name = "intellect-math" },
+    { name = "pydantic-adherence" },
+    { name = "reverse-text" },
+    { name = "skywork-math" },
+    { name = "unscramble" },
 ]
 
 [package.dev-dependencies]
@@ -2067,12 +2114,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alphabet-sort", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/alphabet-sort/@latest/alphabet_sort-0.1.3-py2.py3-none-any.whl" },
+    { name = "ascii-tree", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/ascii-tree/@latest/ascii_tree-0.1.4-py2.py3-none-any.whl" },
     { name = "beartype", specifier = ">=0.21.0" },
     { name = "cydifflib", specifier = ">=1.2.0" },
     { name = "datasets", specifier = ">=3.6.0" },
     { name = "flash-attn", marker = "extra == 'flash-attn'", specifier = ">=2.8.0" },
     { name = "flashinfer-python", marker = "extra == 'flash-infer'", specifier = ">=0.2.8rc1" },
     { name = "google-cloud-storage", specifier = ">=3.1.1" },
+    { name = "hendrycks-math", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/hendrycks-math/@latest/hendrycks_math-0.1.1-py2.py3-none-any.whl" },
+    { name = "intellect-math", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/intellect-math/@latest/intellect_math-0.1.1-py2.py3-none-any.whl" },
     { name = "jaxtyping", specifier = ">=0.3.2" },
     { name = "liger-kernel", specifier = ">=0.5.10" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -2083,17 +2134,22 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "openai", specifier = ">=1.90.0" },
     { name = "pydantic", specifier = ">=1.10.13" },
+    { name = "pydantic-adherence", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/pydantic-adherence/@latest/pydantic_adherence-0.1.1-py2.py3-none-any.whl" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pylatexenc", specifier = ">=2.10" },
     { name = "pynvml", specifier = ">=12.0.0" },
+    { name = "reverse-text", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/reverse-text/@latest/reverse_text-0.1.1-py2.py3-none-any.whl" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "shardcast", specifier = ">=0.3.2" },
+    { name = "skywork-math", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/skywork-math/@latest/skywork_math-0.1.1-py2.py3-none-any.whl" },
     { name = "textarena", specifier = ">=0.6.16" },
     { name = "tomli", specifier = ">=2.2.1" },
     { name = "tomli-w" },
     { name = "torch", specifier = ">=2.7.0", index = "https://download.pytorch.org/whl/test/cu128" },
     { name = "transformers", specifier = ">=4.53.0" },
+    { name = "unscramble", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/unscramble/@latest/unscramble-0.1.1-py2.py3-none-any.whl" },
     { name = "uvloop", specifier = ">=0.21.0" },
+<<<<<<< HEAD
     { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
     { name = "vf-aime2024", url = "https://hub.primeintellect.ai/will/vf-aime2024/@latest/vf_aime2024-0.1.7-py3-none-any.whl" },
     { name = "vf-aime2025", url = "https://hub.primeintellect.ai/will/vf-aime2025/@latest/vf_aime2025-0.1.7-py3-none-any.whl" },
@@ -2106,6 +2162,9 @@ requires-dist = [
     { name = "vf-reverse-text", marker = "extra == 'vf'", editable = "environments/vf_reverse_text" },
     { name = "vf-skywork-math", marker = "extra == 'vf'", editable = "environments/vf_skywork_math" },
     { name = "vf-unscramble", marker = "extra == 'vf'", editable = "environments/vf_unscramble" },
+=======
+    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" },
+>>>>>>> 9d35faf0 (install envs via environment hub)
     { name = "vllm", specifier = "==0.10.0" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -2348,6 +2407,26 @@ wheels = [
 [package.optional-dependencies]
 email = [
     { name = "email-validator" },
+]
+
+[[package]]
+name = "pydantic-adherence"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/pydantic-adherence/@latest/pydantic_adherence-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "datasets" },
+    { name = "pydantic" },
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/pydantic-adherence/@latest/pydantic_adherence-0.1.1-py2.py3-none-any.whl", hash = "sha256:a1d3f3e02e7d346b3a7e4e2cc91980c0ef492d9d6ddf845ee7d53f324ead63c5" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "datasets" },
+    { name = "pydantic" },
+    { name = "verifiers", specifier = ">=0.1.2" },
 ]
 
 [[package]]
@@ -2635,6 +2714,20 @@ wheels = [
 ]
 
 [[package]]
+name = "reverse-text"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/reverse-text/@latest/reverse_text-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/reverse-text/@latest/reverse_text-0.1.1-py2.py3-none-any.whl", hash = "sha256:fb2861707faa2e6b4fcc74f695c76265edd3391d1417ed1af72aa7d2e374845c" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", specifier = ">=0.1.2" }]
+
+[[package]]
 name = "rich"
 version = "14.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2853,6 +2946,20 @@ sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
+
+[[package]]
+name = "skywork-math"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/skywork-math/@latest/skywork_math-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/skywork-math/@latest/skywork_math-0.1.1-py2.py3-none-any.whl", hash = "sha256:c2d279730d6d641d90cf175af76d7c229de9502f5a92b7537f0ea7e7270196b6" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "verifiers", specifier = ">=0.1.2" }]
 
 [[package]]
 name = "smmap"
@@ -3230,6 +3337,24 @@ wheels = [
 ]
 
 [[package]]
+name = "unscramble"
+version = "0.1.1"
+source = { url = "https://hub.primeintellect.ai/primeintellect/unscramble/@latest/unscramble-0.1.1-py2.py3-none-any.whl" }
+dependencies = [
+    { name = "datasets" },
+    { name = "verifiers" },
+]
+wheels = [
+    { url = "https://hub.primeintellect.ai/primeintellect/unscramble/@latest/unscramble-0.1.1-py2.py3-none-any.whl", hash = "sha256:530627ff9474b985f75ef845b80730ed13c1c36c03d1e80c287fd997275b67d7" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "datasets" },
+    { name = "verifiers", specifier = ">=0.1.2" },
+]
+
+[[package]]
 name = "urllib3"
 version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3325,6 +3450,7 @@ requires-dist = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "vf-alphabet-sort"
 version = "0.1.3"
 source = { editable = "environments/vf_alphabet_sort" }
@@ -3445,6 +3571,8 @@ requires-dist = [
 ]
 
 [[package]]
+=======
+>>>>>>> 9d35faf0 (install envs via environment hub)
 name = "virtualenv"
 version = "20.31.2"
 source = { registry = "https://pypi.org/simple" }

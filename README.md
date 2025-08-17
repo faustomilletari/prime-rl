@@ -238,7 +238,7 @@ To check all available configuration options, run `uv run sft --help`.
 
 **Reverse Text**
 
-Finetune `PrimeIntellect/Qwen3-0.6B` (`Qwen/Qwen3-0.6B` but with Qwen-2.5 chat template) to reverse a tiny chunk of text, used as a warmup model train in `vf-reverse-text` environment. We use this run in CI.
+Finetune `PrimeIntellect/Qwen3-0.6B` (`Qwen/Qwen3-0.6B` but with Qwen-2.5 chat template) to reverse a tiny chunk of text, used as a warmup model train in `reverse-text` environment. We use this run in CI.
 
 ```bash
 uv run sft @ configs/reverse_text/sft.toml
@@ -351,26 +351,26 @@ tmux kill-session -t prime-rl
 `prime-rl` supports Environment modules built with `verifiers` ([repo](https://github.com/willccbb/verifiers)) for training tasks. To create a new Environment module template in the `environments/` folder, do:
 
 ```bash
-uv run vf-init vf-custom-environment
+uv run vf-init custom-environment
 ```
 Then, populate the `load_environment` function in `environments/vf_custom_environment/vf_custom_environment.py` with your instantiation logic, and declare any Environment-level dependencies in `environments/vf_custom_environment/pyproject.toml`.
 
 To install your Environment module temporarily within `prime-rl`, do:
 ```bash
-uv run vf-install vf-custom-environment
+uv run vf-install custom-environment
 ```
 
 To persist your Environment module installation in the package-wide `pyproject.toml`, do:
 ```bash
-uv add --optional vf "vf-custom-environment @ ./environments/vf_custom_environment"
+uv add --optional vf "custom-environment @ ./environments/vf_custom_environment"
 ```
 
 For quick API-based testing post-installation, do:
 ```bash
-uv run vf-eval vf-custom-environment # -h for config options; defaults to gpt-4.1-mini, 5 prompts, 3 rollouts each
+uv run vf-eval custom-environment # -h for config options; defaults to gpt-4.1-mini, 5 prompts, 3 rollouts each
 ```
 
-For training, create `trainer`/`inference`/`orchestrator` config files following the aforementioned examples, then set `id = vf-custom-environment` in the `[environment]` section of your `orchestrator` config (along with any desired Environment-level args in `[environment.args]`).
+For training, create `trainer`/`inference`/`orchestrator` config files following the aforementioned examples, then set `id = custom-environment` in the `[environment]` section of your `orchestrator` config (along with any desired Environment-level args in `[environment.args]`).
 
 ### W&B
 
