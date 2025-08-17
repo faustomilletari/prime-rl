@@ -60,6 +60,7 @@ vf = [
     "vf-skywork-math",
     "vf-unscramble",
     "vf-alphabet-sort",
+    "vf-swebench",
 ]
 
 [tool.uv]
@@ -79,6 +80,7 @@ vf-hendrycks-math = { workspace = true }
 vf-skywork-math = { workspace = true }
 vf-unscramble = { workspace = true }
 vf-alphabet-sort = { workspace = true }
+vf-swebench = { workspace = true }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

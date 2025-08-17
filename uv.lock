@@ -20,6 +20,7 @@ members = [
     "vf-reverse-text",
     "vf-skywork-math",
     "vf-unscramble",
+    "vf-swebench",
 ]
 
 [[package]]
@@ -2100,6 +2101,7 @@ requires-dist = [
     { name = "vf-reverse-text", marker = "extra == 'vf'", editable = "environments/vf_reverse_text" },
     { name = "vf-skywork-math", marker = "extra == 'vf'", editable = "environments/vf_skywork_math" },
     { name = "vf-unscramble", marker = "extra == 'vf'", editable = "environments/vf_unscramble" },
+    { name = "vf-swebench", marker = "extra == 'vf'", editable = "environments/vf_swebench" },
     { name = "vllm", specifier = "==0.10.0" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -3371,6 +3373,11 @@ requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifi
 name = "vf-unscramble"
 version = "0.1.1"
 source = { editable = "environments/vf_unscramble" }
+
+[[package]]
+name = "vf-swebench"
+version = "0.1.0"
+source = { editable = "environments/vf_swebench" }
 dependencies = [
     { name = "datasets" },
     { name = "verifiers" },

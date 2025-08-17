@@ -1,0 +1,17 @@
+[project]
+name = "vf-swebench"
+version = "0.1.0"
+tags = ["code", "patch", "single-turn", "xml", "swebench"]
+license = "Apache-2.0"
+description = "SWE-bench style environment where the model outputs a unified diff patch inside XML tags."
+dependencies = [
+    "verifiers>=0.1.2",
+    "datasets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["vf_swebench.py"]
