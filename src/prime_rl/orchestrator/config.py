@@ -131,7 +131,7 @@ class EnvironmentConfig(BaseConfig):
 class EvalConfig(BaseConfig):
     """Configures evaluation using verifiers environments."""
 
-    ids: Annotated[
+    environment_ids: Annotated[
         list[str],
         Field(
             description="List of verifiers environment IDs to evaluate on. Each ID also serves as the metric prefix."
@@ -148,7 +148,7 @@ class EvalConfig(BaseConfig):
     rollouts_per_example: Annotated[
         list[int],
         Field(
-            description="Number of samples to generate per example for each environment (length must match eval.ids)."
+            description="Number of samples to generate per example for each environment (length must match eval.environment_ids)."
         ),
     ] = []
 
