@@ -1,0 +1,17 @@
+[project]
+name = "vf-rewardbench2"
+version = "0.1.0"
+tags = ["preference", "single-turn", "rewardbench2"]
+license = "Apache-2.0"
+description = "Single-turn RewardBench2 preference-style environment."
+dependencies = [
+	"verifiers>=0.1.2",
+	"datasets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["vf_rewardbench2.py"]
