@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -2078,9 +2078,6 @@ dependencies = [
     { name = "transformers" },
     { name = "uvloop" },
     { name = "verifiers" },
-    { name = "vf-aime2024" },
-    { name = "vf-aime2025" },
-    { name = "vf-math500" },
     { name = "vllm" },
     { name = "wandb" },
 ]
@@ -2149,22 +2146,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.53.0" },
     { name = "unscramble", marker = "extra == 'vf'", url = "https://hub.primeintellect.ai/primeintellect/unscramble/@latest/unscramble-0.1.1-py2.py3-none-any.whl" },
     { name = "uvloop", specifier = ">=0.21.0" },
-<<<<<<< HEAD
     { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
-    { name = "vf-aime2024", url = "https://hub.primeintellect.ai/will/vf-aime2024/@latest/vf_aime2024-0.1.7-py3-none-any.whl" },
-    { name = "vf-aime2025", url = "https://hub.primeintellect.ai/will/vf-aime2025/@latest/vf_aime2025-0.1.7-py3-none-any.whl" },
-    { name = "vf-alphabet-sort", marker = "extra == 'vf'", editable = "environments/vf_alphabet_sort" },
-    { name = "vf-ascii-tree", marker = "extra == 'vf'", editable = "environments/vf_ascii_tree" },
-    { name = "vf-hendrycks-math", marker = "extra == 'vf'", editable = "environments/vf_hendrycks_math" },
-    { name = "vf-intellect-math", marker = "extra == 'vf'", editable = "environments/vf_intellect_math" },
-    { name = "vf-math500", url = "https://hub.primeintellect.ai/will/vf-math500/@latest/vf_math500-0.1.7-py3-none-any.whl" },
-    { name = "vf-pydantic-adherence", marker = "extra == 'vf'", editable = "environments/vf_pydantic_adherence" },
-    { name = "vf-reverse-text", marker = "extra == 'vf'", editable = "environments/vf_reverse_text" },
-    { name = "vf-skywork-math", marker = "extra == 'vf'", editable = "environments/vf_skywork_math" },
-    { name = "vf-unscramble", marker = "extra == 'vf'", editable = "environments/vf_unscramble" },
-=======
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=74c604f" },
->>>>>>> 9d35faf0 (install envs via environment hub)
     { name = "vllm", specifier = "==0.10.0" },
     { name = "wandb", specifier = ">=0.20.1" },
 ]
@@ -3414,165 +3396,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vf-aime2024"
-version = "0.1.7"
-source = { url = "https://hub.primeintellect.ai/will/vf-aime2024/@latest/vf_aime2024-0.1.7-py3-none-any.whl" }
-dependencies = [
-    { name = "math-verify" },
-    { name = "verifiers" },
-]
-wheels = [
-    { url = "https://hub.primeintellect.ai/will/vf-aime2024/@latest/vf_aime2024-0.1.7-py3-none-any.whl", hash = "sha256:41f1a0047bea0a91d757b768094f346f8e58012733ff3c281d031786894c70b9" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "math-verify", specifier = ">=0.8.0" },
-    { name = "verifiers", specifier = ">=0.1.2.post0" },
-]
-
-[[package]]
-name = "vf-aime2025"
-version = "0.1.7"
-source = { url = "https://hub.primeintellect.ai/will/vf-aime2025/@latest/vf_aime2025-0.1.7-py3-none-any.whl" }
-dependencies = [
-    { name = "math-verify" },
-    { name = "verifiers" },
-]
-wheels = [
-    { url = "https://hub.primeintellect.ai/will/vf-aime2025/@latest/vf_aime2025-0.1.7-py3-none-any.whl", hash = "sha256:13fc21ed0798d4a7d717dad5181c5e067957f41ca50d851cec03cd4f1db3515a" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "math-verify", specifier = ">=0.8.0" },
-    { name = "verifiers", specifier = ">=0.1.2.post0" },
-]
-
-[[package]]
-<<<<<<< HEAD
-name = "vf-alphabet-sort"
-version = "0.1.3"
-source = { editable = "environments/vf_alphabet_sort" }
-dependencies = [
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
-
-[[package]]
-name = "vf-ascii-tree"
-version = "0.1.4"
-source = { editable = "environments/vf_ascii_tree" }
-dependencies = [
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
-
-[[package]]
-name = "vf-hendrycks-math"
-version = "0.1.1"
-source = { editable = "environments/vf_hendrycks_math" }
-dependencies = [
-    { name = "datasets" },
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "datasets" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
-]
-
-[[package]]
-name = "vf-intellect-math"
-version = "0.1.1"
-source = { editable = "environments/vf_intellect_math" }
-dependencies = [
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
-
-[[package]]
-name = "vf-math500"
-version = "0.1.7"
-source = { url = "https://hub.primeintellect.ai/will/vf-math500/@latest/vf_math500-0.1.7-py3-none-any.whl" }
-dependencies = [
-    { name = "math-verify" },
-    { name = "verifiers" },
-]
-wheels = [
-    { url = "https://hub.primeintellect.ai/will/vf-math500/@latest/vf_math500-0.1.7-py3-none-any.whl", hash = "sha256:75896e1e27eaf4c18e8dc06160f02a82d962a81c48980fec17014b9833ea40b4" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "math-verify", specifier = ">=0.8.0" },
-    { name = "verifiers", specifier = ">=0.1.2.post0" },
-]
-
-[[package]]
-name = "vf-pydantic-adherence"
-version = "0.1.1"
-source = { editable = "environments/vf_pydantic_adherence" }
-dependencies = [
-    { name = "datasets" },
-    { name = "pydantic" },
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "datasets" },
-    { name = "pydantic" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
-]
-
-[[package]]
-name = "vf-reverse-text"
-version = "0.1.1"
-source = { editable = "environments/vf_reverse_text" }
-dependencies = [
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
-
-[[package]]
-name = "vf-skywork-math"
-version = "0.1.1"
-source = { editable = "environments/vf_skywork_math" }
-dependencies = [
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" }]
-
-[[package]]
-name = "vf-unscramble"
-version = "0.1.1"
-source = { editable = "environments/vf_unscramble" }
-dependencies = [
-    { name = "datasets" },
-    { name = "verifiers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "datasets" },
-    { name = "verifiers", git = "https://github.com/willccbb/verifiers?rev=9cf207a" },
-]
-
-[[package]]
-=======
->>>>>>> 9d35faf0 (install envs via environment hub)
 name = "virtualenv"
 version = "20.31.2"
 source = { registry = "https://pypi.org/simple" }
