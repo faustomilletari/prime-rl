@@ -1,0 +1,2138 @@
+[
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'cydifflib' defined as a dependency but not used in the codebase"
+        },
+        "module": "cydifflib",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'google-cloud-storage' defined as a dependency but not used in the codebase"
+        },
+        "module": "google-cloud-storage",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'liger-kernel' defined as a dependency but not used in the codebase"
+        },
+        "module": "liger-kernel",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'textarena' defined as a dependency but not used in the codebase"
+        },
+        "module": "textarena",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'nltk' defined as a dependency but not used in the codebase"
+        },
+        "module": "nltk",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'flash-attn' defined as a dependency but not used in the codebase"
+        },
+        "module": "flash-attn",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'flashinfer-python' defined as a dependency but not used in the codebase"
+        },
+        "module": "flashinfer-python",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'alphabet-sort' defined as a dependency but not used in the codebase"
+        },
+        "module": "alphabet-sort",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'ascii-tree' defined as a dependency but not used in the codebase"
+        },
+        "module": "ascii-tree",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'pydantic-adherence' defined as a dependency but not used in the codebase"
+        },
+        "module": "pydantic-adherence",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'reverse-text' defined as a dependency but not used in the codebase"
+        },
+        "module": "reverse-text",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'unscramble' defined as a dependency but not used in the codebase"
+        },
+        "module": "unscramble",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'skywork-math' defined as a dependency but not used in the codebase"
+        },
+        "module": "skywork-math",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'deepscaler-math' defined as a dependency but not used in the codebase"
+        },
+        "module": "deepscaler-math",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'acereason-math' defined as a dependency but not used in the codebase"
+        },
+        "module": "acereason-math",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'hendrycks-math' defined as a dependency but not used in the codebase"
+        },
+        "module": "hendrycks-math",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'intellect-math' defined as a dependency but not used in the codebase"
+        },
+        "module": "intellect-math",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'aime2024' defined as a dependency but not used in the codebase"
+        },
+        "module": "aime2024",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'aime2025' defined as a dependency but not used in the codebase"
+        },
+        "module": "aime2025",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP002",
+            "message": "'math500' defined as a dependency but not used in the codebase"
+        },
+        "module": "math500",
+        "location": {
+            "file": "pyproject.toml",
+            "line": null,
+            "column": null
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'gradio' imported but missing from the dependency definitions"
+        },
+        "module": "gradio",
+        "location": {
+            "file": "scripts/chat.py",
+            "line": 11,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/config.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/config.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/envs.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 4,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/eval.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'pandas' imported but missing from the dependency definitions"
+        },
+        "module": "pandas",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 7,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/eval/utils.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/config.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/server.py",
+            "line": 1,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/server.py",
+            "line": 2,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/server.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/vllm/server.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'fastapi' imported but missing from the dependency definitions"
+        },
+        "module": "fastapi",
+        "location": {
+            "file": "src/prime_rl/inference/vllm/server.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/inference/vllm/server.py",
+            "line": 33,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/batch.py",
+            "line": 9,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/batch.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/buffer.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/buffer.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/ckpt.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/ckpt.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/ckpt.py",
+            "line": 9,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'httpx' imported but missing from the dependency definitions"
+        },
+        "module": "httpx",
+        "location": {
+            "file": "src/prime_rl/orchestrator/client.py",
+            "line": 4,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'httpx' imported but missing from the dependency definitions"
+        },
+        "module": "httpx",
+        "location": {
+            "file": "src/prime_rl/orchestrator/client.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/client.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/client.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/client.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/config.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/config.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/envs.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/genesys/__init__.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/genesys/math.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'sympy' imported but missing from the dependency definitions"
+        },
+        "module": "sympy",
+        "location": {
+            "file": "src/prime_rl/orchestrator/genesys/math_utils.py",
+            "line": 9,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'sympy' imported but missing from the dependency definitions"
+        },
+        "module": "sympy",
+        "location": {
+            "file": "src/prime_rl/orchestrator/genesys/math_utils.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/logger.py",
+            "line": 4,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/logger.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 17,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 24,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 25,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 26,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 27,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 28,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 29,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 34,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 35,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/orchestrator.py",
+            "line": 36,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'pandas' imported but missing from the dependency definitions"
+        },
+        "module": "pandas",
+        "location": {
+            "file": "src/prime_rl/orchestrator/utils.py",
+            "line": 4,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/utils.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/utils.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/orchestrator/utils.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 20,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 21,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 22,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 23,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 24,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 25,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 26,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 27,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 28,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 29,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/rl.py",
+            "line": 37,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/ckpt.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/ckpt.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/ckpt.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/ckpt.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/ckpt.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/config.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/envs.py",
+            "line": 3,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/logger.py",
+            "line": 4,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/logger.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/logger.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/model.py",
+            "line": 20,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/optim.py",
+            "line": 4,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/optim.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/perf.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/perf.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/perf.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/config.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/config.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/data.py",
+            "line": 8,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/data.py",
+            "line": 9,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/data.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/loss.py",
+            "line": 7,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 17,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 23,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 24,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 30,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 31,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 39,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 40,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 41,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/rl/train.py",
+            "line": 42,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/scheduler.py",
+            "line": 4,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/config.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/config.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/data.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/data.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/data.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 9,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 10,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 11,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 20,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 21,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 22,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 26,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 27,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 28,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/sft/train.py",
+            "line": 29,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'pandas' imported but missing from the dependency definitions"
+        },
+        "module": "pandas",
+        "location": {
+            "file": "src/prime_rl/trainer/utils.py",
+            "line": 5,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/utils.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/utils.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 13,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 14,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 15,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 16,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/weights.py",
+            "line": 17,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/trainer/world.py",
+            "line": 1,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/config.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/logger.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'aiohttp' imported but missing from the dependency definitions"
+        },
+        "module": "aiohttp",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 14,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'pandas' imported but missing from the dependency definitions"
+        },
+        "module": "pandas",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 15,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'psutil' imported but missing from the dependency definitions"
+        },
+        "module": "psutil",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 16,
+            "column": 8
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 21,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 29,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/monitor.py",
+            "line": 30,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/utils.py",
+            "line": 12,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/validation.py",
+            "line": 5,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/validation.py",
+            "line": 6,
+            "column": 1
+        }
+    },
+    {
+        "error": {
+            "code": "DEP001",
+            "message": "'prime_rl' imported but missing from the dependency definitions"
+        },
+        "module": "prime_rl",
+        "location": {
+            "file": "src/prime_rl/utils/validation.py",
+            "line": 7,
+            "column": 1
+        }
+    }
+]
