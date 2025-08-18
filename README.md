@@ -259,7 +259,7 @@ uv run inference --model.name Qwen/Qwen3-0.6B --max-model-len 2048
 ```
 
 ```bash
-uv run eval --model.name Qwen/Qwen3-0.6B --benchmarks math500,aime24,aime25
+uv run eval --model.name Qwen/Qwen3-0.6B --environment-ids math500,aime2024,aime2025
 ```
 
 To check all available configuration options, run `uv run eval --help`.
