@@ -16,6 +16,7 @@ class BatchSample(TypedDict):
     loss_mask: Bool[Tensor, "seq"]
     advantages: Float[Tensor, "seq"]
     logprobs: Float[Tensor, "seq"]
+    loss_scale: Float[Tensor, "seq"]
 
 
 def prepare_sample(
@@ -23,7 +24,7 @@ def prepare_sample(
     seq_len: int,
     tokenizer: PreTrainedTokenizer,
     pad: bool,
-    loss_scale: list[int],
+    loss_scale: int,
 ) -> BatchSample:
     """
     Prepare a problem and pad it for training.
@@ -44,7 +45,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
-    loss_scale = torch.tensor(loss_scale).repeat(len(input_ids)).float()
+    loss_scale = torch.full((len(input_ids),), loss_scale).float()
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -95,7 +96,7 @@ def prepare_batch_padding(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
-    loss_scale: list[int],
+    loss_scales: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -118,7 +119,7 @@ def prepare_batch_padding(
                     seq_len,
                     tokenizer,
                     pad=True,
-                    loss_scale=loss_scale,
+                    loss_scale=loss_scales.pop(),
                 )
                 micro_batches.append(sample)
             batches.append(prepare_micro_batch(micro_batches, temperature))
@@ -183,7 +184,7 @@ def prepare_batch_packing(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
-    loss_scale: list[int],
+    loss_scales: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -198,9 +199,9 @@ def prepare_batch_packing(
             max_seq_len,
             tokenizer,
             pad=False,
-            loss_scale=loss_scale,
+            loss_scale=loss_scales[i],
         )
-        for rollout in rollouts
+        for i, rollout in enumerate(rollouts)
     ]
 
     micro_batches_list = packed_samples_into_micro_bs(all_samples, max_seq_len)
@@ -243,7 +244,7 @@ def prepare_batch(
     seq_len: int,
     num_train_workers: int,
     collate_mode: Literal["packing", "padding"],
-    loss_scale: list[int],
+    loss_scales: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -258,7 +259,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
-                loss_scale,
+                loss_scales,
             )
         case "packing":
             return prepare_batch_packing(
@@ -269,7 +270,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
-                loss_scale,
+                loss_scales,
             )
         case _:
             raise ValueError(f"Invalid collate mode: {collate_mode}")

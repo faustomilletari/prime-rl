@@ -17,6 +17,7 @@ class MicroBatch(TypedDict):
     advantages: Float[Tensor, "batch seq"]
     logprobs: Float[Tensor, "batch seq"]
     loss_mask: Bool[Tensor, "batch seq"]
+    loss_scale: Float[Tensor, "batch seq"]
 
     # Batch level
     temperature: float
@@ -44,6 +45,7 @@ class FakeDataLoader:
             "logprobs": torch.randn(self.micro_batch_size, self.seq_len),
             "temperature": 1.0,
             "loss_mask": torch.ones(self.micro_batch_size, self.seq_len, dtype=torch.bool),
+            "loss_scale": torch.ones(self.micro_batch_size, self.seq_len),
         }
 
 
