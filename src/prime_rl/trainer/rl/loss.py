@@ -13,6 +13,7 @@ def compute_loss(
     old_logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     loss_config: LossConfigType,
+    loss_scale: Float[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     if loss_config.type == "clip":
         return grpo_loss_clip(
@@ -22,6 +23,7 @@ def compute_loss(
             epsilon_low=loss_config.epsilon_low,
             epsilon_high=loss_config.epsilon_high,
             clip_ratio=loss_config.clip_ratio,
+            loss_scale=loss_scale,
         )
     elif loss_config.type == "ratio":
         return grpo_loss_ratio(
@@ -29,6 +31,7 @@ def compute_loss(
             old_logprobs=old_logprobs,
             advantages=advantages,
             clip_ratio=loss_config.clip_ratio,
+            loss_scale=loss_scale,
         )
 
 
@@ -40,6 +43,7 @@ def grpo_loss_clip(
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
+    loss_scale: Float[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"
@@ -53,6 +57,7 @@ def grpo_loss_clip(
     loss_2 = -coef_2 * advantages
     loss = torch.max(loss_1, loss_2)
     is_clipped = (loss_1 < loss_2).float()
+    loss = loss / loss_scale
 
     return loss, {
         "loss": loss,
@@ -68,6 +73,7 @@ def grpo_loss_ratio(
     old_logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     clip_ratio: float,
+    loss_scale: Float[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"
@@ -78,7 +84,7 @@ def grpo_loss_ratio(
     clipped_importance_ratio = torch.clamp(importance_ratio, 0, clip_ratio)  # (B, L)
     loss = -clipped_importance_ratio * advantages  # (B, L)
     is_clipped = (importance_ratio > clip_ratio).float()  # (B, L)
-
+    loss = loss / loss_scale
     return loss, {
         "loss": loss,
         "importance_ratio": importance_ratio,

@@ -23,6 +23,7 @@ def prepare_sample(
     seq_len: int,
     tokenizer: PreTrainedTokenizer,
     pad: bool,
+    loss_scale: list[int],
 ) -> BatchSample:
     """
     Prepare a problem and pad it for training.
@@ -43,6 +44,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
+    loss_scale = torch.tensor(loss_scale).repeat(len(input_ids)).float()
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -59,9 +61,10 @@ def prepare_sample(
         position_ids = torch.cat([position_ids, torch.zeros(num_padding_tokens)]).long()
         logprobs = torch.cat([logprobs, torch.zeros(num_padding_tokens)]).float()
         advantages = torch.cat([advantages, torch.zeros(num_padding_tokens)]).float()
+        loss_scale = torch.cat([loss_scale, torch.ones(num_padding_tokens)]).float()
 
-    assert len(input_ids) == len(advantages) == len(loss_mask) == len(position_ids) == len(logprobs), (
-        f"input_ids: {len(input_ids)}, advantages: {len(advantages)}, loss_mask: {len(loss_mask)}, position_ids: {len(position_ids)}, logprobs: {len(logprobs)}"
+    assert len(input_ids) == len(advantages) == len(loss_mask) == len(position_ids) == len(logprobs) == len(loss_scale), (
+        f"input_ids: {len(input_ids)}, advantages: {len(advantages)}, loss_mask: {len(loss_mask)}, position_ids: {len(position_ids)}, logprobs: {len(logprobs)}, loss_scale: {len(loss_scale)}"
     )
     return {
         "input_ids": input_ids,
@@ -69,13 +72,14 @@ def prepare_sample(
         "loss_mask": loss_mask,
         "position_ids": position_ids,
         "logprobs": logprobs,
+        "loss_scale": loss_scale,
     }
 
 
 def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
     micro_batch = {}
 
-    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
+    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids", "loss_scale"]:
         micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
 
     micro_batch["temperature"] = temperature
@@ -91,6 +95,7 @@ def prepare_batch_padding(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    loss_scale: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -113,6 +118,7 @@ def prepare_batch_padding(
                     seq_len,
                     tokenizer,
                     pad=True,
+                    loss_scale=loss_scale,
                 )
                 micro_batches.append(sample)
             batches.append(prepare_micro_batch(micro_batches, temperature))
@@ -161,7 +167,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
         "Total tokens of samples is greater than max sequence length"
     )
 
-    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs"]:
+    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs", "loss_scale"]:
         micro_batch[key] = torch.cat([sample[key] for sample in samples], dim=0).unsqueeze(0)
 
     micro_batch["temperature"] = temperature
@@ -177,6 +183,7 @@ def prepare_batch_packing(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    loss_scale: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -191,6 +198,7 @@ def prepare_batch_packing(
             max_seq_len,
             tokenizer,
             pad=False,
+            loss_scale=loss_scale,
         )
         for rollout in rollouts
     ]
@@ -208,6 +216,7 @@ def prepare_batch_packing(
         padded_batch = copy.deepcopy(micro_batches[0])
         padded_batch["advantages"] = torch.zeros_like(padded_batch["advantages"])
         padded_batch["loss_mask"] = torch.zeros_like(padded_batch["loss_mask"], dtype=torch.bool)
+        padded_batch["loss_scale"] = torch.ones_like(padded_batch["loss_scale"])
         micro_batches.extend([padded_batch for _ in range(num_padding_batch)])
 
     assert len(micro_batches) % num_train_workers == 0, (
@@ -234,6 +243,7 @@ def prepare_batch(
     seq_len: int,
     num_train_workers: int,
     collate_mode: Literal["packing", "padding"],
+    loss_scale: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -248,6 +258,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                loss_scale,
             )
         case "packing":
             return prepare_batch_packing(
@@ -258,6 +269,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                loss_scale,
             )
         case _:
             raise ValueError(f"Invalid collate mode: {collate_mode}")

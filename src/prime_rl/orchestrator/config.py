@@ -412,6 +412,11 @@ class OrchestratorConfig(BaseSettings):
         Field(default=1, ge=1, description="Number of training workers to use for training."),
     ] = 1
 
+    loss_scale: Annotated[
+        Literal["seq", "group", "batch"],
+        Field(description="Loss scale to use for training."),
+    ] = "batch"
+
     max_steps: Annotated[
         int | None,
         Field(

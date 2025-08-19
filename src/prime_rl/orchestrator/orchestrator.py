@@ -315,6 +315,13 @@ async def orchestrate(config: OrchestratorConfig):
             torch.tensor([len(c) for c in completion_tokens]).float().reshape(-1, config.rollouts_per_example)
         )
         seq_lens = prompt_lens + completion_lens
+        if config.loss_scale == "seq":
+            loss_scale = completion_lens.reshape(-1) * config.batch_size
+        elif config.loss_scale == "group":
+            loss_scale = completion_lens.sum(-1).repeat_interleave(config.rollouts_per_example) * config.batch_size / config.rollouts_per_example
+        elif config.loss_scale == "batch":
+            loss_scale = completion_lens.sum().repeat_interleave(config.batch_size)
+
         assert (
             seq_lens.shape
             == prompt_lens.shape
@@ -350,6 +357,7 @@ async def orchestrate(config: OrchestratorConfig):
             num_train_workers=config.num_train_workers,
             seq_len=config.seq_len,
             collate_mode=config.collate_mode,
+            loss_scale=loss_scale,
         )
 
         step_path = get_rollout_dir(config.outputs_dir) / f"step_{progress.step}"
