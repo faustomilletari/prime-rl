@@ -1,7 +1,7 @@
 import torch
 from beartype import beartype as typechecker
 from jaxtyping import Bool, Float, Int, jaxtyped
-from litellm import Literal
+from typing import Literal
 from torch import Tensor
 from torch.nn import functional as F
 
