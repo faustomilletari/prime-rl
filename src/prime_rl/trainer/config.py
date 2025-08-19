@@ -1,10 +1,27 @@
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from prime_rl.utils.pydantic_config import BaseConfig
 
 AttnImplementation: TypeAlias = Literal["sdpa", "flash_attention_2"]
+
+MOE_MODEL_MAPS = {
+    "Qwen/Qwen3-30B-A3B": "Jackmin108/Qwen3-30B-A3B-Fast",
+    "moonshotai/Moonlight-16B-A3B-Instruct": "Jackmin108/Moonlight-16B-A3B-Instruct-Fast",
+}
+
+
+class ActivationCheckpointConfig(BaseModel):
+    """Configures activation checkpointing."""
+
+    freq: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Applies activation checkpointing to every `freq` layers. Defaults to 1, which will is full activation checkpointing.",
+        ),
+    ] = 1
 
 
 class ModelConfig(BaseConfig):
@@ -27,15 +44,36 @@ class ModelConfig(BaseConfig):
     ] = False
 
     ac: Annotated[
-        bool,
+        ActivationCheckpointConfig | None,
         Field(
-            description="Whether to apply activation checkpointing to the model.",
+            description="Whether to apply activation checkpointing to the model. If None, will not apply activation checkpointing.",
         ),
-    ] = False
+    ] = None
 
     reshard_after_forward: Annotated[
         bool, Field(description="Whether to reshard the model after each forward pass.")
     ] = True
+
+    trust_remote_code: Annotated[
+        bool,
+        Field(
+            description="Whether to trust remote code for model and tokenizer initialization.",
+        ),
+    ] = False
+
+    ep: Annotated[
+        int,
+        Field(
+            description="The expert parallelism to use if the model has MoE layers. If 1, then no EP will be used.",
+        ),
+    ] = 1
+
+    @model_validator(mode="after")
+    def _map_model_name_for_moe(self):
+        """Map model name if it exists in MOE_MODEL_MAPS."""
+        if self.name in MOE_MODEL_MAPS:
+            self.name = MOE_MODEL_MAPS[self.name]
+        return self
 
 
 class ConstantSchedulerConfig(BaseModel):
@@ -66,6 +104,8 @@ class CosineSchedulerConfig(BaseModel):
     type: Literal["cosine"] = "cosine"
 
     warmup_steps: Annotated[int, Field(ge=0, description="Number of warmup steps for the learning rate scheduler.")] = 0
+
+    min_lr: Annotated[float, Field(ge=0, description="Minimum learning rate to converge to.")] = 0.0
 
     decay_steps: Annotated[
         int | None,

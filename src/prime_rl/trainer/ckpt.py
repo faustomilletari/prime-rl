@@ -1,14 +1,15 @@
 import threading
 import time
+import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import torch
+from torch import nn
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
 from prime_rl.trainer.config import CheckpointConfig
-from prime_rl.trainer.model import Model
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.utils import get_ckpt_dir
@@ -29,7 +30,7 @@ class CheckpointManager:
         self.ckpt_dir = get_ckpt_dir(outputs_dir)
         self._logger = get_logger()
         self._world = get_world()
-        self._is_master = self._world.rank == 0
+        self._is_master = self._world.is_master
         self.ckpt_steps: list[int] = []  # Sorted list of steps that have been checkpointed, only used on master rank
 
     def _get_step_path(self, step: int) -> Path:
@@ -43,7 +44,7 @@ class CheckpointManager:
         self,
         ckpt_path: Path,
         ckpt_step: int,
-        model: Model,
+        model: nn.Module,
         optimizers: list[Optimizer],
         scheduler: LRScheduler,
         progress: Progress,
@@ -61,8 +62,14 @@ class CheckpointManager:
 
         # Create checkpoint directory if it doesn't exist
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(ckpt_path, "wb") as f:
-            torch.save(ckpt_state, f)
+        
+        # Suppress torch.distributed warnings during checkpoint saving
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
+            warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
+            
+            with open(ckpt_path, "wb") as f:
+                torch.save(ckpt_state, f)
 
         # Append to list of saved steps
         if self._is_master:
@@ -71,7 +78,7 @@ class CheckpointManager:
         self._logger.debug(f"Training checkpoint saved in {time.time() - start_time:.2f} seconds")
 
     def _load_from_path(
-        self, ckpt_path: Path, model: Model, optimizers: list[Optimizer], scheduler: LRScheduler, progress: Progress
+        self, ckpt_path: Path, model: nn.Module, optimizers: list[Optimizer], scheduler: LRScheduler, progress: Progress
     ):
         """Loads a checkpoint from a given path in-place."""
         self._logger.debug(f"Loading training checkpoint from {ckpt_path}")
@@ -94,7 +101,7 @@ class CheckpointManager:
         self._logger.debug(f"Training checkpoint loaded in {time.time() - start_time:.2f} seconds")
 
     def load(
-        self, model: Model, optimizers: list[Optimizer], scheduler: LRScheduler, progress: Progress, step: int
+        self, model: nn.Module, optimizers: list[Optimizer], scheduler: LRScheduler, progress: Progress, step: int
     ) -> None:
         """Loads a checkpoint from a given path in-place."""
         ckpt_path = self._get_ckpt_path(step)
@@ -104,7 +111,7 @@ class CheckpointManager:
 
     def save(
         self,
-        model: Model,
+        model: nn.Module,
         optimizers: list[Optimizer],
         scheduler: LRScheduler,
         progress: Progress,
@@ -146,3 +153,9 @@ class CheckpointManager:
 
         # Update checkpoint steps
         self.ckpt_steps = self.ckpt_steps[-self.config.keep :]
+
+
+def setup_ckpt_manager(outputs_dir: Path, config: CheckpointConfig | None) -> CheckpointManager | None:
+    if config is None:
+        return None
+    return CheckpointManager(outputs_dir, config)
