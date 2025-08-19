@@ -113,6 +113,21 @@ class RLTrainerConfig(BaseSettings):
         ),
     ] = 2
 
+    loss_norm_type: Annotated[
+        Literal["seq", "group", "batch"],
+        Field(
+            description="Type of loss normalization to use. If 'seq', will normalize by the number of tokens in the batch. If 'group', will normalize by the number of tokens in the group. If 'batch', will normalize by the number of tokens in the batch.",
+        ),
+    ] = "seq"
+
+    rollouts_per_example: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Number of output sequences to return per example during training.",
+        ),
+    ] = 1
+
     profile_path: Annotated[Path | None, Field(description="Path to write memory profile to.")] = None
 
     recompute_logprobs: Annotated[

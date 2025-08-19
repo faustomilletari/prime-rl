@@ -1,6 +1,7 @@
 import torch
 from beartype import beartype as typechecker
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Bool, Float, Int, jaxtyped
+from litellm import Literal
 from torch import Tensor
 from torch.nn import functional as F
 
@@ -13,6 +14,8 @@ def compute_loss(
     old_logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     loss_config: LossConfigType,
+    loss_norm_type: Literal["seq", "group", "batch"],
+    loss_mask: Bool[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     if loss_config.type == "clip":
         return grpo_loss_clip(
@@ -22,6 +25,8 @@ def compute_loss(
             epsilon_low=loss_config.epsilon_low,
             epsilon_high=loss_config.epsilon_high,
             clip_ratio=loss_config.clip_ratio,
+            loss_norm_type=loss_norm_type,
+            loss_mask=loss_mask,
         )
     elif loss_config.type == "ratio":
         return grpo_loss_ratio(
@@ -29,6 +34,8 @@ def compute_loss(
             old_logprobs=old_logprobs,
             advantages=advantages,
             clip_ratio=loss_config.clip_ratio,
+            loss_norm_type=loss_norm_type,
+            loss_mask=loss_mask,
         )
 
 
@@ -40,6 +47,9 @@ def grpo_loss_clip(
     epsilon_low: float,
     epsilon_high: float,
     clip_ratio: float,
+    loss_norm_type: Literal["seq", "group", "batch"],
+    loss_scale: Float[Tensor, "batch"],
+    loss_mask: Bool[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"
@@ -53,6 +63,8 @@ def grpo_loss_clip(
     loss_2 = -coef_2 * advantages
     loss = torch.max(loss_1, loss_2)
     is_clipped = (loss_1 < loss_2).float()
+
+    loss = ((loss * loss_mask).sum(-1) / loss_scale).sum()
 
     return loss, {
         "loss": loss,
@@ -68,6 +80,8 @@ def grpo_loss_ratio(
     old_logprobs: Float[Tensor, "batch seq"],
     advantages: Float[Tensor, "batch seq"],
     clip_ratio: float,
+    loss_norm_type: Literal["seq", "group", "batch"],
+    loss_mask: Bool[Tensor, "batch seq"],
 ) -> tuple[Float[Tensor, "batch seq"], dict[str, Float[Tensor, "batch seq"]]]:
     assert logprobs.dtype == torch.float32, "logprobs must be float32"
     assert old_logprobs.dtype == torch.float32, "old_logprobs must be float32"

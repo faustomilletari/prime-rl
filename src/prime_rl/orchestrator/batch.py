@@ -23,6 +23,7 @@ def prepare_sample(
     seq_len: int,
     tokenizer: PreTrainedTokenizer,
     pad: bool,
+    group_completion_lens: list[int],
 ) -> BatchSample:
     """
     Prepare a problem and pad it for training.
@@ -43,6 +44,7 @@ def prepare_sample(
     logprobs = torch.cat([torch.zeros(len(prompt_token_ids)), torch.tensor(rollout.completion_logprobs)]).float()
     position_ids = torch.arange(len(input_ids)).long()
     advantages = torch.tensor(rollout.advantage).repeat(len(input_ids)).float()
+    group_completion_lens = torch.tensor(group_completion_lens).float()
 
     if len(input_ids) > seq_len:
         # We should never truncate as it would create a really bad learning signal. Instead, always set the maximum sequence length
@@ -69,13 +71,14 @@ def prepare_sample(
         "loss_mask": loss_mask,
         "position_ids": position_ids,
         "logprobs": logprobs,
+        "group_completion_lens": group_completion_lens,
     }
 
 
 def prepare_micro_batch(samples: list[MicroBatch], temperature: float):
     micro_batch = {}
 
-    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids"]:
+    for key in ["input_ids", "advantages", "loss_mask", "logprobs", "position_ids", "group_completion_lens"]:
         micro_batch[key] = torch.stack([sample[key] for sample in samples], dim=0)
 
     micro_batch["temperature"] = temperature
@@ -91,6 +94,7 @@ def prepare_batch_padding(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    group_completion_lens: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -113,6 +117,7 @@ def prepare_batch_padding(
                     seq_len,
                     tokenizer,
                     pad=True,
+                    group_completion_lens=group_completion_lens,
                 )
                 micro_batches.append(sample)
             batches.append(prepare_micro_batch(micro_batches, temperature))
@@ -161,7 +166,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
         "Total tokens of samples is greater than max sequence length"
     )
 
-    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs"]:
+    for key in ["input_ids", "advantages", "loss_mask", "position_ids", "logprobs", "group_completion_lens"]:
         micro_batch[key] = torch.cat([sample[key] for sample in samples], dim=0).unsqueeze(0)
 
     micro_batch["temperature"] = temperature
@@ -177,6 +182,7 @@ def prepare_batch_packing(
     micro_batch_size: int,
     seq_len: int,
     num_train_workers: int,
+    group_completion_lens: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -191,6 +197,7 @@ def prepare_batch_packing(
             max_seq_len,
             tokenizer,
             pad=False,
+            group_completion_lens=group_completion_lens,
         )
         for rollout in rollouts
     ]
@@ -234,6 +241,7 @@ def prepare_batch(
     seq_len: int,
     num_train_workers: int,
     collate_mode: Literal["packing", "padding"],
+    group_completion_lens: list[int],
 ) -> list[list[MicroBatch]]:
     """
     Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
@@ -248,6 +256,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                group_completion_lens,
             )
         case "packing":
             return prepare_batch_packing(
@@ -258,6 +267,7 @@ def prepare_batch(
                 micro_batch_size,
                 seq_len,
                 num_train_workers,
+                group_completion_lens,
             )
         case _:
             raise ValueError(f"Invalid collate mode: {collate_mode}")

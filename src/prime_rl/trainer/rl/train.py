@@ -40,6 +40,49 @@ from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
 
 
+def unpack_by_position_ids(
+    position_ids: torch.Tensor,
+    logprobs: torch.Tensor,
+    old_logprobs: torch.Tensor,
+    advantages: torch.Tensor,
+    loss_mask: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Unpack packed sequences into shape [num_sequences, max_len] using `position_ids`.
+
+    No-op unless batch_size == 1 and there are multiple segments (multiple zeros in `position_ids`).
+    """
+    if position_ids.dim() != 2:
+        return logprobs, old_logprobs, advantages, loss_mask
+
+    B, _ = position_ids.shape
+    if B != 1:
+        return logprobs, old_logprobs, advantages, loss_mask
+
+    pos = position_ids[0]
+    num_sequences = int((pos == 0).sum().item())
+    if num_sequences <= 1:
+        return logprobs, old_logprobs, advantages, loss_mask
+
+    max_len = int(pos.max().item()) + 1
+
+    device = logprobs.device
+    unpacked_logprobs = torch.zeros((num_sequences, max_len), device=device, dtype=logprobs.dtype)
+    unpacked_old_logprobs = torch.zeros((num_sequences, max_len), device=device, dtype=old_logprobs.dtype)
+    unpacked_advantages = torch.zeros((num_sequences, max_len), device=device, dtype=advantages.dtype)
+    unpacked_loss_mask = torch.zeros((num_sequences, max_len), device=device, dtype=torch.bool)
+
+    # Row index identifies the sequence id; column index is the token position within that sequence
+    row_idx = (pos == 0).cumsum(0) - 1
+    col_idx = pos
+
+    unpacked_logprobs[row_idx, col_idx] = logprobs[0]
+    unpacked_old_logprobs[row_idx, col_idx] = old_logprobs[0]
+    unpacked_advantages[row_idx, col_idx] = advantages[0]
+    unpacked_loss_mask[row_idx, col_idx] = loss_mask[0]
+
+    return unpacked_logprobs, unpacked_old_logprobs, unpacked_advantages, unpacked_loss_mask
+
+
 @clean_exit
 @logger.catch(reraise=True)
 def train(config: RLTrainerConfig):
@@ -224,11 +267,11 @@ def train(config: RLTrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = torch.tensor(
+        total_tokens = torch.tensor(
             sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches), device="cuda"
         )
 
-        logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale.item()=})")
+        logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {total_tokens.item()=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
         for micro_step, micro_batch in enumerate(micro_batches):
             input_ids = micro_batch["input_ids"].to("cuda")
@@ -236,6 +279,7 @@ def train(config: RLTrainerConfig):
             advantages = micro_batch["advantages"].to("cuda")
             loss_mask = micro_batch["loss_mask"].to("cuda")
             old_logprobs = micro_batch["logprobs"].to("cuda")
+            group_completion_lens = micro_batch["group_completion_lens"].to("cuda")
             temperature = micro_batch["temperature"]
             micro_batch_size, seq_len = input_ids.shape
 
@@ -245,20 +289,36 @@ def train(config: RLTrainerConfig):
             shifted_logits = shifted_logits / temperature
             logprobs = selective_log_softmax(shifted_logits, input_ids)
 
-            # Compute loss
-            loss, loss_tensors = compute_loss(
+            # Unpack by position_ids for packed micro-batches before computing loss
+            unpacked_logprobs, unpacked_old_logprobs, unpacked_advantages, unpacked_loss_mask = unpack_by_position_ids(
+                position_ids=position_ids,
                 logprobs=logprobs,
                 old_logprobs=old_logprobs,
                 advantages=advantages,
+                loss_mask=loss_mask,
+            )
+
+            if config.loss_norm_type == "seq":
+                loss_scale = loss_mask.sum(-1) * batch_size
+            elif config.loss_norm_type == "group":
+                loss_scale = group_completion_lens * batch_size / config.rollouts_per_example
+            elif config.loss_norm_type == "batch":
+                loss_scale = total_tokens
+
+            # Compute loss on unpacked tensors
+            loss, loss_tensors = compute_loss(
+                logprobs=unpacked_logprobs,
+                old_logprobs=unpacked_old_logprobs,
+                advantages=unpacked_advantages,
                 loss_config=config.loss,
+                loss_norm_type=config.loss_norm_type,
+                loss_mask=unpacked_loss_mask,
+                loss_scale=loss_scale,
             )
 
             # Compute entropy
             with torch.no_grad():
                 entropy = compute_entropy(shifted_logits)
-
-            # Reduce the loss
-            loss = (loss * loss_mask).sum() / loss_scale
 
             # Delete logits and shifted_logits before backward pass to avoid memory spike
             del logits, shifted_logits
@@ -276,12 +336,12 @@ def train(config: RLTrainerConfig):
 
             # Add loss tensors to tensor dict for logging purposes
             for key, loss_tensor in loss_tensors.items():
-                loss_tensor = loss_tensor.detach()[loss_mask].detach().to("cpu")
+                loss_tensor = loss_tensor.detach()[unpacked_loss_mask].detach().to("cpu")
                 tensors[key].append(loss_tensor)
 
             # Debug log with *local, micro step* stats
             logger.debug(
-                f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Entropy: {tensors['entropy'][-1].mean().item():.4f} | Importance Ratio: {tensors['importance_ratio'][-1].mean().item():.4f}"
+                f"Micro Step {micro_step} | Loss: {tensors['loss'].item():.4f} | Entropy: {tensors['entropy'][-1].mean().item():.4f} | Importance Ratio: {tensors['importance_ratio'][-1].mean().item():.4f}"
             )
 
         # Optionally, clip the gradients
