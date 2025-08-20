@@ -24,12 +24,6 @@ def test_moe_venv():
 
     apply_moe_changes(main, moe)
 
-    try:
-        for k, v in main.items():
-            assert k in moe, f"{k} not in moe venv"
-            assert v == moe[k], f"{k} key not equal"
-    except Exception as e:
-        import tomli_w
-
-        tomli_w.dump(main, MOE_PYPROJECT)
-        raise e
+    for k, v in main.items():
+        assert k in moe, f"{k} not in moe venv"
+        assert v == moe[k], f"'{k}' key not equal. Please sync the changes on {MAIN_PYPROJECT} to {MOE_PYPROJECT}."
