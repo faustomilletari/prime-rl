@@ -18,6 +18,7 @@ def test_grpo_loss():
         epsilon_low=0.2,
         epsilon_high=0.2,
         clip_ratio=10.0,
+        group_completion_lens=torch.ones(10, dtype=torch.int32).cuda(),
     )
     assert loss.shape == (10, 10)
 
@@ -32,6 +33,7 @@ def test_grpo_loss_ratio():
         old_logprobs,
         advantages,
         clip_ratio=10.0,
+        group_completion_lens=torch.ones(10, dtype=torch.int32).cuda(),
     )
     assert loss.shape == (10, 10)
 

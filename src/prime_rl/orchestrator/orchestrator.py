@@ -358,7 +358,7 @@ async def orchestrate(config: OrchestratorConfig):
             num_train_workers=config.num_train_workers,
             seq_len=config.seq_len,
             collate_mode=config.collate_mode,
-            group_completion_lens=group_completion_lens
+            group_completion_lens=group_completion_lens,
         )
 
         step_path = get_rollout_dir(config.outputs_dir) / f"step_{progress.step}"
