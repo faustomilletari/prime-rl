@@ -51,7 +51,7 @@ flash-attn = ["flash-attn>=2.8.0"]
 flash-infer = ["flashinfer-python>=0.2.8rc1"]
 
 vf = [
-    "alphabet-sort>=0.1.7",
+    "alphabet-sort>=0.1.3",
     "ascii-tree>=0.1.4",
     "pydantic-adherence>=0.1.1",
     "reverse-text>=0.1.1",
