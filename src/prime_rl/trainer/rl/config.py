@@ -118,7 +118,7 @@ class RLTrainerConfig(BaseSettings):
         Field(
             description="Type of loss normalization to use. If 'seq', will normalize by the number of tokens in the batch. If 'group', will normalize by the number of tokens in the group. If 'batch', will normalize by the number of tokens in the batch.",
         ),
-    ] = "seq"
+    ] = "batch"
 
     rollouts_per_example: Annotated[
         int,
