@@ -1,3 +1,14 @@
+"""
+This test is used to ensure that the moe venv is up to date with the main venv.
+This split is currently needed because torchtitan moe requires torch 2.8 but vllm requires torch 2.7.
+
+If this test fails, please sync the changes from pyproject.toml to deps/moe/pyproject.toml.
+Copy it from deps/moe/pyproject.toml to pyproject.toml.
+Then run `uv sync && uv sync --all-extras` to update the venv and lock.
+Then copy the updated uv.lock to deps/moe/uv.lock.
+Commit the changes in deps/moe/*.
+"""
+
 import tomllib
 
 MAIN_PYPROJECT = "pyproject.toml"
