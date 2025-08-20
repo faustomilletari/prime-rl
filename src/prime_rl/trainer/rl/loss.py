@@ -1,11 +1,10 @@
 from typing import Literal
 
 import torch
-from torch import Tensor
-from torch.nn import functional as F
-
 from beartype import beartype as typechecker
 from jaxtyping import Bool, Float, Int, jaxtyped
+from torch import Tensor
+from torch.nn import functional as F
 
 from prime_rl.trainer.rl.config import LossConfigType
 
