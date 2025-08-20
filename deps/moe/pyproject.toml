@@ -31,9 +31,9 @@ dependencies = [
     "textarena>=0.6.16",
     "nltk>=3.9.1",
     "math-verify>=0.8.0",
+    "muon_fsdp2>=0.3.0",
     "torchtitan",
     "blobfile>=3.0.0",
-    "muon_fsdp2>=0.3.0",
 ]
 
 [project.scripts]
