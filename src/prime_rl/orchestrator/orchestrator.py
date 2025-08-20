@@ -318,7 +318,11 @@ async def orchestrate(config: OrchestratorConfig):
         if config.loss_scale == "seq":
             loss_scale = completion_lens.reshape(-1) * config.batch_size
         elif config.loss_scale == "group":
-            loss_scale = completion_lens.sum(-1).repeat_interleave(config.rollouts_per_example) * config.batch_size / config.rollouts_per_example
+            loss_scale = (
+                completion_lens.sum(-1).repeat_interleave(config.rollouts_per_example)
+                * config.batch_size
+                / config.rollouts_per_example
+            )
         elif config.loss_scale == "batch":
             loss_scale = completion_lens.sum().repeat_interleave(config.batch_size)
 
@@ -357,7 +361,7 @@ async def orchestrate(config: OrchestratorConfig):
             num_train_workers=config.num_train_workers,
             seq_len=config.seq_len,
             collate_mode=config.collate_mode,
-            loss_scale=loss_scale,
+            loss_scale=loss_scale.tolist(),
         )
 
         step_path = get_rollout_dir(config.outputs_dir) / f"step_{progress.step}"
