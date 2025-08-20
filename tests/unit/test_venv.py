@@ -1,10 +1,13 @@
 import tomllib
 
+MAIN_PYPROJECT = "pyproject.toml"
+MOE_PYPROJECT = "deps/moe/pyproject.toml"
+
 
 def test_moe_venv():
-    with open("pyproject.toml", "rb") as f:
+    with open(MAIN_PYPROJECT, "rb") as f:
         main = tomllib.load(f)
-    with open("deps/moe/pyproject.toml", "rb") as f:
+    with open(MOE_PYPROJECT, "rb") as f:
         moe = tomllib.load(f)
 
     def apply_moe_changes(pyproject_dict, moe_dict):
@@ -21,6 +24,12 @@ def test_moe_venv():
 
     apply_moe_changes(main, moe)
 
-    for k, v in main.items():
-        assert k in moe, f"{k} not in moe"
-        assert v == moe[k]
+    try:
+        for k, v in main.items():
+            assert k in moe, f"{k} not in moe venv"
+            assert v == moe[k], f"{k} key not equal"
+    except Exception as e:
+        import tomli_w
+
+        tomli_w.dump(main, MOE_PYPROJECT)
+        raise e
