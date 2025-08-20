@@ -8,6 +8,7 @@ from datasets import Dataset
 from prime_rl.orchestrator.config import (
     DataBufferConfigType,
     DifficultyPoolBufferConfig,
+    FilteredRewardBufferConfig,
     OnlineDifficultyBufferConfig,
     SimpleBufferConfig,
 )
@@ -464,15 +465,21 @@ class FilteredRewardBuffer(Buffer):
             sampled_problem_ids = mixed_groups + replacement_groups
             self.logger.info(f"Replaced {zero_adv_count} homogeneous groups with mixed groups")
         else:
+            # No mixed groups available, use all available problem IDs
             sampled_problem_ids = available_problem_ids
+            self.logger.warning(
+                f"No mixed reward groups available, using all {len(available_problem_ids)} homogeneous groups"
+            )
 
         assert len(sampled_problem_ids) == n
 
         # Build flattened list of rollouts
         sampled_rollouts = []
+        rollout_cache = {}
         for problem_id in sampled_problem_ids:
-            rollouts = self.rollout_buffer.pop(problem_id)
-            sampled_rollouts.extend(rollouts)
+            if problem_id not in rollout_cache:
+                rollout_cache[problem_id] = self.rollout_buffer.pop(problem_id)
+            sampled_rollouts.extend(rollout_cache[problem_id])
 
         return sampled_rollouts
 
