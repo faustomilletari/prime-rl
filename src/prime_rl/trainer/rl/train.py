@@ -30,7 +30,6 @@ from prime_rl.trainer.utils import (
     OffloadedTensor,
     Tensors,
     copy_model_to_cpu,
-    get_response_lengths,
     offload_model_to_cpu,
     wake_up_model_from_cpu,
     print_benchmark,
@@ -250,13 +249,12 @@ def train(config: RLTrainerConfig):
             logprobs = selective_log_softmax(shifted_logits, input_ids)
 
             # Compute loss
-            response_lengths = get_response_lengths(position_ids)
             loss, loss_tensors = compute_packed_sequence_loss(
                 logprobs=logprobs,
                 old_logprobs=old_logprobs,
                 advantages=advantages,
                 loss_mask=loss_mask,
-                response_lengths=response_lengths,
+                position_ids=position_ids,
                 loss_config=config.loss,
                 loss_scale=loss_scale,
             )

@@ -5,6 +5,7 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from prime_rl.trainer.rl.config import LossConfigType
+from prime_rl.trainer.rl.train import get_response_lengths
 
 
 @jaxtyped(typechecker=typechecker)
@@ -134,9 +135,16 @@ def shift_logits(logits: Float[Tensor, "batch seq vocab"]) -> Float[Tensor, "bat
     return logits
 
 
+@jaxtyped(typechecker=typechecker)
 def compute_packed_sequence_loss(
-    logprobs, old_logprobs, advantages, loss_mask, response_lengths, loss_config, loss_scale
-):
+    logprobs: Float[Tensor, "batch seq"],
+    old_logprobs: Float[Tensor, "batch seq"],
+    advantages: Float[Tensor, "batch seq"],
+    loss_mask: Float[Tensor, "batch seq"],
+    position_ids: Int[Tensor, "batch seq"],
+    loss_config: LossConfigType,
+    loss_scale: float,
+) -> tuple[Float[Tensor, "seq"], dict[str, Float[Tensor, "seq"]]]:
     """
     Compute loss for packed sequences (batch size = 1, multiple sequences packed along sequence dimension).
 
@@ -152,6 +160,7 @@ def compute_packed_sequence_loss(
     Returns:
         Tuple of (scaled_loss, aggregated_loss_tensors)
     """
+    response_lengths = get_response_lengths(position_ids)
     # Split tensors by response lengths for per-sequence processing
     logprobs_unpacked = logprobs.squeeze(0).split(response_lengths)
     old_logprobs_unpacked = old_logprobs.squeeze(0).split(response_lengths)
