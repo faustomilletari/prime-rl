@@ -250,11 +250,11 @@ def train(config: RLTrainerConfig):
 
             # Compute loss
             loss, loss_tensors = compute_packed_sequence_loss(
-                logprobs=logprobs,
-                old_logprobs=old_logprobs,
-                advantages=advantages,
-                loss_mask=loss_mask,
-                position_ids=position_ids,
+                logprobs=logprobs.squeeze(0),
+                old_logprobs=old_logprobs.squeeze(0),
+                advantages=advantages.squeeze(0),
+                loss_mask=loss_mask.squeeze(0),
+                position_ids=position_ids.squeeze(0),
                 loss_config=config.loss,
                 loss_scale=loss_scale,
             )

@@ -137,11 +137,11 @@ def shift_logits(logits: Float[Tensor, "batch seq vocab"]) -> Float[Tensor, "bat
 
 @jaxtyped(typechecker=typechecker)
 def compute_packed_sequence_loss(
-    logprobs: Float[Tensor, "batch seq"],
-    old_logprobs: Float[Tensor, "batch seq"],
-    advantages: Float[Tensor, "batch seq"],
-    loss_mask: Float[Tensor, "batch seq"],
-    position_ids: Int[Tensor, "batch seq"],
+    logprobs: Float[Tensor, "seq"],
+    old_logprobs: Float[Tensor, "seq"],
+    advantages: Float[Tensor, "seq"],
+    loss_mask: Float[Tensor, "seq"],
+    position_ids: Int[Tensor, "seq"],
     loss_config: LossConfigType,
     loss_scale: float,
 ) -> tuple[Float[Tensor, "seq"], dict[str, Float[Tensor, "seq"]]]:
@@ -162,10 +162,10 @@ def compute_packed_sequence_loss(
     """
     response_lengths = get_response_lengths(position_ids)
     # Split tensors by response lengths for per-sequence processing
-    logprobs_unpacked = logprobs.squeeze(0).split(response_lengths)
-    old_logprobs_unpacked = old_logprobs.squeeze(0).split(response_lengths)
-    advantages_unpacked = advantages.squeeze(0).split(response_lengths)
-    loss_mask_unpacked = loss_mask.squeeze(0).split(response_lengths)
+    logprobs_unpacked = logprobs.split(response_lengths)
+    old_logprobs_unpacked = old_logprobs.split(response_lengths)
+    advantages_unpacked = advantages.split(response_lengths)
+    loss_mask_unpacked = loss_mask.split(response_lengths)
 
     total_loss = 0
     aggregated_loss_tensors = {}
