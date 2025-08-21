@@ -238,7 +238,7 @@ def train(config: RLTrainerConfig):
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             advantages = micro_batch["advantages"].to("cuda")
-            loss_masks = micro_batch["loss_masks"].to("cuda")
+            loss_mask = micro_batch["loss_mask"].to("cuda")
             old_logprobs = micro_batch["logprobs"].to("cuda")
             temperature = micro_batch["temperature"]
             micro_batch_size, seq_len = input_ids.shape
@@ -253,11 +253,14 @@ def train(config: RLTrainerConfig):
             response_lengths = get_response_lengths(position_ids)
             loss = 0
             loss_tensors = {}
+            # Split tensors by response lengths for per-sequence processing
+            logprobs_unpacked = logprobs.split(response_lengths)
+            old_logprobs_unpacked = old_logprobs.split(response_lengths)
+            advantages_unpacked = advantages.split(response_lengths)
+            loss_mask_unpacked = loss_mask.split(response_lengths)
+
             for logprob, old_logprob, advantage, loss_mask in zip(
-                logprobs.split(response_lengths),
-                old_logprobs.split(response_lengths),
-                advantages.split(response_lengths),
-                loss_masks.split(response_lengths),
+                logprobs_unpacked, old_logprobs_unpacked, advantages_unpacked, loss_mask_unpacked
             ):
                 new_loss, new_loss_tensors = compute_loss(
                     logprobs=logprob,
