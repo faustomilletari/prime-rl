@@ -28,13 +28,22 @@ def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
     """
     flat = position_ids.flatten()
 
-    # Find sequence boundaries: start + positions where we reset from nonzero to 0
-    reset_positions = torch.where((flat[1:] == 0) & (flat[:-1] != 0))[0] + 1
-    boundaries = torch.cat(
-        [torch.tensor([0], device=flat.device), reset_positions, torch.tensor([len(flat)], device=flat.device)]
-    )
+    # A new sequence starts whenever we encounter a 0
+    # This handles both resets after non-zero values and consecutive zeros
+    lengths = []
+    current_length = 1
 
-    return (boundaries[1:] - boundaries[:-1]).tolist()
+    for i in range(1, len(flat)):
+        if flat[i] == 0:  # New sequence starts
+            lengths.append(current_length)
+            current_length = 1
+        else:
+            current_length += 1
+
+    # Add the last sequence
+    lengths.append(current_length)
+
+    return lengths
 
 
 def get_real_tensor(tensor: Tensor | DTensor) -> Tensor:
