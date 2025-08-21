@@ -24,7 +24,7 @@ class BaseLossConfig(BaseModel):
         Field(
             description="Normalization type for loss scaling. 'token' normalizes by the total number of unmasked tokens in the batch, 'sequence' normalizes by the total tokens within a sequence."
         ),
-    ] = "token"
+    ] = "sequence"
 
 
 class ClippingLossConfig(BaseLossConfig):

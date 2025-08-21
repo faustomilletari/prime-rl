@@ -18,7 +18,8 @@ def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
     Compute lengths of concatenated sequences from position_ids.
 
     Each sequence starts at 0 and increments. When position_ids resets to 0,
-    it indicates the start of a new sequence.
+    it indicates the start of a new sequence. Trailing zeros (padding) are
+    counted as part of the last sequence.
 
     Args:
         position_ids: Tensor of shape [1, total_seqlen] or [batch, seq_len]
@@ -28,20 +29,22 @@ def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
     """
     flat = position_ids.flatten()
 
-    # A new sequence starts whenever we encounter a 0
-    # This handles both resets after non-zero values and consecutive zeros
-    lengths = []
-    current_length = 1
+    boundaries = [0]  # Start of first sequence
 
     for i in range(1, len(flat)):
-        if flat[i] == 0:  # New sequence starts
-            lengths.append(current_length)
-            current_length = 1
-        else:
-            current_length += 1
+        if flat[i] == 0 and flat[i - 1] != 0:
+            # This is a potential sequence boundary (0 after non-zero)
+            # But only if the next element is 1 (indicating a new incrementing sequence)
+            # Otherwise, this 0 is padding and belongs to current sequence
+            if i + 1 < len(flat) and flat[i + 1] == 1:
+                boundaries.append(i)
 
-    # Add the last sequence
-    lengths.append(current_length)
+    # Calculate lengths based on boundaries
+    lengths = []
+    for i in range(len(boundaries)):
+        start = boundaries[i]
+        end = boundaries[i + 1] if i + 1 < len(boundaries) else len(flat)
+        lengths.append(end - start)
 
     return lengths
 
