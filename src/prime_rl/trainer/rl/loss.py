@@ -5,7 +5,7 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from prime_rl.trainer.rl.config import LossConfigType
-from prime_rl.trainer.rl.train import get_response_lengths
+from prime_rl.trainer.utils import get_response_lengths
 
 
 @jaxtyped(typechecker=typechecker)
