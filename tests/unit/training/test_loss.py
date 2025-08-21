@@ -21,7 +21,7 @@ def test_grpo_loss():
         loss_config=LossConfig(type="grpo", clip_ratio_low=0.0, clip_ratio_high=10.0),
         loss_scale=1.0,
     )
-    assert loss.shape == (100,)
+    assert loss.shape == ()
 
 
 def test_gspo_loss():
@@ -38,7 +38,7 @@ def test_gspo_loss():
         loss_config=LossConfig(type="gspo", clip_ratio_low=0.0, clip_ratio_high=10.0),
         loss_scale=1.0,
     )
-    assert loss.shape == (100,)
+    assert loss.shape == ()
 
 
 def test_entropy_loss():
