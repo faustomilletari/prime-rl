@@ -166,9 +166,10 @@ def train(config: SFTTrainerConfig):
             loss.backward()
 
             # Debug log with *local, micro step* stats
-            logger.debug(
-                f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f} | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
-            )
+            _log_str = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
+            if "max_vio" in tensors:
+                _log_str += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
+            logger.debug(_log_str)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.optim.max_norm}")
@@ -207,7 +208,9 @@ def train(config: SFTTrainerConfig):
         # Log step metrics
         step_time = time.time() - step_start_time
         current_lr = optimizer.param_groups[0]["lr"]
-        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | Max Vio: {tensor_stats['max_vio/mean']:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        step_message = f"Step {progress.step} | Time: {step_time:.2f}s | Loss: {tensor_stats['loss/mean']:.4f} | Accuracy: {tensor_stats['accuracy/mean']:.4f} | Grad. Norm: {grad_norm:.4f} | LR: {current_lr:.2e} | Throughput: {throughput:.0f} tokens/s | MFU: {mfu:.1f}%"
+        if "max_vio/mean" in tensor_stats:
+            step_message += f" | Max Vio: {tensor_stats['max_vio/mean']:.4f}"
         logger.success(step_message)
 
         # Log progress metrics
