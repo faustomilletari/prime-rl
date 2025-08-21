@@ -20,13 +20,15 @@ def is_tt_moe_model(model: nn.Module) -> bool:
     return hasattr(model.config, "num_experts") or hasattr(model.config, "n_routed_experts")
 
 
-def get_load_balance_stats(model: nn.Module) -> dict[str, torch.FloatTensor]:
+def get_load_balance_stats(model: nn.Module, reset_stats: bool = True) -> dict[str, torch.FloatTensor]:
     per_layer_max_vio = []
     for transformer_block in model.model.layers:
         tokens_per_expert = transformer_block.mlp.tokens_per_expert
         balanced_load = tokens_per_expert.mean()
         max_vio = (tokens_per_expert.max() - balanced_load) / balanced_load
         per_layer_max_vio.append(max_vio.item())
+        if reset_stats:
+            tokens_per_expert.zero_()
     return {"max_vio": torch.tensor(per_layer_max_vio)}
 
 
