@@ -16,7 +16,7 @@ from prime_rl.trainer.rl.loss import (
     shift_logits,
     selective_log_softmax,
     compute_entropy,
-    compute_packed_sequence_loss,
+    compute_loss,
 )
 from prime_rl.trainer.scheduler import setup_scheduler
 from prime_rl.trainer.model import (
@@ -251,7 +251,7 @@ def train(config: RLTrainerConfig):
             logprobs = selective_log_softmax(shifted_logits, input_ids)
 
             # Compute loss
-            loss, loss_tensors = compute_packed_sequence_loss(
+            loss, loss_tensors = compute_loss(
                 logprobs=logprobs.squeeze(0),
                 old_logprobs=old_logprobs.squeeze(0),
                 advantages=advantages.squeeze(0),
