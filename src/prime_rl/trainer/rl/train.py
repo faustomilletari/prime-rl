@@ -40,6 +40,32 @@ from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
 
 
+def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
+    """
+    Extract sequence lengths from concatenated position_ids.
+
+    Each sequence starts at position 0 and increments. When position_ids
+    resets to 0, it indicates the start of a new sequence.
+
+    Args:
+        position_ids: Tensor of position indices [0, 1, 2, 3, 0, 1, 2, 3, ...]
+
+    Returns:
+        List of sequence lengths, e.g., [4, 4] for the example above
+    """
+    if len(position_ids) == 0:
+        return []
+
+    # Find positions where sequence resets to 0 (except first element)
+    reset_positions = torch.where(position_ids[1:] == 0)[0] + 1
+
+    # Add boundaries: start=0, resets, end=length
+    boundaries = torch.cat([torch.tensor([0]), reset_positions, torch.tensor([len(position_ids)])])
+
+    # Calculate lengths as differences between consecutive boundaries
+    return (boundaries[1:] - boundaries[:-1]).tolist()
+
+
 @clean_exit
 @logger.catch(reraise=True)
 def train(config: RLTrainerConfig):
@@ -224,9 +250,12 @@ def train(config: RLTrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
-        loss_scale = torch.tensor(
-            sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches), device="cuda"
-        )
+        if config.loss.norm_type == "token":
+            loss_scale = torch.tensor(
+                sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches), device="cuda"
+            )
+        elif config.loss.norm_type == "sequence":
+            loss_scale = batch_size
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale.item()=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
@@ -234,7 +263,7 @@ def train(config: RLTrainerConfig):
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             advantages = micro_batch["advantages"].to("cuda")
-            loss_mask = micro_batch["loss_mask"].to("cuda")
+            loss_masks = micro_batch["loss_masks"].to("cuda")
             old_logprobs = micro_batch["logprobs"].to("cuda")
             temperature = micro_batch["temperature"]
             micro_batch_size, seq_len = input_ids.shape
@@ -246,19 +275,37 @@ def train(config: RLTrainerConfig):
             logprobs = selective_log_softmax(shifted_logits, input_ids)
 
             # Compute loss
-            loss, loss_tensors = compute_loss(
-                logprobs=logprobs,
-                old_logprobs=old_logprobs,
-                advantages=advantages,
-                loss_config=config.loss,
-            )
+            response_lengths = get_response_lengths(position_ids)
+            loss = 0
+            loss_tensors = {}
+            for logprob, old_logprob, advantage, loss_mask in zip(
+                logprobs.split(response_lengths),
+                old_logprobs.split(response_lengths),
+                advantages.split(response_lengths),
+                loss_masks.split(response_lengths),
+            ):
+                new_loss, new_loss_tensors = compute_loss(
+                    logprobs=logprob,
+                    old_logprobs=old_logprob,
+                    advantages=advantage,
+                    loss_config=config.loss,
+                )
+                new_loss = (new_loss * loss_mask).sum()
+                if config.loss.norm_type == "sequence":
+                    new_loss = new_loss / torch.clamp_min(loss_mask.sum(), 1)
+                loss += new_loss
+                for key, new_loss_tensor in new_loss_tensors.items():
+                    if key not in loss_tensors:
+                        loss_tensors[key] = new_loss_tensor
+                    else:
+                        loss_tensors[key] += new_loss_tensor
 
             # Compute entropy
             with torch.no_grad():
                 entropy = compute_entropy(shifted_logits)
 
             # Reduce the loss
-            loss = (loss * loss_mask).sum() / loss_scale
+            loss = loss / loss_scale
 
             # Delete logits and shifted_logits before backward pass to avoid memory spike
             del logits, shifted_logits
@@ -273,6 +320,7 @@ def train(config: RLTrainerConfig):
             tensors["recomputed_logprob_error"].append(
                 recomputed_logprob_errors[micro_step][loss_mask].detach().to("cpu")
             )
+            tensors["loss"].append(loss.detach().to("cpu"))
 
             # Add loss tensors to tensor dict for logging purposes
             for key, loss_tensor in loss_tensors.items():

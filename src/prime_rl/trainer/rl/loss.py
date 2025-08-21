@@ -55,7 +55,6 @@ def grpo_loss_clip(
     is_clipped = (loss_1 < loss_2).float()
 
     return loss, {
-        "loss": loss,
         "coef_1": coef_1,
         "coef_2": coef_2,
         "is_clipped": is_clipped,
@@ -80,7 +79,6 @@ def grpo_loss_ratio(
     is_clipped = (importance_ratio > clip_ratio).float()  # (B, L)
 
     return loss, {
-        "loss": loss,
         "importance_ratio": importance_ratio,
         "clipped_importance_ratio": clipped_importance_ratio,
         "is_clipped": is_clipped,
