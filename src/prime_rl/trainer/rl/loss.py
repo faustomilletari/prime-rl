@@ -1,6 +1,6 @@
 import torch
 from beartype import beartype as typechecker
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
 from torch.nn import functional as F
 
@@ -140,11 +140,11 @@ def compute_packed_sequence_loss(
     logprobs: Float[Tensor, "seq"],
     old_logprobs: Float[Tensor, "seq"],
     advantages: Float[Tensor, "seq"],
-    loss_mask: Float[Tensor, "seq"],
+    loss_mask: Bool[Tensor, "seq"],
     position_ids: Int[Tensor, "seq"],
     loss_config: LossConfigType,
     loss_scale: float,
-) -> tuple[Float[Tensor, "seq"], dict[str, Float[Tensor, "seq"]]]:
+) -> tuple[Float[Tensor, ""], dict[str, Float[Tensor, "seq"]]]:
     """
     Compute loss for packed sequences (batch size = 1, multiple sequences packed along sequence dimension).
 
