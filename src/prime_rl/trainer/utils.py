@@ -13,6 +13,30 @@ from torch.distributed.tensor import DTensor
 from prime_rl.utils.utils import format_num, format_time
 
 
+def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
+    """
+    Compute lengths of concatenated sequences from position_ids.
+
+    Each sequence starts at 0 and increments. When position_ids resets to 0,
+    it indicates the start of a new sequence.
+
+    Args:
+        position_ids: Tensor of shape [1, total_seqlen] or [batch, seq_len]
+
+    Returns:
+        List of sequence lengths
+    """
+    flat = position_ids.flatten()
+
+    # Find sequence boundaries: start + positions where we reset from nonzero to 0
+    reset_positions = torch.where((flat[1:] == 0) & (flat[:-1] != 0))[0] + 1
+    boundaries = torch.cat(
+        [torch.tensor([0], device=flat.device), reset_positions, torch.tensor([len(flat)], device=flat.device)]
+    )
+
+    return (boundaries[1:] - boundaries[:-1]).tolist()
+
+
 def get_real_tensor(tensor: Tensor | DTensor) -> Tensor:
     if isinstance(tensor, DTensor):
         return tensor.to_local()

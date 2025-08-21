@@ -30,6 +30,7 @@ from prime_rl.trainer.utils import (
     OffloadedTensor,
     Tensors,
     copy_model_to_cpu,
+    get_response_lengths,
     offload_model_to_cpu,
     wake_up_model_from_cpu,
     print_benchmark,
@@ -38,32 +39,6 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-
-
-def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
-    """
-    Extract sequence lengths from concatenated position_ids.
-
-    Each sequence starts at position 0 and increments. When position_ids
-    resets to 0, it indicates the start of a new sequence.
-
-    Args:
-        position_ids: Tensor of position indices [0, 1, 2, 3, 0, 1, 2, 3, ...]
-
-    Returns:
-        List of sequence lengths, e.g., [4, 4] for the example above
-    """
-    if len(position_ids) == 0:
-        return []
-
-    # Find positions where sequence resets to 0 (except first element)
-    reset_positions = torch.where(position_ids[1:] == 0)[0] + 1
-
-    # Add boundaries: start=0, resets, end=length
-    boundaries = torch.cat([torch.tensor([0]), reset_positions, torch.tensor([len(position_ids)])])
-
-    # Calculate lengths as differences between consecutive boundaries
-    return (boundaries[1:] - boundaries[:-1]).tolist()
 
 
 @clean_exit
