@@ -166,10 +166,10 @@ def train(config: SFTTrainerConfig):
             loss.backward()
 
             # Debug log with *local, micro step* stats
-            _log_str = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
+            micro_step_message = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"
             if "max_vio" in tensors:
-                _log_str += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
-            logger.debug(_log_str)
+                micro_step_message += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
+            logger.debug(micro_step_message)
 
         # Optionally, clip the gradients
         logger.debug(f"Clipping gradients to {config.optim.max_norm}")
