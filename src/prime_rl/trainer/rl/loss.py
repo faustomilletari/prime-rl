@@ -1,6 +1,7 @@
 import torch
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
+from loguru import logger
 from torch import Tensor
 from torch.nn import functional as F
 
@@ -153,10 +154,11 @@ def compute_packed_sequence_loss(
         Tuple of (scaled_loss, aggregated_loss_tensors)
     """
     # Split tensors by response lengths for per-sequence processing
-    logprobs_unpacked = logprobs.squeeze().split(response_lengths)
-    old_logprobs_unpacked = old_logprobs.squeeze().split(response_lengths)
-    advantages_unpacked = advantages.squeeze().split(response_lengths)
-    loss_mask_unpacked = loss_mask.squeeze().split(response_lengths)
+    logger.info(f"logprobs shape: {logprobs.shape}")
+    logprobs_unpacked = logprobs.squeeze(0).split(response_lengths)
+    old_logprobs_unpacked = old_logprobs.squeeze(0).split(response_lengths)
+    advantages_unpacked = advantages.squeeze(0).split(response_lengths)
+    loss_mask_unpacked = loss_mask.squeeze(0).split(response_lengths)
 
     total_loss = 0
     aggregated_loss_tensors = {}
