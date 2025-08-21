@@ -90,9 +90,9 @@ def compute_loss(
     loss_mask_unpacked = loss_mask.split(response_lengths)
 
     total_loss = 0
-    importance_ratio = []
-    clipped_importance_ratio = []
-    is_clipped = []
+    total_importance_ratio = []
+    total_clipped_importance_ratio = []
+    total_is_clipped = []
 
     for logprobs, old_logprobs, advantages, loss_mask in zip(
         logprobs_unpacked, old_logprobs_unpacked, advantages_unpacked, loss_mask_unpacked
@@ -123,15 +123,15 @@ def compute_loss(
         total_loss = total_loss + loss
 
         # Aggregate loss tensors
-        importance_ratio.append(importance_ratio)
-        clipped_importance_ratio.append(clipped_importance_ratio)
-        is_clipped.append(is_clipped)
+        total_importance_ratio.append(importance_ratio)
+        total_clipped_importance_ratio.append(clipped_importance_ratio)
+        total_is_clipped.append(is_clipped)
 
     # Apply loss scaling
     scaled_loss = total_loss / loss_scale
 
     return scaled_loss, {
-        "importance_ratio": torch.cat(importance_ratio),
-        "clipped_importance_ratio": torch.cat(clipped_importance_ratio),
-        "is_clipped": torch.cat(is_clipped),
+        "importance_ratio": torch.cat(total_importance_ratio),
+        "clipped_importance_ratio": torch.cat(total_clipped_importance_ratio),
+        "is_clipped": torch.cat(total_is_clipped),
     }
