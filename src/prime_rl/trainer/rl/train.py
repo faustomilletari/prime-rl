@@ -229,7 +229,7 @@ def train(config: RLTrainerConfig):
                 sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches), device="cuda"
             )
         elif config.loss.norm_type == "sequence":
-            loss_scale = torch.tensor(batch_size, device="cuda")
+            loss_scale = torch.tensor(batch_size.float(), device="cuda")
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=}, {loss_scale.item()=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
