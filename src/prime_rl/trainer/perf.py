@@ -2,6 +2,7 @@ import time
 
 import torch
 from torch import nn
+from transformers import PretrainedConfig
 
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.logger import get_logger
@@ -71,8 +72,7 @@ class PerfCounter:
             self._logger.warning(f"Peak FLOPS undefined for `{device_name}`. Falling back to A100 (312 TFLOPS)")
             return 312e12
 
-    # TODO: Add config type
-    def _get_num_flop_per_token(self, num_params: int, model_config, seq_len: int) -> int:
+    def _get_num_flop_per_token(self, num_params: int, model_config: PretrainedConfig, seq_len: int) -> int:
         l, h, q, t = (  # noqa: E741
             model_config.num_hidden_layers,
             model_config.num_attention_heads,
