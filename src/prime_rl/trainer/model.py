@@ -1,5 +1,3 @@
-import warnings
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -16,6 +14,7 @@ from transformers import (
 from transformers.tokenization_utils import PreTrainedTokenizer
 
 from prime_rl.trainer.config import ActivationCheckpointConfig, ModelConfig
+from prime_rl.utils.logger import get_logger
 
 
 def is_tt_moe_model(model: nn.Module) -> bool:
@@ -35,7 +34,7 @@ def get_load_balance_stats(model: nn.Module, reset_stats: bool = True) -> dict[s
         if reset_stats:
             tokens_per_expert.zero_()
     if len(per_layer_max_vio) == 0:
-        warnings.warn("No load balance stats to report")
+        get_logger().warning("No load balance stats to report")
         return {}
     return {"max_vio": torch.tensor(per_layer_max_vio)}
 
