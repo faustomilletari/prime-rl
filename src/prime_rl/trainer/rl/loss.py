@@ -1,11 +1,10 @@
 import torch
 from beartype import beartype as typechecker
-from jaxtyping import Bool, Float, Int, jaxtyped
+from jaxtyping import Bool, Float, jaxtyped
 from torch import Tensor
 from torch.nn import functional as F
 
 from prime_rl.trainer.rl.config import LossConfig
-from prime_rl.trainer.utils import get_response_lengths
 
 
 @jaxtyped(typechecker=typechecker)
@@ -63,7 +62,6 @@ def compute_loss(
     old_logprobs: Float[Tensor, "seq"],
     advantages: Float[Tensor, "seq"],
     loss_mask: Bool[Tensor, "seq"],
-    position_ids: Int[Tensor, "seq"],
     loss_config: LossConfig,
     loss_scale: float,
 ) -> tuple[Float[Tensor, ""], dict[str, Float[Tensor, "seq"]]]:
@@ -75,28 +73,19 @@ def compute_loss(
         old_logprobs: Old log probabilities tensor for packed sequences
         advantages: Advantages tensor for packed sequences
         loss_mask: Loss mask tensor for packed sequences
-        response_lengths: Lengths of each individual sequence in the pack
         loss_config: Loss configuration object
         loss_scale: Scale factor to normalize the loss
 
     Returns:
         Tuple of (scaled_loss, aggregated_loss_tensors)
     """
-    response_lengths = get_response_lengths(position_ids)
-    # Split tensors by response lengths for per-sequence processing
-    logprobs_unpacked = logprobs.split(response_lengths)
-    old_logprobs_unpacked = old_logprobs.split(response_lengths)
-    advantages_unpacked = advantages.split(response_lengths)
-    loss_mask_unpacked = loss_mask.split(response_lengths)
 
     total_loss = 0
     total_importance_ratio = []
     total_clipped_importance_ratio = []
     total_is_clipped = []
 
-    for logprobs, old_logprobs, advantages, loss_mask in zip(
-        logprobs_unpacked, old_logprobs_unpacked, advantages_unpacked, loss_mask_unpacked
-    ):
+    for logprobs, old_logprobs, advantages, loss_mask in zip(logprobs, old_logprobs, advantages, loss_mask):
         log_importance_ratio = logprobs - old_logprobs
 
         if loss_config.type == "gspo":
