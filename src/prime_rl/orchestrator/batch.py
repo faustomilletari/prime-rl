@@ -120,7 +120,7 @@ def prepare_micro_batch_packing(samples: list[BatchSample], max_seq_len: int, te
     return micro_batch
 
 
-def prepare_batch_packing(
+def prepare_batch(
     rollouts: list[Rollout],
     temperature: float,
     tokenizer: PreTrainedTokenizer,
@@ -173,26 +173,3 @@ def prepare_batch_packing(
         batches_per_gpu.append(batches)
 
     return batches_per_gpu
-
-
-def prepare_batch(
-    rollouts: list[Rollout],
-    temperature: float,
-    tokenizer: PreTrainedTokenizer,
-    batch_size: int,
-    micro_batch_size: int,
-    seq_len: int,
-    num_train_workers: int,
-) -> list[list[MicroBatch]]:
-    """
-    Prepare a batch of problems for each GPU. Each batch is a list of micro batches.
-    """
-    return prepare_batch_packing(
-        rollouts,
-        temperature,
-        tokenizer,
-        batch_size,
-        micro_batch_size,
-        seq_len,
-        num_train_workers,
-    )
