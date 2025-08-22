@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -23,12 +25,18 @@ def is_tt_moe_model(model: nn.Module) -> bool:
 def get_load_balance_stats(model: nn.Module, reset_stats: bool = True) -> dict[str, torch.FloatTensor]:
     per_layer_max_vio = []
     for transformer_block in model.model.layers:
+        # This is necessary for models that have mixed dense layers
+        if not hasattr(transformer_block.mlp, "tokens_per_expert"):
+            continue
         tokens_per_expert = transformer_block.mlp.tokens_per_expert
         balanced_load = tokens_per_expert.mean()
         max_vio = (tokens_per_expert.max() - balanced_load) / balanced_load
         per_layer_max_vio.append(max_vio.item())
         if reset_stats:
             tokens_per_expert.zero_()
+    if len(per_layer_max_vio) == 0:
+        warnings.warn("No load balance stats to report")
+        return {}
     return {"max_vio": torch.tensor(per_layer_max_vio)}
 
 
