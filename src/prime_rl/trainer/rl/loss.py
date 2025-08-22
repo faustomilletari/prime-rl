@@ -100,6 +100,7 @@ def compute_loss(
         log_importance_ratio = logprobs - old_logprobs
 
         if loss_config.type == "gspo":
+            # https://arxiv.org/abs/2507.18071
             seq_log_importance_ratio = (log_importance_ratio[loss_mask]).sum() / torch.clamp_min(loss_mask.sum(), 1)
             log_importance_ratio = logprobs - logprobs.detach() + seq_log_importance_ratio.detach()
             log_importance_ratio = torch.clamp(log_importance_ratio, max=10.0)
