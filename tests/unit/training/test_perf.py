@@ -14,8 +14,8 @@ torch.set_default_device("meta")
 )
 def test_perf_counter(model_name: str, active_params: int, flops_per_token: int):
     # model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B")
-    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_config(config, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_config(config)
     perf_counter = PerfCounter(model, seq_len=1024, window_size=10)
 
     assert perf_counter.get_active_mm_params(config) == active_params, (
