@@ -28,8 +28,7 @@ class LossConfig(BaseModel):
 
     type: Annotated[Literal["gspo", "grpo"], Field(description="Type of loss to use.")] = "grpo"
 
-    clip_ratio_low: Annotated[float, Field(ge=0)] = 0.0
-    clip_ratio_high: Annotated[float, Field(ge=0)] = 8.0
+    clip_ratio: Annotated[float, Field(ge=0)] = 8.0
 
 
 class FakeDataLoaderConfig(BaseConfig):

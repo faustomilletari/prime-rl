@@ -1,6 +1,8 @@
+from typing import Any
+
 import torch
 from beartype import beartype as typechecker
-from jaxtyping import Bool, Float, Int, jaxtyped
+from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
 from torch.nn import functional as F
 
@@ -56,15 +58,14 @@ def shift_logits(logits: Float[Tensor, "batch seq vocab"]) -> Float[Tensor, "bat
     return logits
 
 
-@jaxtyped(typechecker=typechecker)
 def compute_loss(
-    logprobs: Float[Tensor, "seq"],
-    old_logprobs: Float[Tensor, "seq"],
-    advantages: Float[Tensor, "seq"],
-    loss_mask: Bool[Tensor, "seq"],
+    logprobs: Any,  # list of Float[Tensor, "seq_i"] with potentially different seq_i lengths
+    old_logprobs: Any,  # list of Float[Tensor, "seq_i"] with potentially different seq_i lengths
+    advantages: Any,  # list of Float[Tensor, "seq_i"] with potentially different seq_i lengths
+    loss_mask: Any,  # list of Bool[Tensor, "seq_i"] with potentially different seq_i lengths
     loss_config: LossConfig,
     loss_scale: float,
-) -> tuple[Float[Tensor, ""], dict[str, Float[Tensor, "seq"]]]:
+) -> tuple[Float[Tensor, ""], dict[str, Any]]:
     """
     Compute loss for packed sequences (batch size = 1, multiple sequences packed along sequence dimension).
 
@@ -95,13 +96,9 @@ def compute_loss(
             log_importance_ratio = torch.clamp(log_importance_ratio, max=10.0)
 
         importance_ratio = torch.exp(log_importance_ratio)
-        clipped_importance_ratio = torch.clamp(
-            importance_ratio, loss_config.clip_ratio_low, loss_config.clip_ratio_high
-        )
+        clipped_importance_ratio = torch.clamp(importance_ratio, max=loss_config.clip_ratio)
         loss = -clipped_importance_ratio * advantages
-        is_clipped_high = (importance_ratio > loss_config.clip_ratio_high).float()
-        is_clipped_low = (importance_ratio < loss_config.clip_ratio_low).float()
-        is_clipped = is_clipped_high + is_clipped_low
+        is_clipped = (importance_ratio > loss_config.clip_ratio).float()
 
         # Apply loss mask and sum
         loss = (loss[loss_mask]).sum()
