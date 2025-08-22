@@ -25,7 +25,10 @@ class PerfCounter:
         self._world = get_world()
         self._logger = get_logger()
 
-        self.gpu_peak_flops = self._get_peak_flops(torch.cuda.get_device_name(torch.device("cuda")))
+        if torch.cuda.is_available():
+            self.gpu_peak_flops = self._get_peak_flops(torch.cuda.get_device_name(torch.device("cuda")))
+        else:
+            self.gpu_peak_flops = 0
         # If not tie_word_embeddings, we exclude the embedding parameters from the total number of parameters
         # If tie_word_embeddings, the embedding parameters are already excluded (shared with the LM head)
         self.num_params = self._get_num_params(model, exclude_embedding=not model.config.tie_word_embeddings)
