@@ -200,17 +200,37 @@ If you want to go even bigger, you can run the trainer and/ or inference on mult
 
 We rely on `torch.distributed` for multi-node trainer deployments ([docs](https://docs.pytorch.org/docs/stable/elastic/run.html)).
 
-The `torchrun` entrypoint can be used in multi-node distributed training, by spawning up multiple processes on each node in systems with  Infiniband interfaces that have direct-GPU support, since all of them can be utilized for aggregated communication bandwidth.
+The `torchrun` entrypoint can be used in multi-node distributed training. It will set up the correct number processes on each node and set up inter-node communication. 
 
-In both cases of single-node distributed training or multi-node distributed training, torchrun will launch the given number of processes per node (--nproc-per-node). If used for GPU training, this number needs to be less or equal to the number of GPUs on the current system (nproc_per_node), and each process will be operating on a single GPU from GPU 0 to GPU (nproc_per_node - 1).
+For this to work, you need to decide which node will be the master node. On this node, find the private IP with `ip a | grep 10.` or `ip a | grep 192.`.
 
-For example to run a trainer across two full nodes run the following command
+Then, on each node run 
 
 ```bash
-# Node 0 + Node 1
-uv run torchrun \
-    --nproc-per-node 8 \
-    --nnodes 2 \
+export RDZV_ENDPOINT=10.15.42.1:1234
+```
+
+*Replace `10.15.42.1` with the private IP address of your master node and `1234` with any open port on the master node.*
+
+Then,  to start the training a training across two full nodes, run the following commands
+
+```bash
+# Node 0
+uv run  torchrun \
+    --nnodes=2 \
+    --nproc_per_node 8 \
+    --node-rank 0 \
+    --rdzv_endpoint=$RDZV_ENDPOINT \
+    src/prime_rl/trainer/rl/train.py
+```
+
+```bash
+# Node 1
+uv run  torchrun \
+    --nnodes=2 \
+    --nproc_per_node 8 \
+    --node-rank 1 \
+    --rdzv_endpoint=$RDZV_ENDPOINT \
     src/prime_rl/trainer/rl/train.py
 ```
 
@@ -225,16 +245,19 @@ First, ensure that your nodes are in the same private network and can reach each
 ```bash
 export GLOO_SOCKET_IFNAME=eth0
 export NCCL_SOCKET_IFNAME=eth0
+```
 
 *For example, if you have colocated nodes this is often an Ethernet interface `eth0`. If you use Tailscale VPN, it typically installs a new network interface `tailscale0`.*
 
-Choose one of your nodes to be the head node and find out its reachable IP address with
+Choose one of your nodes to be the head node. On this node, find the private IP with `ip a | grep 10.` or `ip a | grep 192.`
 
 ```bash
-ip a
+export DATA_PARALLEL_ADDRESS=10.15.42.1
 ```
 
-Assuming the reachable IP address is `<reachable-ip>`, run TP=4 and DP=4 with DP ranks 0 and 1 on the head node and DP ranks 2 and 3 on the second node
+*Replace `10.15.42.1` with the private IP address of your head node.*
+
+Then, to run TP=4 and DP=4 with DP ranks 0 and 1 on the head node and DP ranks 2 and 3 on the second node
 
 ```bash
 # Node 0  (With IP <reachable-ip>)
@@ -242,7 +265,7 @@ uv run inference \
 	--data-parallel-size 4 \
 	--tensor-parallel-size 4 \
 	--data-parallel-size-local 2 \
-	--data-parallel-address <reachable-ip> \
+	--data-parallel-address $DATA_PARALLEL_ADDRESS \
 	--data-parallel-rpc-port 13345
 ```
 
@@ -252,7 +275,7 @@ uv run inference \
 	--data-parallel-size 4 \
 	--tensor-parallel-size 4 \
 	--data-parallel-size-local 2 \
-	--data-parallel-address <reachable-ip> \
+	--data-parallel-address $DATA_PARALLEL_ADDRESS \
 	--data-parallel-rpc-port 13345 \
 	--data-parallel-start-rank 2 \
 	--headless
