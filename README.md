@@ -204,26 +204,17 @@ The `torchrun` entrypoint can be used in multi-node distributed training, by spa
 
 In both cases of single-node distributed training or multi-node distributed training, torchrun will launch the given number of processes per node (--nproc-per-node). If used for GPU training, this number needs to be less or equal to the number of GPUs on the current system (nproc_per_node), and each process will be operating on a single GPU from GPU 0 to GPU (nproc_per_node - 1).
 
-For example run a trainer across two full nodes, run
+For example to run a trainer across two full nodes run the following command
 
 ```bash
-# Node 0
+# Node 0 + Node 1
 uv run torchrun \
     --nproc-per-node 8 \
     --nnodes 2 \
     src/prime_rl/trainer/rl/train.py
 ```
 
-```bash
-# Node 1
-uv run torchrun \
-    --nproc-per-node 8 \
-    --nnodes 2 \
-    src/prime_rl/trainer/rl/train.py
-```
-
-
-https://docs.pytorch.org/docs/stable/elastic/run.html
+*It will automatically set up the local and global world information correctly.*
 
 **Multi-Node Inference**
 
