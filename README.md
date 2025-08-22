@@ -192,7 +192,83 @@ uv run rl \
 
 ### Multi-Node Training
 
-*TBD*
+The trainer and inference can be decoupled naively as they communicate via HTTP and shared file system. Simply spin up your inference server on one node, and your trainer on another node. Make sure that the orchestrator (colocated with the trainer) points to the public IP address of the node hosting the inference server and that they have access to a shared path used for outputs.
+
+If you want to go even bigger, you can run the trainer and/ or inference on multi-node.
+
+**Multi-Node Trainer**
+
+We rely on `torch.distributed` for multi-node trainer deployments ([docs](https://docs.pytorch.org/docs/stable/elastic/run.html)).
+
+The `torchrun` entrypoint can be used in multi-node distributed training, by spawning up multiple processes on each node in systems with  Infiniband interfaces that have direct-GPU support, since all of them can be utilized for aggregated communication bandwidth.
+
+In both cases of single-node distributed training or multi-node distributed training, torchrun will launch the given number of processes per node (--nproc-per-node). If used for GPU training, this number needs to be less or equal to the number of GPUs on the current system (nproc_per_node), and each process will be operating on a single GPU from GPU 0 to GPU (nproc_per_node - 1).
+
+For example run a trainer across two full nodes, run
+
+```bash
+# Node 0
+uv run torchrun \
+    --nproc-per-node 8 \
+    --nnodes 2 \
+    src/prime_rl/trainer/rl/train.py
+```
+
+```bash
+# Node 1
+uv run torchrun \
+    --nproc-per-node 8 \
+    --nnodes 2 \
+    src/prime_rl/trainer/rl/train.py
+```
+
+
+https://docs.pytorch.org/docs/stable/elastic/run.html
+
+**Multi-Node Inference**
+
+We rely on vLLM's internal load balancing for data parallel deployment ([docs](https://docs.vllm.ai/en/v0.10.0/serving/data_parallel_deployment.html)).
+
+First, ensure that your nodes are in the same private network and can reach each other. If not, a simple solution is to set up a VPN using [Tailscale](https://tailscale.com). Follow their documentation to setup a VPN on each node. Then, configure the GLOO and NCCL network interface
+
+```bash
+export GLOO_SOCKET_IFNAME=tailscale0
+export NCCL_SOCKET_IFNAME=tailscale0
+```
+
+*For example, if you have colocated nodes this is often an Ethernet interface `eth0`. If you use Tailscale VPN, it typically installs a new network interface `tailscale0`.*
+
+Choose one of your nodes to be the head node and find out its reachable IP address with
+
+```bash
+ip a
+```
+
+Assuming the reachable IP address is `<reachable-ip>`, run TP=4 and DP=4 with DP ranks 0 and 1 on the head node and DP ranks 2 and 3 on the second node
+
+```bash
+# Node 0  (With IP <reachable-ip>)
+uv run inference \
+	--data-parallel-size 4 \
+	--tensor-parallel-size 4 \
+	--data-parallel-size-local 2 \
+	--data-parallel-address <reachable-ip> \
+	--data-parallel-rpc-port 13345
+```
+
+```bash
+# Node 1
+uv run inference \
+	--data-parallel-size 4 \
+	--tensor-parallel-size 4 \
+	--data-parallel-size-local 2 \
+	--data-parallel-address <reachable-ip> \
+	--data-parallel-rpc-port 13345 \
+	--data-parallel-start-rank 2 \
+	--headless
+```
+
+*We have found that restarting the server might require cleaning the RPC port with `fuser -k 13345/tcp` used for communication between the head node and the headless engine cores.*
 
 ### Multiple Experiments per Node
 
