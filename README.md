@@ -223,9 +223,8 @@ We rely on vLLM's internal load balancing for data parallel deployment ([docs](h
 First, ensure that your nodes are in the same private network and can reach each other. If not, a simple solution is to set up a VPN using [Tailscale](https://tailscale.com). Follow their documentation to setup a VPN on each node. Then, configure the GLOO and NCCL network interface
 
 ```bash
-export GLOO_SOCKET_IFNAME=tailscale0
-export NCCL_SOCKET_IFNAME=tailscale0
-```
+export GLOO_SOCKET_IFNAME=eth0
+export NCCL_SOCKET_IFNAME=eth0
 
 *For example, if you have colocated nodes this is often an Ethernet interface `eth0`. If you use Tailscale VPN, it typically installs a new network interface `tailscale0`.*
 
