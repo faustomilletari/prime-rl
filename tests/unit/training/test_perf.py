@@ -23,7 +23,3 @@ def test_perf_counter(model_name: str, active_params: int, flops_per_token: int)
     assert perf_counter.num_flop_per_token == flops_per_token, (
         f"Expected {flops_per_token:,} FLOPS per token, got {perf_counter.num_flop_per_token:,} FLOPS per token"
     )
-
-
-if __name__ == "__main__":
-    test_perf_counter()
