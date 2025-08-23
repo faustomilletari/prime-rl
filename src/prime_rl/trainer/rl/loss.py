@@ -197,6 +197,6 @@ def compute_packed_sequence_loss(
                 aggregated_loss_tensors[key] = torch.cat([aggregated_loss_tensors[key], per_sequence_loss_tensor])
 
     # Apply loss scaling
-    scaled_loss = total_loss / loss_scale
+    scaled_loss = total_loss / torch.clamp_min(loss_scale, 1)
 
     return scaled_loss, aggregated_loss_tensors
