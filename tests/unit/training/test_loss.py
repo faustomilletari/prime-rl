@@ -1,45 +1,39 @@
 import pytest
 import torch
 
-from prime_rl.trainer.rl.config import LossConfig
-from prime_rl.trainer.rl.loss import compute_entropy, compute_loss
+from prime_rl.trainer.rl.loss import compute_entropy, grpo_loss_clip, grpo_loss_ratio
 
 pytestmark = [pytest.mark.gpu]
 
 
 def test_grpo_loss():
-    logprobs = [torch.randn(50, dtype=torch.float32).cuda(), torch.randn(30, dtype=torch.float32).cuda()]
-    old_logprobs = [torch.randn(50, dtype=torch.float32).cuda(), torch.randn(30, dtype=torch.float32).cuda()]
-    advantages = [torch.randn(50).cuda(), torch.randn(30).cuda()]
-    loss_mask = [torch.ones(50, dtype=torch.bool).cuda(), torch.ones(30, dtype=torch.bool).cuda()]
+    logprobs = torch.randn(100, dtype=torch.float32).cuda()
+    old_logprobs = torch.randn(100, dtype=torch.float32).cuda()
+    advantages = torch.randn(100).cuda()
 
-    loss, _ = compute_loss(
+    loss, _ = grpo_loss_clip(
         logprobs,
         old_logprobs,
         advantages,
-        loss_mask=loss_mask,
-        loss_config=LossConfig(type="grpo", clip_ratio=10.0),
-        loss_scale=1.0,
+        epsilon_low=0.2,
+        epsilon_high=0.2,
+        clip_ratio=10.0,
     )
-    assert loss.shape == ()
+    assert loss.shape == (100,)
 
 
-def test_gspo_loss():
-    # Create list of tensors as expected by compute_loss (simulating split sequences)
-    logprobs = [torch.randn(40, dtype=torch.float32).cuda(), torch.randn(60, dtype=torch.float32).cuda()]
-    old_logprobs = [torch.randn(40, dtype=torch.float32).cuda(), torch.randn(60, dtype=torch.float32).cuda()]
-    advantages = [torch.randn(40).cuda(), torch.randn(60).cuda()]
-    loss_mask = [torch.ones(40, dtype=torch.bool).cuda(), torch.ones(60, dtype=torch.bool).cuda()]
+def test_grpo_loss_ratio():
+    logprobs = torch.randn(100, dtype=torch.float32).cuda()
+    old_logprobs = torch.randn(100, dtype=torch.float32).cuda()
+    advantages = torch.randn(100).cuda()
 
-    loss, _ = compute_loss(
+    loss, _ = grpo_loss_ratio(
         logprobs,
         old_logprobs,
         advantages,
-        loss_mask=loss_mask,
-        loss_config=LossConfig(type="gspo", clip_ratio=10.0),
-        loss_scale=1.0,
+        clip_ratio=10.0,
     )
-    assert loss.shape == ()
+    assert loss.shape == (100,)
 
 
 def test_entropy_loss():
