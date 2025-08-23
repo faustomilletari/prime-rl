@@ -2,7 +2,7 @@ from typing import Any
 
 import torch
 from beartype import beartype as typechecker
-from jaxtyping import Float, Int, jaxtyped
+from jaxtyping import Bool, Float, Int, jaxtyped
 from torch import Tensor
 from torch.nn import functional as F
 
@@ -66,6 +66,7 @@ def compute_loss(
     loss_config: LossConfig,
     loss_scale: int,
 ) -> tuple[Float[Tensor, ""], dict[str, Any]]:
+
     """
     Compute loss for packed sequences (batch size = 1, multiple sequences packed along sequence dimension).
 
