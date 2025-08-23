@@ -226,13 +226,9 @@ def train(config: RLTrainerConfig):
 
         # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
         if config.loss.norm_type == "token":
-            loss_scale = torch.tensor(
-                sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches),
-                dtype=torch.float32,
-                device="cuda",
-            ).item()
+            loss_scale = sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches)
         elif config.loss.norm_type == "sequence":
-            loss_scale = float(batch_size)
+            loss_scale = batch_size
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging

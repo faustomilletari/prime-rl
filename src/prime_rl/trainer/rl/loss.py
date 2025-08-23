@@ -64,7 +64,7 @@ def compute_loss(
     advantages: Any,  # list of Float[Tensor, "seq_i"] with potentially different seq_i lengths
     loss_mask: Any,  # list of Bool[Tensor, "seq_i"] with potentially different seq_i lengths
     loss_config: LossConfig,
-    loss_scale: float,
+    loss_scale: int,
 ) -> tuple[Float[Tensor, ""], dict[str, Any]]:
     """
     Compute loss for packed sequences (batch size = 1, multiple sequences packed along sequence dimension).
@@ -115,7 +115,7 @@ def compute_loss(
         total_is_clipped.append(is_clipped)
 
     # Apply loss scaling
-    scaled_loss = total_loss / loss_scale
+    scaled_loss = total_loss / torch.clamp_min(loss_scale, 1)
 
     return scaled_loss, {
         "importance_ratio": torch.cat(total_importance_ratio),
