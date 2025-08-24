@@ -153,7 +153,7 @@ async def run_eval(
     message += (
         f", Completion Length: {completion_lens.mean():.2f} (±{completion_lens.std():.2f}, ∈[{completion_lens.min():.2f}, {completion_lens.max():.2f}]), Truncated: {is_truncated.mean() * 100:.1f}%)"
     )
-    logger.success(message + ")")
+    logger.success(message)
 
     # Log statistics to monitor
     eval_metrics = {
