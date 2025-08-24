@@ -9,15 +9,14 @@ NC='\033[0m' # No Color
 log_info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 
-REPO_SSH="git@github.com:PrimeIntellect-ai/prime-rl.git"
-REPO_HTTPS="https://github.com/PrimeIntellect-ai/prime-rl.git"
+REPO_ID="prime-rl"
 
 has_ssh_access() {
     # Probe SSH auth to GitHub without prompting; treat any nonzero as "no ssh"
     # We try a quick ls-remote to avoid cloning on failure.
     # Disable -e for the probe so the script doesn't exit on a failed test.
     set +e
-    timeout 5s git ls-remote --heads "${REPO_SSH}" >/dev/null 2>&1
+    timeout 5s git ls-remote --heads git@github.com:PrimeIntellect-ai/${REPO_ID}.git >/dev/null 2>&1
     rc=$?
     set -e
     return $rc
@@ -56,15 +55,15 @@ main() {
 
     log_info "Determining best way to clone (SSH vs HTTPS)..."
     if has_ssh_access; then
-        log_info "SSH access to GitHub works. Cloning via: ${REPO_SSH}"
-        git clone "${REPO_SSH}"
+        log_info "SSH access to GitHub works. Cloning via SSH."
+        git clone git@github.com:PrimeIntellect-ai/${REPO_ID}.git
     else
-        log_warn "SSH auth to GitHub not available, falling back to HTTPS. Cloning via: ${REPO_HTTPS}"
-        git clone "${REPO_HTTPS}"
+        log_warn "SSH auth to GitHub not available. Cloning via HTTPS."
+        git clone https://github.com/PrimeIntellect-ai/${REPO_ID}.git
     fi
 
     log_info "Entering project directory..."
-    cd prime-rl
+    cd ${REPO_ID}
 
     log_info "Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
