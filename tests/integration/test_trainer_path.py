@@ -74,7 +74,7 @@ def train_process(
 ):
     output_dir = fake_rollout_dir(list(range(5)), 16, 8, 16)
     return run_process(
-        CMD + ["--outputs-dir", output_dir.as_posix(), "--data.fake", "None", "--log.level", "debug"], ENV
+        CMD + ["--output-dir", output_dir.as_posix(), "--data.fake", "None", "--log.level", "debug"], ENV
     )
 
 

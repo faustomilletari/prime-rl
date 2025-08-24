@@ -22,7 +22,7 @@ CMD = [
 def orchestrator_process(
     vllm_server, run_process: Callable[[Command, Environment], ProcessResult], output_dir: Path
 ) -> ProcessResult:
-    return run_process(CMD + ["--outputs-dir", output_dir.as_posix()], {})
+    return run_process(CMD + ["--output-dir", output_dir.as_posix()], {})
 
 
 def test_no_error(orchestrator_process: ProcessResult):

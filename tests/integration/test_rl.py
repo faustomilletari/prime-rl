@@ -63,7 +63,7 @@ def rl_process(
 
     return run_process(
         RL_CMD
-        + ["--wandb.project", wandb_project, "--wandb.name", wandb_name, "--outputs-dir", output_dir.as_posix()],
+        + ["--wandb.project", wandb_project, "--wandb.name", wandb_name, "--output-dir", output_dir.as_posix()],
         {},
         TIMEOUT,
     )
@@ -83,7 +83,7 @@ def rl_resume_process(
 
     return run_process(
         RL_RESUME_CMD
-        + ["--wandb.project", wandb_project, "--wandb.name", wandb_name, "--outputs-dir", output_dir.as_posix()],
+        + ["--wandb.project", wandb_project, "--wandb.name", wandb_name, "--output-dir", output_dir.as_posix()],
         {},
         TIMEOUT,
     )
