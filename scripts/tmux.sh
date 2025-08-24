@@ -6,7 +6,7 @@ OUTPUT_DIR="outputs"
 # Optional CLI parsing
 # Supports:
 #   -s|--session-name NAME
-#   -o|--outputs-dir DIR
+#   -o|--output-dir DIR
 #   Positional: [SESSION_NAME [OUTPUT_DIR]]
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -19,16 +19,16 @@ while [[ $# -gt 0 ]]; do
       SESSION_NAME="$2"
       shift 2
       ;;
-    -o|--outputs-dir)
+    -o|--output-dir)
       if [[ -z "$2" ]]; then
-        echo "Error: --outputs-dir requires a value" >&2
+        echo "Error: --output-dir requires a value" >&2
         exit 1
       fi
       OUTPUT_DIR="$2"
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [-s SESSION_NAME] [-o OUTPUT_DIR] [SESSION_NAME [OUTPUT_DIR]]"
+      echo "Usage: $0 [-s SESSION_NAME] [-o OUTPUT_DIR] [SESSION_NAME [OUTPUT_DIR]]" >&2
       exit 0
       ;;
     --)
