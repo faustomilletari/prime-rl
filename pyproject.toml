@@ -64,6 +64,7 @@ vf = [
     "aime2024>=0.1.7",
     "aime2025>=0.1.7",
     "math500>=0.1.7",
+    "deepcoder>=0.1.2",
 ]
 
 [tool.uv]
@@ -89,15 +90,16 @@ intellect-math = { index = "primeintellect" }
 aime2024 = { index = "primeintellect" }
 aime2025 = { index = "primeintellect" }
 math500 = { index = "primeintellect" }
+deepcoder = { index = "primeintellect" }
+
+[[tool.uv.index]]
+name = "primeintellect"
+url = "https://hub.primeintellect.ai/primeintellect/simple"
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/test/cu128"
 explicit = true
-
-[[tool.uv.index]]
-name = "primeintellect"
-url = "https://hub.primeintellect.ai/primeintellect/simple"
 
 [dependency-groups]
 dev = [
