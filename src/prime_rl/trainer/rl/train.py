@@ -398,6 +398,7 @@ def train(config: RLTrainerConfig):
         logger.info("Writing final checkpoint")
         ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
         ckpt_manager.maybe_clean()
+        ckpt_manager.await_ckpt()  # Await the final checkpoint to be written
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("RL trainer finished!")
