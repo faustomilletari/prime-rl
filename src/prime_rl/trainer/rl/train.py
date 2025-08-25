@@ -32,12 +32,13 @@ from prime_rl.trainer.utils import (
     OffloadedTensor,
     Tensors,
     copy_model_to_cpu,
+    setup_torch_distributed,
     offload_model_to_cpu,
     wake_up_model_from_cpu,
     print_benchmark,
     get_response_lengths,
 )
-from prime_rl.trainer.world import setup_world
+from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
@@ -47,7 +48,7 @@ from prime_rl.utils.utils import clean_exit, to_col_format
 @logger.catch(reraise=True)
 def train(config: RLTrainerConfig):
     # Setup world and logger
-    world = setup_world()
+    world = get_world()
     logger = setup_logger(config.log, world)
     logger.info(f"Starting RL trainer in {world}")
 
@@ -60,6 +61,7 @@ def train(config: RLTrainerConfig):
     monitor = setup_monitor(config.monitor, output_dir=config.output_dir, run_config=config)
 
     # Set precision
+    setup_torch_distributed()
     torch.set_float32_matmul_precision("high")
 
     # Initialize the model and tokenizer

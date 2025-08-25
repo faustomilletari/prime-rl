@@ -23,9 +23,10 @@ from prime_rl.trainer.perf import get_perf_counter
 from prime_rl.trainer.sft.data import setup_dataloader, setup_dataset
 from prime_rl.trainer.utils import (
     Tensors,
+    setup_torch_distributed,
     print_benchmark,
 )
-from prime_rl.trainer.world import setup_world
+from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
@@ -35,7 +36,7 @@ from prime_rl.utils.utils import clean_exit, to_col_format
 @logger.catch(reraise=True)
 def train(config: SFTTrainerConfig):
     # Setup world and logger
-    world = setup_world()
+    world = get_world()
     logger = setup_logger(config.log, world)
     logger.info(f"Starting SFT trainer in {world}")
 
@@ -48,6 +49,7 @@ def train(config: SFTTrainerConfig):
     monitor = setup_monitor(config.monitor, output_dir=config.output_dir, run_config=config)
 
     # Set precision
+    setup_torch_distributed()
     torch.set_float32_matmul_precision("high")
 
     # Initialize the model and tokenizer
