@@ -1,5 +1,5 @@
-import threading
 import time
+from concurrent.futures import Future
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -67,6 +67,7 @@ class CheckpointManager:
         self._logger = get_logger()
         self._world = get_world()
         self._is_master = self._world.is_master
+        self._ckpt_future: Future | None = None
         self.ckpt_steps: list[int] = []  # Sorted list of steps that have been checkpointed, only used on master rank
 
     def _get_ckpt_path(self, step: int) -> Path:
@@ -88,7 +89,12 @@ class CheckpointManager:
         state_dict = {"app": AppState(model, optimizers, scheduler, progress)}
 
         # Save sharded state
-        dcp.save(state_dict, checkpoint_id=ckpt_path)
+        if self.config.save_async:
+            if self._ckpt_future is not None:
+                self._ckpt_future.result()
+            self._ckpt_future = dcp.async_save(state_dict, checkpoint_id=ckpt_path)
+        else:
+            dcp.save(state_dict, checkpoint_id=ckpt_path)
 
         # Append to list of saved steps
         if self._is_master:
@@ -129,18 +135,7 @@ class CheckpointManager:
         """Saves the full checkpoint state for a specified step."""
         ckpt_path = self._get_ckpt_path(step)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if self.config.save_async:
-            # Run save in a separate thread
-            thread = threading.Thread(
-                target=self._save_to_path,
-                args=(ckpt_path, step, model, optimizers, scheduler, progress),
-                name=f"ckpt-save-{step}",
-            )
-            thread.start()
-        else:
-            # Run save synchronously
-            self._save_to_path(ckpt_path, step, model, optimizers, scheduler, progress)
+        self._save_to_path(ckpt_path, step, model, optimizers, scheduler, progress)
 
     def maybe_clean(self) -> None:
         """Deletes past local checkpoints beyond the most recent `config.keep` steps. No-op if `config.keep` is None."""
