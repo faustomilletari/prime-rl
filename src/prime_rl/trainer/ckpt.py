@@ -1,3 +1,4 @@
+import shutil
 import time
 from concurrent.futures import Future
 from dataclasses import asdict, dataclass
@@ -91,7 +92,7 @@ class CheckpointManager:
         # Save sharded state
         if self.config.save_async:
             if self._ckpt_future is not None:
-                self._ckpt_future.result()
+                print(self._ckpt_future.result())
             self._ckpt_future = dcp.async_save(state_dict, checkpoint_id=ckpt_path)
         else:
             dcp.save(state_dict, checkpoint_id=ckpt_path)
@@ -144,15 +145,13 @@ class CheckpointManager:
 
         # Get all the checkpoint steps to delete
         assert list(self.ckpt_steps) == sorted(self.ckpt_steps)
-        ckpt_steps_to_keep = self.ckpt_steps[-self.config.keep :]
         ckpt_steps_to_delete = self.ckpt_steps[: -self.config.keep]
         for ckpt_step in ckpt_steps_to_delete:
             ckpt_path = self._get_ckpt_path(ckpt_step)
             if ckpt_path.exists():
-                self._logger.debug(
-                    f"Removing past trainer checkpoint for step {ckpt_step} ({ckpt_path}), because got checkpoints for {ckpt_steps_to_keep} ({len(self.ckpt_steps)} > {self.config.keep})"
-                )
-                ckpt_path.unlink(missing_ok=True)
+                self._logger.debug(f"Removing past trainer checkpoint for step {ckpt_step} ({ckpt_path})")
+                # TODO: Handle this more gracefully, e.g. each rank should only delete its own checkpoint
+                shutil.rmtree(ckpt_path)
 
         # Update checkpoint steps
         self.ckpt_steps = self.ckpt_steps[-self.config.keep :]
