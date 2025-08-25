@@ -133,7 +133,7 @@ def train(config: RLTrainerConfig):
             save_weights_time = time.time() - save_weights_start_time
 
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
-        is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
+        is_last_step = config.max_steps is not None and progress.step == config.max_steps
         save_ckpt_time = 0
         if (
             ckpt_manager is not None
