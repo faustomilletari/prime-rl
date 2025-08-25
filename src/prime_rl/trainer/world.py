@@ -1,3 +1,6 @@
+import torch
+import torch.distributed as dist
+
 from prime_rl.trainer import envs
 
 
@@ -31,11 +34,21 @@ class World:
 _WORLD: World | None = None
 
 
+def setup_world() -> World:
+    """Initializes a default CPU and GPU process group and returns world info. Raises an error if already initialized."""
+    global _WORLD
+    if _WORLD is not None:
+        raise RuntimeError("World already initialized")
+    _WORLD = World()
+    dist.init_process_group(backend="cpu:gloo,cuda:nccl", device_id=torch.device("cuda", get_world().rank))
+    return _WORLD
+
+
 def get_world() -> World:
-    """Returns the World. If not initialized, it will initialize."""
+    """Returns world info. Raises an error if not yet initialized."""
     global _WORLD
     if _WORLD is None:
-        _WORLD = World()
+        raise RuntimeError("World not initialized")
     return _WORLD
 
 

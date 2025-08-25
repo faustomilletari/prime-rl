@@ -92,7 +92,7 @@ class CheckpointManager:
         # Save sharded state
         if self.config.save_async:
             if self._ckpt_future is not None:
-                print(self._ckpt_future.result())
+                self._ckpt_future.result()
             self._ckpt_future = dcp.async_save(state_dict, checkpoint_id=ckpt_path)
         else:
             dcp.save(state_dict, checkpoint_id=ckpt_path)
