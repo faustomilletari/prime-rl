@@ -1,4 +1,3 @@
-import torch
 import json
 import time
 from pathlib import Path
@@ -6,6 +5,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import torch
 from openai import AsyncOpenAI
 from verifiers import load_environment
 from verifiers.types import GenerateOutputs
