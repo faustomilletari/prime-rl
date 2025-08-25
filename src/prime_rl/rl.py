@@ -77,11 +77,6 @@ class CheckpointConfig(BaseSettings):
         int | None, Field(description="The step to resume from. If None, will not resume from a checkpoint.")
     ] = None
 
-    save_async: Annotated[
-        bool,
-        Field(description="Whether to save training checkpoints asynchronously."),
-    ] = False
-
     keep: Annotated[
         int | None,
         Field(
@@ -235,10 +230,6 @@ class RLConfig(BaseSettings):
             if self.ckpt.keep:
                 self.trainer.ckpt.keep = self.ckpt.keep
                 self.orchestrator.ckpt.keep = self.ckpt.keep
-
-            # If specified, propagate save async policy
-            if self.ckpt.save_async:
-                self.trainer.ckpt.save_async = self.ckpt.save_async
 
         validate_shared_ckpt_config(self.trainer, self.orchestrator)
 
