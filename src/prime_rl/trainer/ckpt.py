@@ -1,11 +1,14 @@
 import threading
 import time
-import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import torch
+import torch.distributed.checkpoint as dcp
 from torch import nn
+from torch.distributed.checkpoint.state_dict import get_state_dict, set_state_dict
+from torch.distributed.checkpoint.stateful import Stateful
+from torch.nn import Module
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
 
@@ -22,6 +25,32 @@ class Progress:
     total_samples: int = 0
 
 
+class FSPDState(Stateful):
+    """
+    A wrapper for checkpointing the FSDP model to allow resuming in any world
+    size using torch.distributed.checkpoint utilities.
+    Adapted from: https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html
+    """
+
+    def __init__(self, model: Module, optimizers: list[Optimizer]):
+        self.model = model
+        self.optimizers = optimizers
+
+    def state_dict(self):
+        # Automatically manages FSDP FQN's, as well as sets the default state dict type to FSDP.SHARDED_STATE_DICT
+        model_state_dict, optimizer_state_dict = get_state_dict(self.model, self.optimizers)
+        return {
+            "model": model_state_dict,
+            "optim": optimizer_state_dict,
+        }
+
+    def load_state_dict(self, state_dict):
+        # Load sharded model and optimizer
+        set_state_dict(
+            self.model, self.optimizers, model_state_dict=state_dict["model"], optim_state_dict=state_dict["optim"]
+        )
+
+
 class CheckpointManager:
     """Utility class to save and load training checkpoints to resume training."""
 
@@ -33,12 +62,8 @@ class CheckpointManager:
         self._is_master = self._world.is_master
         self.ckpt_steps: list[int] = []  # Sorted list of steps that have been checkpointed, only used on master rank
 
-    def _get_step_path(self, step: int) -> Path:
-        return self.ckpt_dir / f"step_{step}"
-
     def _get_ckpt_path(self, step: int) -> Path:
-        ckpt_name = f"trainer_{self._world.local_rank}.pt" if self._world.world_size > 1 else "trainer.pt"
-        return self._get_step_path(step) / ckpt_name
+        return self.ckpt_dir / f"step_{step}"
 
     def _save_to_path(
         self,
@@ -53,23 +78,20 @@ class CheckpointManager:
         start_time = time.time()
 
         # Create checkpoint state
-        ckpt_state = {
-            "model": model.state_dict(),
-            "optimizers": [optimizer.state_dict() for optimizer in optimizers],
-            "scheduler": scheduler.state_dict(),
-            "progress": progress,
-        }
+        fsdp_state_dict = {"fsdp_state": FSPDState(model, optimizers)}
+        scheduler_state_dict = {"scheduler": scheduler.state_dict()}
+        progress_state_dict = {"progress": progress}
 
-        # Create checkpoint directory if it doesn't exist
-        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        # Save sharded state
+        dcp.save(fsdp_state_dict, checkpoint_id=ckpt_path)
 
-        # Suppress torch.distributed warnings during checkpoint saving
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
-            warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
+        # Save unshareded state
+        if self._is_master:
+            with open(ckpt_path / "scheduler.pt", "wb") as f:
+                torch.save(scheduler_state_dict, f)
 
-            with open(ckpt_path, "wb") as f:
-                torch.save(ckpt_state, f)
+            with open(ckpt_path / "progress.pt", "wb") as f:
+                torch.save(progress_state_dict, f)
 
         # Append to list of saved steps
         if self._is_master:
@@ -84,19 +106,23 @@ class CheckpointManager:
         self._logger.debug(f"Loading training checkpoint from {ckpt_path}")
         start_time = time.time()
 
-        # Load checkpoint state
-        with open(ckpt_path, "rb") as f:
-            state = torch.load(f, weights_only=False)
-
-        # Load checkpoint state in-place
-        model.load_state_dict(state["model"])
-        for optimizer, optimizer_state in zip(optimizers, state["optimizers"]):
-            optimizer.load_state_dict(optimizer_state)
-        scheduler.load_state_dict(state["scheduler"])
-
         # Load progress
-        for key, value in asdict(state["progress"]).items():
+        with open(ckpt_path / "progress.pt", "rb") as f:
+            progress_state = torch.load(f, weights_only=False)
+        for key, value in asdict(progress_state["progress"]).items():
             setattr(progress, key, value)
+
+        # Load scheduler
+        with open(ckpt_path / "scheduler.pt", "rb") as f:
+            scheduler_state = torch.load(f, weights_only=False)
+        scheduler.load_state_dict(scheduler_state["scheduler"])
+
+        # Load sharded state
+        fsdp_state = {"fsdp_state": FSPDState(model, optimizers)}
+        dcp.load(
+            state_dict=fsdp_state,
+            checkpoint_id=ckpt_path,
+        )
 
         self._logger.debug(f"Training checkpoint loaded in {time.time() - start_time:.2f} seconds")
 
@@ -118,9 +144,8 @@ class CheckpointManager:
         step: int,
     ) -> None:
         """Saves the full checkpoint state for a specified step."""
-        step_path = self._get_step_path(step)
-        step_path.mkdir(parents=True, exist_ok=True)
         ckpt_path = self._get_ckpt_path(step)
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.config.save_async:
             # Run save in a separate thread
