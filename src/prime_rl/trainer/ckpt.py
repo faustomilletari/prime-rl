@@ -2,8 +2,8 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
-import torch
 import torch.distributed.checkpoint as dcp
 from torch import nn
 from torch.distributed.checkpoint.state_dict import get_state_dict, set_state_dict
@@ -25,30 +25,37 @@ class Progress:
     total_samples: int = 0
 
 
-class FSPDState(Stateful):
+class AppState(Stateful):
     """
-    A wrapper for checkpointing the FSDP model to allow resuming in any world
-    size using torch.distributed.checkpoint utilities.
-    Adapted from: https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html
+    A wrapper for checkpointing the trainer with sharded weights and optimizer
+    to allow resuming in any world size using torch.distributed.checkpoint
+    utilities.
+
+    https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html
     """
 
-    def __init__(self, model: Module, optimizers: list[Optimizer]):
-        self.model = model
-        self.optimizers = optimizers
+    def __init__(self, model: Module, optimizers: list[Optimizer], scheduler: LRScheduler, progress: Progress):
+        self.model, self.optimizers, self.scheduler, self.progress = model, optimizers, scheduler, progress
 
-    def state_dict(self):
+    def state_dict(self) -> dict[str, Any]:
         # Automatically manages FSDP FQN's, as well as sets the default state dict type to FSDP.SHARDED_STATE_DICT
         model_state_dict, optimizer_state_dict = get_state_dict(self.model, self.optimizers)
+        scheduler_state_dict = self.scheduler.state_dict()
+        progress_state_dict = asdict(self.progress)
         return {
             "model": model_state_dict,
-            "optim": optimizer_state_dict,
+            "optimizers": optimizer_state_dict,
+            "scheduler": scheduler_state_dict,
+            "progress": progress_state_dict,
         }
 
-    def load_state_dict(self, state_dict):
-        # Load sharded model and optimizer
+    def load_state_dict(self, state_dict: dict[str, Any]):
         set_state_dict(
-            self.model, self.optimizers, model_state_dict=state_dict["model"], optim_state_dict=state_dict["optim"]
+            self.model, self.optimizers, model_state_dict=state_dict["model"], optim_state_dict=state_dict["optimizers"]
         )
+        self.scheduler.load_state_dict(state_dict["scheduler"])
+        for key, value in state_dict["progress"].items():
+            setattr(self.progress, key, value)
 
 
 class CheckpointManager:
@@ -78,20 +85,10 @@ class CheckpointManager:
         start_time = time.time()
 
         # Create checkpoint state
-        fsdp_state_dict = {"fsdp_state": FSPDState(model, optimizers)}
-        scheduler_state_dict = {"scheduler": scheduler.state_dict()}
-        progress_state_dict = {"progress": progress}
+        state_dict = {"app": AppState(model, optimizers, scheduler, progress)}
 
         # Save sharded state
-        dcp.save(fsdp_state_dict, checkpoint_id=ckpt_path)
-
-        # Save unshareded state
-        if self._is_master:
-            with open(ckpt_path / "scheduler.pt", "wb") as f:
-                torch.save(scheduler_state_dict, f)
-
-            with open(ckpt_path / "progress.pt", "wb") as f:
-                torch.save(progress_state_dict, f)
+        dcp.save(state_dict, checkpoint_id=ckpt_path)
 
         # Append to list of saved steps
         if self._is_master:
@@ -106,23 +103,9 @@ class CheckpointManager:
         self._logger.debug(f"Loading training checkpoint from {ckpt_path}")
         start_time = time.time()
 
-        # Load progress
-        with open(ckpt_path / "progress.pt", "rb") as f:
-            progress_state = torch.load(f, weights_only=False)
-        for key, value in asdict(progress_state["progress"]).items():
-            setattr(progress, key, value)
-
-        # Load scheduler
-        with open(ckpt_path / "scheduler.pt", "rb") as f:
-            scheduler_state = torch.load(f, weights_only=False)
-        scheduler.load_state_dict(scheduler_state["scheduler"])
-
         # Load sharded state
-        fsdp_state = {"fsdp_state": FSPDState(model, optimizers)}
-        dcp.load(
-            state_dict=fsdp_state,
-            checkpoint_id=ckpt_path,
-        )
+        state_dict = {"app": AppState(model, optimizers, scheduler, progress)}
+        dcp.load(state_dict=state_dict, checkpoint_id=ckpt_path)
 
         self._logger.debug(f"Training checkpoint loaded in {time.time() - start_time:.2f} seconds")
 
