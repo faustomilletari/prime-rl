@@ -94,12 +94,8 @@ class Buffer(ABC):
 
     def _init_buffer(self, dataset: Dataset, from_scratch: bool) -> None:
         """Initializes the buffer state from a dataset."""
-        # Initialize dataset and problem buffer
-        self.dataset = dataset
+        # Store problem IDs
         self.problem_ids = list(range(len(dataset)))
-        self.problem_buffer: dict[int, dict] = {
-            problem_id: dict(problem) for problem_id, problem in zip(self.problem_ids, dataset)
-        }
 
         if from_scratch:
             self.logger.debug("Initializing metadata and rollouts in buffer from scratch.")
@@ -119,6 +115,13 @@ class Buffer(ABC):
                 rollouts = json.loads(rollouts)
                 if len(rollouts) > 0:
                     self.rollout_buffer[problem_id] = [Rollout(**rollout) for rollout in rollouts]
+            dataset = dataset.remove_columns(["metadata", "rollouts"])
+
+        # Store dataset and problem buffer
+        self.dataset = dataset
+        self.problem_buffer: dict[int, dict] = {
+            problem_id: dict(problem) for problem_id, problem in zip(self.problem_ids, dataset)
+        }
 
     def save(self, path: Path) -> None:
         """Saves the buffer state to a single HF dataset."""
