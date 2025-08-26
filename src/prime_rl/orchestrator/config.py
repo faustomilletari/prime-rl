@@ -254,13 +254,6 @@ class SimpleBufferConfig(BufferConfig):
 class DifficultyPoolBufferConfig(BufferConfig):
     type: Literal["difficulty-pool"] = "difficulty-pool"
 
-    difficulty_field: Annotated[
-        str | None,
-        Field(
-            description="Field name in the dataset that contains difficulty information. Should only contain `easy`, `normal` and `hard`. If None, all samples are treated as `normal` initially.",
-        ),
-    ] = None
-
     easy_border: Annotated[
         float,
         Field(

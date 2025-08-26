@@ -266,19 +266,14 @@ class DifficultyPoolBuffer(Buffer):
         super().__init__(dataset, buffer_config)
         self.config = buffer_config
 
-        # Add difficulty information to metadata
-        if self.config.difficulty_field is not None:
-            assert self.config.difficulty_field in self.dataset.column_names
-            difficulties = self.dataset[self.config.difficulty_field]
-            self.logger.info(f"Found difficulty field {self.config.difficulty_field} in dataset")
-        else:
-            self.logger.warning("No difficulty field specified, initalizing all problems as `normal` difficulty")
-            difficulties = ["normal"] * len(self.problem_ids)
-
-        assert len(difficulties) == len(self.problem_ids)
-        assert all(difficulty in ["easy", "normal", "hard"] for difficulty in difficulties)
-        for problem_id, difficulty in zip(self.problem_ids, difficulties):
-            self.metadata[problem_id].update({"difficulty": difficulty})
+        # If not difficulty field is provided, initialize all problems as `normal` difficulty
+        for problem_id in self.problem_ids:
+            if self.metadata[problem_id].get("difficulty") is None:
+                self.metadata[problem_id].update({"difficulty": "normal"})
+            if self.metadata[problem_id]["difficulty"] not in ["easy", "normal", "hard"]:
+                raise ValueError(
+                    f"Invalid difficulty {self.metadata[problem_id]['difficulty']} for problem {problem_id}. Should be one of `easy`, `normal` or `hard`."
+                )
 
     def sample_problems(self, n: int) -> tuple[list[int], list[dict]]:
         # Compute number of easy, normal and hard problems to sample
