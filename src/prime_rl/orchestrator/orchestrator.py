@@ -12,7 +12,7 @@ from verifiers import load_environment
 from verifiers.types import GenerateOutputs, ProcessedOutputs
 from transformers import AutoTokenizer
 
-from prime_rl.orchestrator.ckpt import RLProgress as Progress, setup_ckpt_manager
+from prime_rl.orchestrator.ckpt import Progress, setup_ckpt_manager
 from prime_rl.eval.utils import run_eval
 from prime_rl.orchestrator.client import (
     check_has_model,

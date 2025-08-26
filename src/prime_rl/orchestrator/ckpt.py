@@ -11,17 +11,11 @@ from prime_rl.utils.utils import get_ckpt_dir
 
 
 @dataclass
-class RLProgress:
+class Progress:
     step: int = 0
     total_tokens: int = 0
     total_samples: int = 0
     total_problems: int = 0
-
-
-@dataclass
-class SFTProgress(RLProgress):
-    epoch: int = 0
-    epoch_step: int = 0
 
 
 class CheckpointManager:
@@ -43,7 +37,7 @@ class CheckpointManager:
         self,
         ckpt_path: Path,
         ckpt_step: int,
-        progress: RLProgress | SFTProgress,
+        progress: Progress,
         buffer: Buffer,
     ):
         self._logger.debug(f"Saving orchestrator checkpoint to {ckpt_path}")
@@ -61,7 +55,7 @@ class CheckpointManager:
 
         self._logger.debug(f"Orchestrator checkpoint saved in {time.time() - start_time:.2f} seconds")
 
-    def _load_from_path(self, ckpt_path: Path, progress: RLProgress | SFTProgress, buffer: Buffer) -> None:
+    def _load_from_path(self, ckpt_path: Path, progress: Progress, buffer: Buffer) -> None:
         """Loads a checkpoint from a given path in-place."""
         self._logger.debug(f"Loading checkpoint from {ckpt_path}")
         start_time = time.time()
@@ -79,7 +73,7 @@ class CheckpointManager:
 
         self._logger.debug(f"Orchestrator checkpoint loaded in {time.time() - start_time:.2f} seconds")
 
-    def load(self, progress: RLProgress | SFTProgress, buffer: Buffer, step: int) -> None:
+    def load(self, progress: Progress, buffer: Buffer, step: int) -> None:
         """Loads a checkpoint from a given path."""
         ckpt_path = self.get_ckpt_path(step)
         if not ckpt_path.exists():
@@ -88,7 +82,7 @@ class CheckpointManager:
 
     def save(
         self,
-        progress: RLProgress | SFTProgress,
+        progress: Progress,
         buffer: Buffer,
         step: int,
     ) -> None:
