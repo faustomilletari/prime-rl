@@ -239,10 +239,10 @@ class CheckpointConfig(BaseConfig):
 class BufferConfig(BaseModel):
     """Base config for all buffer types."""
 
-    resume: Annotated[
+    from_scratch: Annotated[
         bool,
         Field(
-            description="Whether to resume the data buffer from the checkpoint.",
+            description="Whether to initialize the metadata and rollout buffer from scratch. Defaults to True, which means we will initialize empty metadata and rollout buffers. If False, we expect columns `metadata` and `rollouts` to be present in the environment dataset to initialize the buffer from.",
         ),
     ] = True
 

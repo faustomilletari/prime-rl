@@ -74,6 +74,15 @@ async def orchestrate(config: OrchestratorConfig):
         run_config=config,
     )
 
+    # Load environment and extract dataset
+    logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
+    vf_env = load_environment(config.environment.id, **config.environment.args)
+    dataset = vf_env.get_dataset(seed=config.seed)
+
+    # Setup buffer
+    logger.info(f"Setting up buffer ({config.buffer})")
+    buffer = setup_buffer(dataset, config.buffer)
+
     # Check health of the client
     logger.info("Waiting for inference pool to be ready")
     await check_health(client)
@@ -89,25 +98,12 @@ async def orchestrate(config: OrchestratorConfig):
     ckpt_step = 0
     if config.ckpt and ckpt_manager and config.ckpt.resume_step:
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
-        ckpt_manager.load(progress, step=config.ckpt.resume_step)
+        ckpt_manager.load(progress, buffer, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
         await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
     else:
         logger.info("Training from scratch. Resetting weights to base model")
         await reload_weights(client)
-
-    # Load environment and extract dataset
-    logger.info(f"Loading environment {config.environment.id} with args {config.environment.args}")
-    vf_env = load_environment(config.environment.id, **config.environment.args)
-    dataset = vf_env.get_dataset(seed=config.seed)
-
-    logger.info(f"Setting up buffer ({config.buffer})")
-    buffer = setup_buffer(dataset, config.buffer)
-
-    if config.buffer.resume and ckpt_manager is not None and config.ckpt and config.ckpt.resume_step:
-        logger.info("Resuming buffer from checkpoint")
-        buffer_path = ckpt_manager._get_ckpt_path(config.ckpt.resume_step) / "buffer"
-        buffer.load(buffer_path)
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
