@@ -61,7 +61,7 @@ class FakeDataset(IterableDataset):
 class SFTDataset(IterableDataset):
     """A dataset wrapping a HF SFT dataset with prompt + completion format."""
 
-    def __init__(self, tokenizer: PreTrainedTokenizer, config: DataConfig):
+    def __init__(self, tokenizer: PreTrainedTokenizer, config: DataConfig, non_dp_size: int = 1):
         self.tokenizer = tokenizer
         self._logger = get_logger()
 
@@ -80,8 +80,9 @@ class SFTDataset(IterableDataset):
         if worker_info is not None:
             worker_id = worker_info.id
             num_workers = worker_info.num_workers
-        self.data_rank = get_world().rank * num_workers + worker_id
-        self.data_world_size = get_world().world_size * num_workers
+        assert get_world().world_size % non_dp_size == 0, "world_size must be divisible by non_dp_size"
+        self.data_rank = get_world().rank // non_dp_size * num_workers + worker_id
+        self.data_world_size = get_world().world_size // non_dp_size * num_workers
 
     def __iter__(self) -> Iterator[Sample]:
         """
@@ -179,10 +180,11 @@ def collate(samples: list[Sample]) -> Batch:
     }
 
 
-def setup_dataset(tokenizer: PreTrainedTokenizer, config: DataConfig) -> IterableDataset:
+def setup_dataset(tokenizer: PreTrainedTokenizer, config: DataConfig, non_dp_size: int = 1) -> IterableDataset:
     if config.fake:
+        # Shouldnt matter to handle non_dp_size if dataset is random
         return FakeDataset(tokenizer, config)
-    return SFTDataset(tokenizer, config)
+    return SFTDataset(tokenizer, config, non_dp_size)
 
 
 def setup_dataloader(dataset: IterableDataset, tokenizer: PreTrainedTokenizer, config: DataConfig) -> DataLoader:

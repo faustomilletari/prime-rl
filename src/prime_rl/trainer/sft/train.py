@@ -87,7 +87,7 @@ def train(config: SFTTrainerConfig):
 
     # Set up the dataset and dataloader (optionaly, use a fake dataset for debugging)
     logger.info(f"Initializing data ({config.data})")
-    dataset = setup_dataset(tokenizer, config.data)
+    dataset = setup_dataset(tokenizer, config.data, config.model.cp * config.model.tp)
     dataloader = iter(setup_dataloader(dataset, tokenizer, config.data))
 
     logger.info(f"Starting training loop ({config.max_steps=})")
@@ -123,9 +123,15 @@ def train(config: SFTTrainerConfig):
         step_start_time = time.time()
         forward_backward_start_time = time.time()
         tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
-        grad_accum_steps = config.data.batch_size // (config.data.micro_batch_size * world.world_size)
+        grad_accum_steps = (
+            config.data.batch_size
+            * config.model.cp
+            * config.model.tp
+            // (config.data.micro_batch_size * world.world_size)
+        )
         for micro_step in range(grad_accum_steps):
             micro_batch = next(dataloader)
+            print(f"[Rank {world.rank}] {micro_batch['input_ids'][0, -10:]}")
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")

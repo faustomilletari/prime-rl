@@ -80,9 +80,11 @@ def setup_fsdp(model: nn.Module, config: ModelConfig):
         world_size=dist.get_world_size(),
     )
 
+    # TODO: We need to check seqlen is divisible by seq_len_divisor. However, SFT and RL have seq_len defined in different places.
+    # Probably means we need to lift parallel_dims definition out of the model setup.
     mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
     # TODO: Support dp_replicate
-    hsdp_mesh = parallel_dims.world_mesh["dp_shard"]
+    hsdp_mesh = parallel_dims.world_mesh["dp_shard_cp"]
     for layer_id, transformer_block in enumerate(model.model.layers):
         if config.reshard_after_forward:
             layer_reshard_after_forward = layer_id < len(model.model.layers) - 1
