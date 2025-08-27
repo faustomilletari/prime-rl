@@ -25,7 +25,6 @@ from torch.distributed.device_mesh import DeviceMesh, init_device_mesh
 
 from prime_rl.utils.logger import get_logger
 
-logger = get_logger()
 device_type = _get_available_device_type() or "cuda"
 
 __all__ = ["ParallelDims"]
@@ -104,7 +103,7 @@ class ParallelDims:
                 dims.append(d)
                 names.append(name)
 
-        logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
+        self.logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
         mesh = init_device_mesh(device_type, dims, mesh_dim_names=names)
 
         # Create all the submesh here to ensure all required process groups are
@@ -153,7 +152,7 @@ class ParallelDims:
                 dims.append(d)
                 names.append(name)
 
-        logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
+        self.logger.info(f"Building {len(dims)}-D device mesh with {names}, {dims}")
         mesh = init_device_mesh(device_type, dims, mesh_dim_names=names)
 
         # Create all the submesh here to ensure all required process groups are
@@ -242,3 +241,7 @@ class ParallelDims:
         # when load balancing is enabled (by default).
         # https://github.com/pytorch/pytorch/blob/4f62dcc/torch/distributed/tensor/experimental/_attention.py#L1246
         return self.tp * (self.cp * 2)
+
+    @cached_property
+    def logger(self):
+        return get_logger()
