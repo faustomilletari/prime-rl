@@ -5,6 +5,7 @@ import time
 
 import torch
 from torch.nn.functional import cross_entropy, softmax
+from torch.distributed.tensor.experimental import context_parallel
 from loguru import logger
 from prime_rl.trainer.ckpt import Progress, setup_ckpt_manager
 from prime_rl.trainer.weights import setup_weight_ckpt_manager
@@ -19,6 +20,7 @@ from prime_rl.trainer.model import (
     is_tt_moe_model,
     get_load_balance_stats,
 )
+from prime_rl.trainer.parallel_dims import get_parallel_dims
 from prime_rl.trainer.perf import get_perf_counter
 from prime_rl.trainer.sft.data import setup_dataloader, setup_dataset
 from prime_rl.trainer.utils import (
@@ -52,9 +54,12 @@ def train(config: SFTTrainerConfig):
     setup_torch_distributed()
     torch.set_float32_matmul_precision("high")
 
+    # Initialize parallel dimensions
+    parallel_dims = get_parallel_dims(config.model, config.data.seq_len)
+
     # Initialize the model and tokenizer
     logger.info(f"Initializing model and tokenizer ({config.model})")
-    model = setup_model(config.model)
+    model = setup_model(config.model, parallel_dims)
     tokenizer = setup_tokenizer(config.model)
 
     # Set up the optimizer
@@ -131,7 +136,7 @@ def train(config: SFTTrainerConfig):
         )
         for micro_step in range(grad_accum_steps):
             micro_batch = next(dataloader)
-            print(f"[Rank {world.rank}] {micro_batch['input_ids'][0, -10:]}")
+            print(f"[Rank {world.rank}] {micro_batch['input_ids'][0, -10:]} {micro_batch['input_ids'].shape}")
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
@@ -139,38 +144,45 @@ def train(config: SFTTrainerConfig):
             epoch = micro_batch["epoch"]
             assert input_ids.shape[0] == position_ids.shape[0]
 
-            # Forward pass
-            logits = forward(model, input_ids, position_ids).contiguous()
-            B, L, V = logits.shape
+            # TODO: Make dummy context when CP is disabled
+            with context_parallel(
+                parallel_dims.world_mesh["cp"],
+                buffers=tuple([input_ids, position_ids, target_ids, loss_mask]),
+                buffer_seq_dims=(1, 1, 1, 1),
+            ):
+                # Forward pass
+                print(f"[Rank {world.rank}] Forward pass {input_ids.shape} {position_ids.shape}")
+                logits = forward(model, input_ids, position_ids).contiguous()
+                B, L, V = logits.shape
 
-            # Compute loss
-            loss = cross_entropy(logits.view(-1, V), target_ids.view(-1), reduction="none").view(B, L)
+                # Compute loss
+                loss = cross_entropy(logits.view(-1, V), target_ids.view(-1), reduction="none").view(B, L)
 
-            # Compute accuracy
-            probs = softmax(logits, dim=-1)
-            pred_ids = probs.argmax(dim=-1)
-            accuracy = torch.eq(pred_ids, target_ids).float()
+                # Compute accuracy
+                probs = softmax(logits, dim=-1)
+                pred_ids = probs.argmax(dim=-1)
+                accuracy = torch.eq(pred_ids, target_ids).float()
 
-            if is_tt_moe_model(model):
-                load_balance_stats = get_load_balance_stats(model)
-                for k, v in load_balance_stats.items():
-                    tensors[k].append(v)
+                if is_tt_moe_model(model):
+                    load_balance_stats = get_load_balance_stats(model)
+                    for k, v in load_balance_stats.items():
+                        tensors[k].append(v)
 
-            # Add tensors to tensor dict for logging purposes
-            tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
-            tensors["accuracy"].append(accuracy[loss_mask].detach().to("cpu"))
+                # Add tensors to tensor dict for logging purposes
+                tensors["loss"].append(loss[loss_mask].detach().to("cpu"))
+                tensors["accuracy"].append(accuracy[loss_mask].detach().to("cpu"))
 
-            # Mean reduction of unmasked tokens
-            loss = loss[loss_mask].mean()
+                # Mean reduction of unmasked tokens
+                loss = loss[loss_mask].mean()
 
-            # Scale loss by number of gradient accumulation steps
-            loss /= grad_accum_steps
+                # Scale loss by number of gradient accumulation steps
+                loss /= grad_accum_steps
 
-            # Delete logits before backward pass to avoid memory spike
-            del logits
+                # Delete logits before backward pass to avoid memory spike
+                del logits
 
-            # Backward pass
-            loss.backward()
+                # Backward pass
+                loss.backward()
 
             # Debug log with *local, micro step* stats
             micro_step_message = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Accuracy: {tensors['accuracy'][-1].mean().item():.4f}"

@@ -1,7 +1,6 @@
 import logging
 
 import torch
-import torch.distributed as dist
 import torch.nn as nn
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
@@ -69,19 +68,7 @@ def setup_tokenizer(config: ModelConfig) -> PreTrainedTokenizer:
     return tokenizer
 
 
-def setup_fsdp(model: nn.Module, config: ModelConfig):
-    parallel_dims = ParallelDims(
-        dp_replicate=1,
-        dp_shard=-1,
-        cp=config.cp,
-        tp=config.tp,
-        pp=1,
-        ep=config.ep,
-        world_size=dist.get_world_size(),
-    )
-
-    # TODO: We need to check seqlen is divisible by seq_len_divisor. However, SFT and RL have seq_len defined in different places.
-    # Probably means we need to lift parallel_dims definition out of the model setup.
+def setup_fsdp(model: nn.Module, config: ModelConfig, parallel_dims: ParallelDims):
     mp_policy = MixedPrecisionPolicy(param_dtype=torch.bfloat16, reduce_dtype=torch.float32)
     # TODO: Support dp_replicate
     hsdp_mesh = parallel_dims.world_mesh["dp_shard_cp"]
@@ -113,9 +100,9 @@ def apply_ac(model: nn.Module, ac_config: ActivationCheckpointConfig):
         model.model.layers.register_module(layer_name, transformer_block)
 
 
-def setup_model(config: ModelConfig) -> nn.Module:
+def setup_model(config: ModelConfig, parallel_dims: ParallelDims) -> nn.Module:
     model = get_model(config)
-    setup_fsdp(model, config)
+    setup_fsdp(model, config, parallel_dims)
     if config.ac is not None:
         apply_ac(model, config.ac)
     if config.compile:
