@@ -23,6 +23,9 @@ class DataConfig(BaseConfig):
         "PrimeIntellect/Reverse-Text-SFT"
     )
     splits: Annotated[list[str], Field(description="Splits to use from the HF dataset.")] = ["train"]
+    num_examples: Annotated[
+        int | None, Field(description="Number of examples to use from the dataset. If None, will use all examples.")
+    ] = None
 
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128

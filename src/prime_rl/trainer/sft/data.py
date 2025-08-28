@@ -70,6 +70,10 @@ class SFTDataset(IterableDataset):
             [load_dataset(config.name, split=split) for split in config.splits]
         )
 
+        # Select a subset of the dataset
+        if config.num_examples is not None:
+            self.dataset = self.dataset.select(range(config.num_examples))
+
         # Assert that the dataset has a 'text' column
         if "prompt" not in self.dataset.column_names or "completion" not in self.dataset.column_names:
             raise ValueError("HF dataset must have a 'prompt' and 'completion' column for SFT")
