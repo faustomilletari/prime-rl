@@ -136,7 +136,6 @@ def train(config: SFTTrainerConfig):
         )
         for micro_step in range(grad_accum_steps):
             micro_batch = next(dataloader)
-            print(f"[Rank {world.rank}] {micro_batch['input_ids'][0, -10:]} {micro_batch['input_ids'].shape}")
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
@@ -151,7 +150,6 @@ def train(config: SFTTrainerConfig):
                 buffer_seq_dims=(1, 1, 1, 1),
             ):
                 # Forward pass
-                print(f"[Rank {world.rank}] Forward pass {input_ids.shape} {position_ids.shape}")
                 logits = forward(model, input_ids, position_ids).contiguous()
                 B, L, V = logits.shape
 
