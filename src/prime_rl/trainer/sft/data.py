@@ -5,10 +5,12 @@ import torch
 from datasets import Dataset, concatenate_datasets, load_dataset
 from jaxtyping import Bool, Int
 from torch import Tensor
-from torch.utils.data import DataLoader, IterableDataset, get_worker_info
+from torch.distributed.checkpoint.stateful import Stateful
+from torch.utils.data import IterableDataset, get_worker_info
+from torchdata.stateful_dataloader import StatefulDataLoader
 from transformers.tokenization_utils import PreTrainedTokenizer
 
-from prime_rl.trainer.sft.config import DataConfig
+from prime_rl.trainer.sft.config import DataConfigType, FakeDataConfig, RealDataConfig
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.logger import get_logger
 
@@ -29,56 +31,22 @@ class Batch(TypedDict):
     loss_mask: Bool[Tensor, "batch seq"]
 
 
-class FakeDataset(IterableDataset):
-    """A dataset of fake tokens"""
+class StatefulIterableDataset(Stateful, IterableDataset):
+    """SFT dataset are iterable (infinite) and stateful (can be checkpointed)."""
 
-    def __init__(self, tokenizer: PreTrainedTokenizer, config: DataConfig):
-        self.config = config
-        assert self.config.fake is not None, "Fake dataset must be specified"
-        self.fake_type = self.config.fake
-        self.vocab_size = tokenizer.vocab_size
-
-    def __iter__(self) -> Iterator[Sample]:
-        while True:
-            seq_len = (
-                int(torch.randint(0, self.config.seq_len, (1,)).item())
-                if self.fake_type == "variable"
-                else self.config.seq_len
-            )
-            input_ids = torch.randint(0, self.vocab_size, (seq_len + 1,)).long().tolist()
-            position_ids = list(range(self.config.seq_len))
-            loss_mask = [True] * self.config.seq_len
-            fake_sample = {
-                "input_ids": input_ids[:-1],
-                "target_ids": input_ids[1:],
-                "position_ids": position_ids,
-                "loss_mask": loss_mask,
-                "epoch": 0,
-            }
-            yield fake_sample
-
-
-class SFTDataset(IterableDataset):
-    """A dataset wrapping a HF SFT dataset with prompt + completion format."""
-
-    def __init__(self, tokenizer: PreTrainedTokenizer, config: DataConfig):
-        self.tokenizer = tokenizer
+    def __init__(self):
+        self.step, self.epoch = 0, 0
+        self._setup_world_info()
         self._logger = get_logger()
 
-        # Load dataset
-        self.dataset: Dataset = concatenate_datasets(
-            [load_dataset(config.name, split=split) for split in config.splits]
-        )
+    def state_dict(self) -> dict:
+        return {"step": self.step, "epoch": self.epoch}
 
-        # Select a subset of the dataset
-        if config.num_examples is not None:
-            self.dataset = self.dataset.select(range(config.num_examples))
+    def load_state_dict(self, state_dict: dict):
+        self.step = state_dict.get("step", -1)
+        self.epoch = state_dict.get("epoch", -1)
 
-        # Assert that the dataset has a 'text' column
-        if "prompt" not in self.dataset.column_names or "completion" not in self.dataset.column_names:
-            raise ValueError("HF dataset must have a 'prompt' and 'completion' column for SFT")
-
-        # Get the data rank and world size
+    def _setup_world_info(self):
         worker_info = get_worker_info()
         worker_id, num_workers = 0, 1
         if worker_info is not None:
@@ -87,40 +55,103 @@ class SFTDataset(IterableDataset):
         self.data_rank = get_world().rank * num_workers + worker_id
         self.data_world_size = get_world().world_size * num_workers
 
-        # Public state attributes for checkpointing
-        self.counter = -1
-        self.epoch = -1
 
-    def get_state(self) -> dict:
-        """Get the current state of the dataset for checkpointing."""
-        return {
-            "counter": self.counter,
-            "epoch": self.epoch,
-        }
+class FakeDataset(StatefulIterableDataset):
+    """A dataset of fake tokens"""
 
-    def set_state(self, state: dict):
-        """Set the state of the dataset from checkpoint."""
-        self.counter = state.get("counter", -1)
-        self.epoch = state.get("epoch", -1)
+    def __init__(self, tokenizer: PreTrainedTokenizer, config: FakeDataConfig):
+        super().__init__()
+        self.config = config
+        self.vocab_size = tokenizer.vocab_size
+        self.num_examples = config.num_examples
+
+    def state_dict(self) -> dict:
+        return {"step": self.step, "epoch": self.epoch}
+
+    def load_state_dict(self, state_dict: dict):
+        assert "step" in state_dict and "epoch" in state_dict
+        self.step = state_dict["step"]
+        self.epoch = state_dict["epoch"]
+
+    def __iter__(self) -> Iterator[Sample]:
+        while True:
+            # Skip samples that don't belong to this data rank
+            if self.step % self.data_world_size != self.data_rank:
+                self.step += 1
+                continue
+
+            # Update epoch if num_examples is set
+            if self.num_examples is not None:
+                self.epoch = self.step // self.num_examples
+
+            # Increment the step counter (1, 2, ...)
+            # This has to be done before yielding the sample for the dataloader to checkpoint correctly
+            self.step += 1
+
+            seq_len = (
+                int(torch.randint(1, self.config.seq_len, (1,)).item())
+                if self.config.length == "variable"
+                else self.config.seq_len
+            )
+            input_ids = (
+                [self.step] * (seq_len + 1)
+                if self.config.input_ids == "increasing"
+                else torch.randint(0, self.vocab_size, (seq_len + 1,)).long().tolist()
+            )
+            position_ids = list(range(seq_len))
+            loss_mask = [True] * seq_len
+            fake_sample = {
+                "input_ids": input_ids[:-1],
+                "target_ids": input_ids[1:],
+                "position_ids": position_ids,
+                "loss_mask": loss_mask,
+                "epoch": self.epoch,
+            }
+            yield fake_sample
+
+
+class SFTDataset(StatefulIterableDataset):
+    """A dataset wrapping a HF SFT dataset with prompt + completion format."""
+
+    def __init__(self, tokenizer: PreTrainedTokenizer, config: RealDataConfig):
+        super().__init__()
+        self.tokenizer = tokenizer
+
+        # Load dataset
+        self.dataset: Dataset = concatenate_datasets(
+            [load_dataset(config.name, split=split) for split in config.splits]
+        )
+
+        # Assert that the dataset has a 'text' column
+        if "prompt" not in self.dataset.column_names or "completion" not in self.dataset.column_names:
+            raise ValueError("HF dataset must have a 'prompt' and 'completion' column for SFT")
+
+        # If specified, select a subset of the dataset
+        if config.num_examples is not None:
+            self.dataset = self.dataset.select(range(config.num_examples))
+
+        # Store the number of examples in the dataset
+        self.num_examples = len(self.dataset)
 
     def __iter__(self) -> Iterator[Sample]:
         """
         Apply chat template and tokenize a single example in prompt + completion format (https://github.com/huggingface/trl/blob/de27d612b026526ba39b88eee348994d7636e033/trl/trainer/sft_trainer.py#L661)
         """
-        counter, epoch = self.counter, self.epoch
-        if counter == -1:
-            counter, epoch = -1, -1
-
         while True:
-            epoch += 1
-            shuffled_dataset = self.dataset.shuffle(seed=epoch)
+            shuffled_dataset = self.dataset.shuffle(seed=self.epoch)
             for example in shuffled_dataset:
-                # Increment the counter (0, 1, ...)
-                counter += 1
-
                 # Skip samples that don't belong to this data rank
-                if counter % self.data_world_size != self.data_rank:
+                if self.step % self.data_world_size != self.data_rank:
+                    self.step += 1
                     continue
+
+                # Update epoch if num_examples is set
+                assert self.num_examples is not None, "num_examples must be set for real datasets"
+                self.epoch = self.step // self.num_examples
+
+                # Increment the step counter (1, 2, ...)
+                # This has to be done before yielding the sample for the dataloader to checkpoint correctly
+                self.step += 1
 
                 assert "prompt" in example and "completion" in example, (
                     "Prompt and completion must be present in the example"
@@ -155,42 +186,27 @@ class SFTDataset(IterableDataset):
                     + [True] * (len(prompt_completion_ids) - len(prompt_ids) - 1)
                     + [False],
                     "target_ids": prompt_completion_ids[1:] + [0],
-                    "epoch": epoch,
+                    "epoch": self.epoch,
                 }
-
-                # Update state
-                self.counter = counter
-                self.epoch = epoch
 
                 yield sample
 
 
-class PackingDataset(IterableDataset):
+class PackingDataset(StatefulIterableDataset):
     """A dataset that packs samples into a single sequence."""
 
-    def __init__(self, dataset: IterableDataset, seq_len: int):
+    def __init__(self, dataset: StatefulIterableDataset, seq_len: int):
         self.dataset = dataset
         self.seq_len = seq_len
         # Public state attributes for checkpointing
         self.packed_samples = defaultdict(list)
         self.current_seq_len = 0
 
-    def get_state(self) -> dict:
-        """Get the current state of the packing dataset."""
-        return {
-            "dataset_state": self.dataset.get_state() if hasattr(self.dataset, "get_state") else {},
-            "packed_samples": dict(self.packed_samples),
-            "current_seq_len": self.current_seq_len,
-        }
+    def state_dict(self) -> dict:
+        return self.dataset.state_dict()
 
-    def set_state(self, state: dict):
-        """Set the state of the packing dataset from checkpoint."""
-        if hasattr(self.dataset, "set_state") and "dataset_state" in state:
-            self.dataset.set_state(state["dataset_state"])
-        self.packed_samples = defaultdict(list)
-        if "packed_samples" in state:
-            self.packed_samples.update(state["packed_samples"])
-        self.current_seq_len = state.get("current_seq_len", 0)
+    def load_state_dict(self, state_dict: dict):
+        self.dataset.load_state_dict(state_dict)
 
     def __iter__(self) -> Iterator[Sample]:
         packed_samples, seq_len = self.packed_samples, self.current_seq_len
@@ -226,13 +242,18 @@ def collate(samples: list[Sample]) -> Batch:
     }
 
 
-def setup_dataset(tokenizer: PreTrainedTokenizer, config: DataConfig) -> IterableDataset:
-    if config.fake:
+def setup_dataset(tokenizer: PreTrainedTokenizer, config: DataConfigType) -> StatefulIterableDataset:
+    if config.type == "fake":
         return FakeDataset(tokenizer, config)
-    return SFTDataset(tokenizer, config)
+    elif config.type == "real":
+        return SFTDataset(tokenizer, config)
+    else:
+        raise ValueError(f"Invalid dataset type: {config.type}")
 
 
-def setup_dataloader(dataset: IterableDataset, tokenizer: PreTrainedTokenizer, config: DataConfig) -> DataLoader:
+def setup_dataloader(
+    dataset: StatefulIterableDataset, tokenizer: PreTrainedTokenizer, config: DataConfigType
+) -> StatefulDataLoader:
     seq_len = config.micro_batch_size * config.seq_len
     packing_dataset = PackingDataset(dataset, seq_len)
-    return DataLoader(packing_dataset, batch_size=1, collate_fn=collate)
+    return StatefulDataLoader(packing_dataset, batch_size=1, collate_fn=collate)

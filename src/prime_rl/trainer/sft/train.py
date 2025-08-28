@@ -76,32 +76,20 @@ def train(config: SFTTrainerConfig):
         "If ckpt_manager is set, weight_ckpt_manager must also be set"
     )
 
-    # Optionally, resume training from a checkpoint
-    progress = Progress()
-    dataloader_state = {}
-    if ckpt_manager is not None and config.ckpt and config.ckpt.resume_step:
-        logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
-        # Load checkpoint with dataloader_state
-        ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step, dataloader_state=dataloader_state)
-        # Check if dataloader_state was loaded from checkpoint
-        if dataloader_state:
-            logger.info(f"Loaded dataloader state from DCP: {dataloader_state}")
-    logger.info(
-        f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
-    )
-
     # Set up the dataset and dataloader
     logger.info(f"Initializing data ({config.data})")
     dataset = setup_dataset(tokenizer, config.data)
     dataloader = setup_dataloader(dataset, tokenizer, config.data)
-    
-    # Restore dataloader state if available
-    if dataloader_state and hasattr(dataloader.dataset, 'set_state'):
-        logger.info("Restoring dataloader state from checkpoint")
-        dataloader.dataset.set_state(dataloader_state)
-    
-    # Create iterator
-    dataloader_iter = iter(dataloader)
+    dataiter = iter(dataloader)
+
+    # Optionally, resume training from a checkpoint
+    progress = Progress()
+    if ckpt_manager is not None and config.ckpt and config.ckpt.resume_step:
+        logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
+        ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step, dataloader=dataloader)
+    logger.info(
+        f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples}, dataloader_state={dataloader.state_dict()})"
+    )
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
@@ -119,12 +107,7 @@ def train(config: SFTTrainerConfig):
         ):
             logger.info(f"Saving checkpoint at step {progress.step}")
             save_ckpt_start_time = time.time()
-            # Get dataloader state for checkpointing
-            if hasattr(dataloader.dataset, 'get_state'):
-                dataloader_state = dataloader.dataset.get_state()
-            else:
-                dataloader_state = {}
-            ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step, dataloader_state=dataloader_state)
+            ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step, dataloader=dataloader)
             weight_ckpt_manager.save(model, tokenizer, step=progress.step)
             save_ckpt_time = time.time() - save_ckpt_start_time
 
@@ -143,7 +126,7 @@ def train(config: SFTTrainerConfig):
         tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
         grad_accum_steps = config.data.batch_size // (config.data.micro_batch_size * world.world_size)
         for micro_step in range(grad_accum_steps):
-            micro_batch = next(dataloader_iter)
+            micro_batch = next(dataiter)
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             target_ids = micro_batch["target_ids"].to("cuda")
@@ -291,7 +274,7 @@ def train(config: SFTTrainerConfig):
     if config.ckpt and ckpt_manager is not None and weight_ckpt_manager is not None:
         logger.info("Writing final checkpoint")
         # For SFT, we don't need to save dataloader state since we can reconstruct it from progress.step
-        ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
+        ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step, dataloader=dataloader)
         weight_ckpt_manager.save(model, tokenizer, step=progress.step)
         ckpt_manager.maybe_clean()
 
