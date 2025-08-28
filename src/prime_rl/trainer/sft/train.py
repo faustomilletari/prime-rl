@@ -200,7 +200,7 @@ def train(config: SFTTrainerConfig):
         # Compute step metrics
         num_tokens = config.data.batch_size * config.data.seq_len
         progress.total_tokens += num_tokens
-        progress.total_samples += config.data.batch_size
+        progress.total_samples = dataloader.state_dict()["dataset_state"]["step"]
         perf_counter = get_perf_counter(model, config.data.seq_len)
         perf_counter.count_tokens(num_tokens)
         throughput = perf_counter.get_tokens_per_second() or 0
