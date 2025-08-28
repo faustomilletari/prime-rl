@@ -51,10 +51,11 @@ class StatefulIterableDataset(Stateful, IterableDataset):
 
     def _setup_world_info(self):
         worker_info = get_worker_info()
-        worker_id, num_workers = 0, 1
         if worker_info is not None:
             worker_id = worker_info.id
             num_workers = worker_info.num_workers
+        else:
+            worker_id, num_workers = 0, 1
         self.data_rank = get_world().rank * num_workers + worker_id
         self.data_world_size = get_world().world_size * num_workers
 
