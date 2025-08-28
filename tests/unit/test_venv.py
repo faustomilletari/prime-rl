@@ -34,18 +34,7 @@ def test_moe_venv():
         pyproject_dict["tool"]["uv"]["override-dependencies"] = moe_dict["tool"]["uv"]["override-dependencies"]
 
     apply_moe_changes(main, moe)
-    from pprint import pprint
-
-    pprint(main["project"]["dependencies"])
-    pprint(moe["project"]["dependencies"])
 
     for k, v in main.items():
-        if isinstance(v, dict):
-            for k2, v2 in v.items():
-                assert k2 in moe[k], f"{k2} not in moe venv"
-                assert v2 == moe[k][k2], (
-                    f"'{k2}' key not equal. Please sync the changes on {MAIN_PYPROJECT} to {MOE_PYPROJECT}."
-                )
-        else:
-            assert k in moe, f"{k} not in moe venv"
-            assert v == moe[k], f"'{k}' key not equal. Please sync the changes on {MAIN_PYPROJECT} to {MOE_PYPROJECT}."
+        assert k in moe, f"{k} not in moe venv"
+        assert v == moe[k], f"'{k}' key not equal. Please sync the changes on {MAIN_PYPROJECT} to {MOE_PYPROJECT}."

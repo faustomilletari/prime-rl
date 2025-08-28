@@ -130,6 +130,7 @@ def train(config: SFTTrainerConfig):
 
         step_start_time = time.time()
         forward_backward_start_time = time.time()
+        epoch = 0
         tensors = Tensors()  # Used to accumulate tensor statistics across grad acc and ranks for logging
         grad_accum_steps = config.data.batch_size // (config.data.micro_batch_size * world.world_size)
         for micro_step in range(grad_accum_steps):
@@ -279,7 +280,6 @@ def train(config: SFTTrainerConfig):
     # Write final checkpoint
     if config.ckpt and ckpt_manager is not None and weight_ckpt_manager is not None:
         logger.info("Writing final checkpoint")
-        # For SFT, we don't need to save dataloader state since we can reconstruct it from progress.step
         ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step, dataloader=dataloader)
         weight_ckpt_manager.save(model, tokenizer, step=progress.step)
         ckpt_manager.maybe_clean()
