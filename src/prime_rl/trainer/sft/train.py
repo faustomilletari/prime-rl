@@ -82,6 +82,13 @@ def train(config: SFTTrainerConfig):
     dataloader = setup_dataloader(dataset, tokenizer, config.data)
     dataiter = iter(dataloader)
 
+    # Check that the world size and batch configuration is compatible
+    num_micro_batches = config.data.batch_size // config.data.micro_batch_size
+    if num_micro_batches < world.world_size or world.world_size % num_micro_batches != 0:
+        raise ValueError(
+            f"World size ({world.world_size}) must be divisible by and greater than or equal to the number of micro batches ({num_micro_batches})."
+        )
+
     # Optionally, resume training from a checkpoint
     progress = Progress()
     if ckpt_manager is not None and config.ckpt and config.ckpt.resume_step:
