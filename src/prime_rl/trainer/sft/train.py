@@ -88,7 +88,7 @@ def train(config: SFTTrainerConfig):
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
         ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step, dataloader=dataloader)
     logger.info(
-        f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples}, dataloader_state={dataloader.state_dict()})"
+        f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples}, dataloader_state={dataloader.state_dict()['dataset_state']})"
     )
 
     logger.info(f"Starting training loop ({config.max_steps=})")
@@ -174,7 +174,6 @@ def train(config: SFTTrainerConfig):
             logger.debug(micro_step_message)
 
         # Optionally, clip the gradients
-        logger.debug(f"Clipping gradients to {config.optim.max_norm}")
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
         # Update the model parameters
