@@ -35,16 +35,19 @@ class StatefulIterableDataset(Stateful, IterableDataset):
     """SFT dataset are iterable (infinite) and stateful (can be checkpointed)."""
 
     def __init__(self):
-        self.step, self.epoch = 0, 0
+        self.step, self.epoch = -1, 0
         self._setup_world_info()
         self._logger = get_logger()
 
     def state_dict(self) -> dict:
-        return {"step": self.step, "epoch": self.epoch}
+        # +1 because the stateful dataloader expects uses 1-based counting while we start at 0
+        return {"step": self.step + 1, "epoch": self.epoch}
 
     def load_state_dict(self, state_dict: dict):
-        self.step = state_dict.get("step", -1)
-        self.epoch = state_dict.get("epoch", -1)
+        assert "step" in state_dict and "epoch" in state_dict
+        # -1 because the stateful dataloader expects uses 1-based counting while we start at 0
+        self.step = state_dict["step"] - 1
+        self.epoch = state_dict["epoch"]
 
     def _setup_world_info(self):
         worker_info = get_worker_info()
@@ -65,28 +68,19 @@ class FakeDataset(StatefulIterableDataset):
         self.vocab_size = tokenizer.vocab_size
         self.num_examples = config.num_examples
 
-    def state_dict(self) -> dict:
-        return {"step": self.step, "epoch": self.epoch}
-
-    def load_state_dict(self, state_dict: dict):
-        assert "step" in state_dict and "epoch" in state_dict
-        self.step = state_dict["step"]
-        self.epoch = state_dict["epoch"]
-
     def __iter__(self) -> Iterator[Sample]:
         while True:
+            # Increment the step counter (0, 1, 2, ...)
+            # This has to be done before yielding the sample for the dataloader to checkpoint correctly
+            self.step += 1
+
             # Skip samples that don't belong to this data rank
             if self.step % self.data_world_size != self.data_rank:
-                self.step += 1
                 continue
 
             # Update epoch if num_examples is set
             if self.num_examples is not None:
                 self.epoch = self.step // self.num_examples
-
-            # Increment the step counter (1, 2, ...)
-            # This has to be done before yielding the sample for the dataloader to checkpoint correctly
-            self.step += 1
 
             seq_len = (
                 int(torch.randint(1, self.config.seq_len, (1,)).item())
@@ -140,18 +134,17 @@ class SFTDataset(StatefulIterableDataset):
         while True:
             shuffled_dataset = self.dataset.shuffle(seed=self.epoch)
             for example in shuffled_dataset:
+                # Increment the step counter (0, 1, 2, ...)
+                # This has to be done before yielding the sample for the dataloader to checkpoint correctly
+                self.step += 1
+
                 # Skip samples that don't belong to this data rank
                 if self.step % self.data_world_size != self.data_rank:
-                    self.step += 1
                     continue
 
                 # Update epoch if num_examples is set
                 assert self.num_examples is not None, "num_examples must be set for real datasets"
                 self.epoch = self.step // self.num_examples
-
-                # Increment the step counter (1, 2, ...)
-                # This has to be done before yielding the sample for the dataloader to checkpoint correctly
-                self.step += 1
 
                 assert "prompt" in example and "completion" in example, (
                     "Prompt and completion must be present in the example"
