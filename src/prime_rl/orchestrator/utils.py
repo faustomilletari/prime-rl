@@ -44,6 +44,8 @@ def parse_truncated_completions(states: list[State]) -> list[bool]:
         )
         for chat_completion in state["responses"]:
             assert len(chat_completion.choices) == 1, "Response should always have one choice"
+            if len(chat_completion.choices[0].message.tool_calls) > 0:
+                continue
             if chat_completion.choices[0].finish_reason == "length":
                 is_truncated.append(True)
             else:
