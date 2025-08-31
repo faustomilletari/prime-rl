@@ -20,7 +20,7 @@ from pydantic import Field, model_validator
 from prime_rl.inference.config import InferenceConfig
 from prime_rl.orchestrator.config import CheckpointConfig as OrchestratorCheckpointConfig
 from prime_rl.orchestrator.config import OrchestratorConfig
-from prime_rl.trainer import rl
+from prime_rl.trainer import rl as rl_module
 from prime_rl.trainer.config import CheckpointConfig as TrainerCheckpointConfig
 from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.rl.config import RLTrainerConfig as TrainerConfig
@@ -540,7 +540,7 @@ def rl(config: RLConfig):
             f"--rdzv-id={uuid.uuid4().hex}",
             "--nproc-per-node",
             str(config.trainer_gpus),
-            os.path.join(rl.__path__, 'train.py'),
+            os.path.join(rl_module.__path__[0], 'train.py'),
             "@",
             trainer_file.as_posix(),
         ]
