@@ -20,7 +20,6 @@ from pydantic import Field, model_validator
 from prime_rl.inference.config import InferenceConfig
 from prime_rl.orchestrator.config import CheckpointConfig as OrchestratorCheckpointConfig
 from prime_rl.orchestrator.config import OrchestratorConfig
-from prime_rl.trainer import rl as rl_module
 from prime_rl.trainer.config import CheckpointConfig as TrainerCheckpointConfig
 from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.rl.config import RLTrainerConfig as TrainerConfig
