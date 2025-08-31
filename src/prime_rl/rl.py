@@ -540,7 +540,7 @@ def rl(config: RLConfig):
             f"--rdzv-id={uuid.uuid4().hex}",
             "--nproc-per-node",
             str(config.trainer_gpus),
-            os.path.join(rl_module.__path__[0], 'train.py'),
+            "-m", "prime_rl.trainer.rl.train",
             "@",
             trainer_file.as_posix(),
         ]
