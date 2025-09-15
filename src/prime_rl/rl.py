@@ -20,7 +20,6 @@ from pydantic import Field, model_validator
 from prime_rl.inference.config import InferenceConfig
 from prime_rl.orchestrator.config import CheckpointConfig as OrchestratorCheckpointConfig
 from prime_rl.orchestrator.config import OrchestratorConfig
-from prime_rl.trainer import rl
 from prime_rl.trainer.config import CheckpointConfig as TrainerCheckpointConfig
 from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.rl.config import RLTrainerConfig as TrainerConfig
@@ -92,9 +91,7 @@ class ModelConfig(BaseSettings):
 
     name: Annotated[
         str,
-        Field(
-            description="The name of the model to use."
-        ),
+        Field(description="The name of the model to use."),
     ] = "Qwen/Qwen3-0.6B"
 
 
@@ -251,24 +248,24 @@ class RLConfig(BaseSettings):
     def auto_setup_wandb(self):
         # If specified, automatically use shared W&B project for orchestrator and trainer
         if self.wandb:
-            if not self.trainer.monitor.wandb:
-                self.trainer.monitor.wandb = WandbMonitorConfig()
-            if not self.orchestrator.monitor.wandb:
-                self.orchestrator.monitor.wandb = WandbMonitorConfig()
+            if not self.trainer.wandb:
+                self.trainer.wandb = WandbMonitorConfig()
+            if not self.orchestrator.wandb:
+                self.orchestrator.wandb = WandbMonitorConfig()
 
             if self.wandb.project:
-                self.trainer.monitor.wandb.project = self.wandb.project
-                self.orchestrator.monitor.wandb.project = self.wandb.project
+                self.trainer.wandb.project = self.wandb.project
+                self.orchestrator.wandb.project = self.wandb.project
 
             # If specified, automatically use shared W&B name for orchestrator and trainer with suffixes
             if self.wandb.name:
-                self.trainer.monitor.wandb.name = f"{self.wandb.name}-trainer"
-                self.orchestrator.monitor.wandb.name = f"{self.wandb.name}-orchestrator"
+                self.trainer.wandb.name = f"{self.wandb.name}-trainer"
+                self.orchestrator.wandb.name = f"{self.wandb.name}-orchestrator"
 
             # If specified, automatically use shared W&B offline mode for orchestrator and trainer
             if self.wandb.offline:
-                self.trainer.monitor.wandb.offline = self.wandb.offline
-                self.orchestrator.monitor.wandb.offline = self.wandb.offline
+                self.trainer.wandb.offline = self.wandb.offline
+                self.orchestrator.wandb.offline = self.wandb.offline
 
         validate_shared_wandb_config(self.trainer, self.orchestrator)
 
@@ -355,12 +352,12 @@ class RLConfig(BaseSettings):
     @model_validator(mode="after")
     def warn_wandb_resume_id_missing(self):
         if self.trainer.ckpt and self.trainer.ckpt.resume_step:
-            if self.trainer.monitor.wandb and not self.trainer.monitor.wandb.id:
+            if self.trainer.wandb and not self.trainer.wandb.id:
                 warnings.warn(
                     "W&B run ID is not set for trainer even though resuming training. The current run will be created as a new run."
                 )
         if self.orchestrator.ckpt and self.orchestrator.ckpt.resume_step:
-            if self.orchestrator.monitor.wandb and not self.orchestrator.monitor.wandb.id:
+            if self.orchestrator.wandb and not self.orchestrator.wandb.id:
                 warnings.warn(
                     "W&B run ID is not set for orchestrator even though resuming training. The current run will be created as a new run."
                 )
@@ -531,7 +528,7 @@ def rl(config: RLConfig):
         trainer_file = get_temp_toml_file()
         with open(trainer_file, "wb") as f:
             tomli_w.dump(config.trainer.model_dump(exclude_none=True, mode="json"), f)
-        
+
         trainer_cmd = [
             "uv",
             "run",
@@ -540,7 +537,8 @@ def rl(config: RLConfig):
             f"--rdzv-id={uuid.uuid4().hex}",
             "--nproc-per-node",
             str(config.trainer_gpus),
-            os.path.join(rl.__path__, 'train.py'),
+            "-m",
+            "prime_rl.trainer.rl.train",
             "@",
             trainer_file.as_posix(),
         ]

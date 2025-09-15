@@ -9,12 +9,15 @@ mask_truncated_completions = false
 name = "moonshotai/Moonlight-16B-A3B-Instruct"
 trust_remote_code = true
 
-[monitor.wandb]
+[sampling]
+max_tokens = 2048
+
+[wandb]
 
 [environment]
 id = "hendrycks-math"
 
-[monitor.wandb.log_extras]
+[wandb.log_extras]
 interval = 10
 
 [eval]

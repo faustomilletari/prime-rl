@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from prime_rl.trainer.config import (
     AdamWConfig,
@@ -12,29 +12,20 @@ from prime_rl.trainer.config import (
     SchedulerConfigType,
     WeightCheckpointConfig,
 )
-from prime_rl.utils.config import LogConfig, MultiMonitorConfig
-from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
+from prime_rl.utils.config import LogConfig, WandbMonitorConfig
+from prime_rl.utils.pydantic_config import BaseSettings
 
 
-class DataConfig(BaseConfig):
-    """Configures the data used for training."""
-
-    name: Annotated[str, Field(description="Name or path of the HF dataset to use.")] = (
-        "PrimeIntellect/Reverse-Text-SFT"
-    )
-    splits: Annotated[list[str], Field(description="Splits to use from the HF dataset.")] = ["train"]
+class BaseDataConfig(BaseModel):
+    """Base config for SFT data."""
 
     micro_batch_size: Annotated[int, Field(ge=1)] = 8
     batch_size: Annotated[int, Field(ge=1)] = 128
     seq_len: Annotated[int, Field(ge=1)] = 128
-    shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
-
-    fake: Annotated[
-        Literal["fixed", "variable"] | None,
-        Field(
-            description="How to generate fake data, mostly used for benchmarking. If fixed, each fake sample will be of length `seq_len`. If variable, each fake sample will be of length `seq_len` with uniform distribution from [0,seq_len]. If None, will use the regular dataset."
-        ),
+    num_examples: Annotated[
+        int | None, Field(description="Number of examples to use from the dataset. If None, will use all examples.")
     ] = None
+    pack_function: Literal["cat", "stack"] = "cat"
 
     @model_validator(mode="after")
     def validate_batch_size(self):
@@ -44,13 +35,29 @@ class DataConfig(BaseConfig):
             raise ValueError("Batch size must be greater than or equal to micro batch size")
         return self
 
-    def __str__(self):
-        if self.fake:
-            data_str = f"fake={self.fake}"
-        else:
-            data_str = f"name={self.name}, splits={self.splits}, shuffle={self.shuffle}"
 
-        return f"{data_str}, micro_batch_size={self.micro_batch_size}, batch_size={self.batch_size}, seq_len={self.seq_len}"
+class FakeDataConfig(BaseDataConfig):
+    """Configures fake data used for debugging."""
+
+    type: Literal["fake"] = "fake"
+
+    length: Literal["fixed", "variable"] = "fixed"
+    input_ids: Literal["increasing", "random"] = "increasing"
+
+
+class SFTDataConfig(BaseDataConfig):
+    """Configures the data used for training."""
+
+    type: Literal["sft"] = "sft"
+
+    name: Annotated[str, Field(description="Name or path of the HF dataset to use.")] = (
+        "PrimeIntellect/Reverse-Text-SFT"
+    )
+    splits: Annotated[list[str], Field(description="Splits to use from the HF dataset.")] = ["train"]
+    shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
+
+
+DataConfigType: TypeAlias = FakeDataConfig | SFTDataConfig
 
 
 class SFTTrainerConfig(BaseSettings):
@@ -60,7 +67,7 @@ class SFTTrainerConfig(BaseSettings):
     model: ModelConfig = ModelConfig()
 
     # The data configuration
-    data: DataConfig = DataConfig()
+    data: Annotated[DataConfigType, Field(discriminator="type")] = SFTDataConfig()
 
     # The optimizer configuration
     optim: Annotated[OptimizerConfigType, Field(discriminator="type")] = AdamWConfig()
@@ -77,8 +84,8 @@ class SFTTrainerConfig(BaseSettings):
     # The logging configuration
     log: LogConfig = LogConfig()
 
-    # The monitor configuration
-    monitor: MultiMonitorConfig = MultiMonitorConfig()
+    # The wandb configuration
+    wandb: WandbMonitorConfig | None = None
 
     output_dir: Annotated[
         Path,
@@ -92,7 +99,7 @@ class SFTTrainerConfig(BaseSettings):
         Field(description="Maximum number of steps to run training for. If None, will run indefinitely."),
     ] = None
 
-    profile_path: Annotated[Path | None, Field(description="Path to write memory profile to.")] = None
+    memory_profiler_path: Annotated[Path | None, Field(description="Path to write memory profile to.")] = None
 
     bench: Annotated[
         bool,
@@ -105,8 +112,8 @@ class SFTTrainerConfig(BaseSettings):
     def auto_setup_bench(self):
         if self.bench:
             self.max_steps = 4  # 1 Warmup + 3 Benchmark
-            if self.monitor.wandb:  # Do not log extras
-                self.monitor.wandb.log_extras = None
+            if self.wandb:  # Do not log extras
+                self.wandb.log_extras = None
             if self.ckpt:  # Do not checkpoint
                 self.ckpt = None
         return self
@@ -140,6 +147,12 @@ class SFTTrainerConfig(BaseSettings):
 
     @model_validator(mode="after")
     def disable_logging_wandb_samples(self):
-        if self.monitor.wandb and self.monitor.wandb.log_extras:
-            self.monitor.wandb.log_extras.samples = False
+        if self.wandb and self.wandb.log_extras:
+            self.wandb.log_extras.samples = False
+        return self
+
+    @model_validator(mode="after")
+    def validate_pack_function(self):
+        if self.model.cp > 1 and self.data.pack_function != "stack":
+            raise ValueError("Packing function must be 'stack' when CP is enabled")
         return self

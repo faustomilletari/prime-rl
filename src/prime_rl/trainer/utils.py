@@ -1,5 +1,8 @@
+import pickle
+import time
 from collections import defaultdict
 from itertools import chain
+from pathlib import Path
 from typing import Any, TypeAlias
 
 import pandas as pd
@@ -11,12 +14,13 @@ from torch import Tensor, nn
 from torch.distributed.tensor import DTensor
 
 from prime_rl.trainer.world import get_world
+from prime_rl.utils.logger import get_logger
 from prime_rl.utils.utils import format_num, format_time
 
 
 def setup_torch_distributed():
-    torch.cuda.set_device(get_world().rank)
-    dist.init_process_group(device_id=torch.device("cuda", torch.cuda.current_device()))
+    torch.cuda.set_device(get_world().local_rank)
+    dist.init_process_group(backend="cpu:gloo,cuda:nccl", device_id=torch.device("cuda", torch.cuda.current_device()))
 
 
 def get_response_lengths(position_ids: torch.Tensor) -> list[int]:
@@ -221,3 +225,28 @@ class Tensors(defaultdict):
             self[key].append(tensors.tolist())
 
         return metrics
+
+
+MEMORY_SNAPSHOT_MAX_ENTRIES = 100000
+
+
+class MemoryProfiler:
+    def __init__(self, step_num: int, snapshot_path: Path):
+        torch.cuda.memory._record_memory_history(max_entries=MEMORY_SNAPSHOT_MAX_ENTRIES)
+        self.logger = get_logger()
+        snapshot_path.mkdir(parents=True, exist_ok=True)
+        self.snapshot_path = snapshot_path
+        self.step_num = step_num
+
+    def step(self):
+        self.logger.info(f"Dumping memory snapshot at step {self.step_num} at {self.snapshot_path}")
+        begin = time.monotonic()
+        step_folder = self.snapshot_path / f"step_{self.step_num}"
+        step_folder.mkdir(parents=True, exist_ok=True)
+        file_path = step_folder / f"rank_{get_world().rank}.pickle"
+        with open(file_path, "wb") as output:
+            pickle.dump(torch.cuda.memory._snapshot(), output)
+        self.logger.info(
+            f"Finished dumping memory snapshot in {time.monotonic() - begin:.2f} seconds, load {file_path} at https://docs.pytorch.org/memory_viz to visualize the memory usage"
+        )
+        self.step_num += 1
