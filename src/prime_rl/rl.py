@@ -185,6 +185,14 @@ class RLConfig(BaseSettings):
         ),
     ] = False
 
+    rndvz_endpoint: Annotated[str | None, Field(description="The RNDVZ endpoint to use.")] = os.getenv("MASTER_ADDR", "localhost")
+
+    rndvz_endpoint_port: Annotated[int | None, Field(description="The RNDVZ endpoint port to use.")] = os.getenv("MASTER_PORT", get_free_port())
+
+    rndvz_node_rank: Annotated[int | None, Field(description="The RNDVZ node rank to use.")] = os.getenv("RANK", "0")
+
+    number_of_nodes: Annotated[int | None, Field(description="The number of nodes to use.")] = os.getenv("PET_NNODES", "1")
+
     @model_validator(mode="after")
     def validate_device(self):
         available_gpus = torch.cuda.device_count()
@@ -533,8 +541,10 @@ def rl(config: RLConfig):
             "uv",
             "run",
             "torchrun",
-            f"--rdzv-endpoint=localhost:{get_free_port()}",
+            f"--rdzv-endpoint={config.rndvz_endpoint}:{config.rndvz_endpoint_port}",
             f"--rdzv-id={uuid.uuid4().hex}",
+            f"--node-rank={config.node_rank}",
+            f'--nnodes={config.number_of_nodes}',
             "--nproc-per-node",
             str(config.trainer_gpus),
             "-m",
