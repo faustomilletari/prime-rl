@@ -189,7 +189,7 @@ class RLConfig(BaseSettings):
 
     rndvz_endpoint_port: Annotated[int | None, Field(description="The RNDVZ endpoint port to use.")] = os.getenv("MASTER_PORT", get_free_port())
 
-    rndvz_node_rank: Annotated[int | None, Field(description="The RNDVZ node rank to use.")] = os.getenv("RANK", "0")
+    node_rank: Annotated[int | None, Field(description="The node rank.")] = os.getenv("RANK", "0")
 
     number_of_nodes: Annotated[int | None, Field(description="The number of nodes to use.")] = os.getenv("PET_NNODES", "1")
 
@@ -541,10 +541,10 @@ def rl(config: RLConfig):
             "uv",
             "run",
             "torchrun",
-            f"--rdzv-endpoint={config.rndvz_endpoint}:{config.rndvz_endpoint_port}",
+            f"--rdzv-endpoint={rndvz_endpoint}:{rndvz_endpoint_port}",
             f"--rdzv-id={uuid.uuid4().hex}",
-            f"--node-rank={config.node_rank}",
-            f'--nnodes={config.number_of_nodes}',
+            f"--node-rank={node_rank}",
+            f'--nnodes={number_of_nodes}',
             "--nproc-per-node",
             str(config.trainer_gpus),
             "-m",
