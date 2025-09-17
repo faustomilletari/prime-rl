@@ -431,7 +431,7 @@ def rl(config: RLConfig):
     logger.debug(f"RL start command: {' '.join(start_command)}")
 
     # Prepare paths to communicate with the trainer
-    log_dir = get_log_dir(config.output_dir)
+    log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
     ckpt_dir = get_ckpt_dir(config.output_dir)
     weights_dir = get_weights_dir(config.output_dir)
     rollout_dir = get_rollout_dir(config.output_dir)
@@ -476,7 +476,7 @@ def rl(config: RLConfig):
                 tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
 
             inference_cmd = ["uv", "run", "inference", "@", inference_file.as_posix()]
-            inference_gpu_ids = devices[: config.inference_gpus]
+            inference_gpu_ids = devices[config.trainer_gpus:]
             logger.info(f"Starting inference process on GPU(s) {' '.join(map(str, inference_gpu_ids))}")
             logger.debug(f"Inference start command: {' '.join(inference_cmd)}")
             # If we don't log stdout, the server hangs
@@ -564,7 +564,7 @@ def rl(config: RLConfig):
             "@",
             trainer_file.as_posix(),
         ]
-        train_gpu_ids = devices[config.inference_gpus :]
+        train_gpu_ids = devices[:config.trainer_gpus]
         logger.info(f"Starting trainer process on GPU(s) {' '.join(map(str, train_gpu_ids))}")
         logger.debug(f"Training start command: {' '.join(trainer_cmd)}")
         with open(log_dir / "trainer.log", "w") as log_file:
