@@ -443,7 +443,11 @@ def rl(config: RLConfig):
         # Cleaning logs
         logger.info(f"Cleaning log dir ({log_dir})")
         shutil.rmtree(log_dir, ignore_errors=True)
+        
         log_dir.mkdir(parents=True, exist_ok=True)
+        weights_dir.mkdir(parents=True, exist_ok=True)
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        rollout_dir.mkdir(parents=True, exist_ok=True)
 
         # Cleaning checkpoints and weights, unless resuming
         do_resume = config.trainer.ckpt and config.trainer.ckpt.resume_step
