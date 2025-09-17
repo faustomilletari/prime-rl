@@ -434,7 +434,7 @@ def rl(config: RLConfig):
     log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
     ckpt_dir = get_ckpt_dir(config.output_dir) / f'rank-{config.node_rank}'
     weights_dir = get_weights_dir(config.output_dir) / f'rank-{config.node_rank}'
-    rollout_dir = get_rollout_dir(config.output_dir) / f'rank-{config.node_rank}'
+    rollout_dir = get_rollout_dir(config.output_dir)
 
     # Clean up directories if specified
     if config.clean:
