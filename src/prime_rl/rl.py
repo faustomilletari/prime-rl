@@ -549,8 +549,6 @@ def rl(config: RLConfig):
 
         if config.number_of_nodes > 1:
             trainer_cmd = [
-                "uv",
-                "run",
                 "torchrun",
                 f"--master_addr={config.rndvz_endpoint}",
                 f"--master_port={config.rndvz_endpoint_port}",
