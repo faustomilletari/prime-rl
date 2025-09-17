@@ -547,32 +547,22 @@ def rl(config: RLConfig):
         with open(trainer_file, "wb") as f:
             tomli_w.dump(config.trainer.model_dump(exclude_none=True, mode="json"), f)
 
-        if config.number_of_nodes > 1:
-            trainer_cmd = [
-                "torchrun",
-                f"--master_addr={config.rndvz_endpoint}",
-                f"--master_port={config.rndvz_endpoint_port}",
-                f"--node-rank={config.node_rank}",
-                f'--nnodes={config.number_of_nodes}',
-                "--nproc-per-node",
-                str(config.trainer_gpus),
-                "-m",
-                "prime_rl.trainer.rl.train",
-                "@",
-                trainer_file.as_posix(),
-            ]
-        else:
-            trainer_cmd = [
-                "uv",
-                "run",
-                "torchrun",
-                "--nproc-per-node",
-                str(config.trainer_gpus),
-                "-m",
-                "prime_rl.trainer.rl.train",
-                "@",
-                trainer_file.as_posix(),
-            ] 
+        trainer_cmd = [
+            "uv",
+            "run",
+            "torchrun",
+            f"--rdzv-endpoint={config.rndvz_endpoint}:{config.rndvz_endpoint_port}",
+            f"--rdzv-id={config.rndvz_id}",
+            f"--node-rank={config.node_rank}",
+            f'--nnodes={config.number_of_nodes}',
+            '--rdzv-backend=c10d',
+            "--nproc-per-node",
+            str(config.trainer_gpus),
+            "-m",
+            "prime_rl.trainer.rl.train",
+            "@",
+            trainer_file.as_posix(),
+        ]
         train_gpu_ids = devices[config.inference_gpus :]
         logger.info(f"Starting trainer process on GPU(s) {' '.join(map(str, train_gpu_ids))}")
         logger.debug(f"Training start command: {' '.join(trainer_cmd)}")
