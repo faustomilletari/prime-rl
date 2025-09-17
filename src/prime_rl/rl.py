@@ -556,7 +556,7 @@ def rl(config: RLConfig):
             f"--rdzv-id={config.rndvz_id}",
             f"--node-rank={config.node_rank}",
             f'--nnodes={config.number_of_nodes}',
-            '--rdzv-backend=nccl',
+            '--rdzv-backend=c10d',
             f"--nproc-per-node={config.trainer_gpus}",
             "-m",
             "prime_rl.trainer.rl.train",
