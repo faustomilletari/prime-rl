@@ -423,6 +423,246 @@ def rl(config: RLConfig):
     logger.debug(f"RL start command: {' '.join(start_command)}")
 
     # Prepare paths to communicate with the trainer
+    if config.node_rank == 0:
+        # Master node uses shared directories (no rank suffix)
+        log_dir = get_log_dir(config.output_dir)
+        ckpt_dir = get_ckpt_dir(config.output_dir)
+        weights_dir = get_weights_dir(config.output_dir)
+        rollout_dir = get_rollout_dir(config.output_dir)
+    else:
+        # Worker nodes use rank-specific directories for local logs only
+        log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
+        # But still point to shared directories for checkpoints/rollouts
+        ckpt_dir = get_ckpt_dir(config.output_dir)
+        weights_dir = get_weights_dir(config.output_dir)
+        rollout_dir = get_rollout_dir(config.output_dir)
+
+    # Clean up directories if specified (only on master node)
+    if config.clean and config.node_rank == 0:
+        logger.info("Cleaning checkpoint, logs, weights and rollout directories")
+
+        # Cleaning logs
+        logger.info(f"Cleaning log dir ({log_dir})")
+        shutil.rmtree(log_dir, ignore_errors=True)
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Cleaning checkpoints and weights, unless resuming
+        do_resume = config.trainer.ckpt and config.trainer.ckpt.resume_step
+        if not do_resume:  # Only clean if we don't resume
+            logger.info(f"Cleaning checkpoint directory ({ckpt_dir})")
+            shutil.rmtree(ckpt_dir, ignore_errors=True)
+
+            logger.info(f"Cleaning checkpoint weights directory ({weights_dir})")
+            shutil.rmtree(weights_dir, ignore_errors=True)
+
+        # Cleaning rollouts
+        logger.info(f"Cleaning rollout dir ({rollout_dir})")
+        shutil.rmtree(rollout_dir, ignore_errors=True)
+    
+    # Ensure log directory exists for all nodes
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Start processes
+    processes: list[Popen] = []
+    monitor_threads: list[Thread] = []
+    error_queue: list[Exception] = []
+    stop_events: dict[str, Event] = {}
+    all_devices = get_cuda_visible_devices()
+    devices = all_devices[: config.trainer_gpus + config.inference_gpus]
+    logger.info(f"Available GPUs: {', '.join(map(str, all_devices))} (using: {', '.join(map(str, devices))})")
+
+    try:
+        # Only start inference and orchestrator on master node (rank 0)
+        if config.node_rank == 0:
+            # Optionally, start inference process
+            if config.inference:
+                inference_file = get_temp_toml_file()
+                with open(inference_file, "wb") as f:
+                    tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
+
+                inference_cmd = ["uv", "run", "inference", "@", inference_file.as_posix()]
+                inference_gpu_ids = devices[: config.inference_gpus]
+                logger.info(f"Master node: Starting inference process on GPU(s) {' '.join(map(str, inference_gpu_ids))}")
+                logger.debug(f"Inference start command: {' '.join(inference_cmd)}")
+                # If we don't log stdout, the server hangs
+                with open(log_dir / "inference.log", "w") as log_file:
+                    inference_process = Popen(
+                        inference_cmd,
+                        env={**os.environ, "CUDA_VISIBLE_DEVICES": ",".join(map(str, inference_gpu_ids))},
+                        stdout=log_file,
+                        stderr=log_file,
+                    )
+                processes.append(inference_process)
+
+                # Start monitoring thread
+                stop_event = Event()
+                stop_events["inference"] = stop_event
+                monitor_thread = Thread(
+                    target=monitor_process,
+                    args=(inference_process, stop_event, error_queue, "inference"),
+                    daemon=True,
+                )
+                monitor_thread.start()
+                monitor_threads.append(monitor_thread)
+            else:
+                logger.warning(
+                    "No inference config specified, skipping starting inference server. Is your inference server running?"
+                )
+
+            # Start orchestrator process
+            orchestrator_file = get_temp_toml_file()
+            with open(orchestrator_file, "wb") as f:
+                tomli_w.dump(config.orchestrator.model_dump(exclude_none=True, mode="json"), f)
+
+            orchestrator_cmd = [
+                "uv",
+                "run",
+                "orchestrator",
+                "@",
+                orchestrator_file.as_posix(),
+            ]
+            logger.info("Master node: Starting orchestrator process")
+            logger.debug(f"Orchestrator start command: {' '.join(orchestrator_cmd)}")
+            with open(log_dir / "orchestrator.log", "w") as log_file:
+                orchestrator_process = Popen(
+                    orchestrator_cmd,
+                    stdout=log_file,
+                    stderr=log_file,
+                    env={
+                        **os.environ,
+                        "LOGURU_FORCE_COLORS": "1",
+                        "WANDB_PROGRAM": "uv run rl",
+                        "WANDB_ARGS": json.dumps(start_command),
+                    },
+                )
+            processes.append(orchestrator_process)
+
+            # Start monitoring thread
+            stop_event = Event()
+            stop_events["orchestrator"] = stop_event
+            monitor_thread = Thread(
+                target=monitor_process,
+                args=(orchestrator_process, stop_event, error_queue, "orchestrator"),
+                daemon=True,
+            )
+            monitor_thread.start()
+            monitor_threads.append(monitor_thread)
+        else:
+            logger.info(f"Worker node {config.node_rank}: Skipping orchestrator and inference (master node only)")
+
+        # All nodes start the distributed training process
+        trainer_file = get_temp_toml_file()
+        with open(trainer_file, "wb") as f:
+            tomli_w.dump(config.trainer.model_dump(exclude_none=True, mode="json"), f)
+
+        trainer_cmd = [
+            "uv",
+            "run",
+            "torchrun",
+            f"--rdzv-endpoint={config.rndvz_endpoint}:{config.rndvz_endpoint_port}",
+            f"--rdzv-id={config.rndvz_id}",
+            f"--node-rank={config.node_rank}",
+            f'--nnodes={config.number_of_nodes}',
+            '--rdzv-backend=c10d',
+            "--nproc-per-node",
+            str(config.trainer_gpus),
+            "-m",
+            "prime_rl.trainer.rl.train",
+            "@",
+            trainer_file.as_posix(),
+        ]
+        
+        if config.node_rank == 0:
+            # Master node: use GPUs after inference
+            train_gpu_ids = devices[config.inference_gpus :]
+        else:
+            # Worker nodes: use all available GPUs for training
+            train_gpu_ids = devices[: config.trainer_gpus]
+            
+        logger.info(f"Node {config.node_rank}: Starting trainer process on GPU(s) {' '.join(map(str, train_gpu_ids))}")
+        logger.debug(f"Training start command: {' '.join(trainer_cmd)}")
+        with open(log_dir / "trainer.log", "w") as log_file:
+            trainer_process = Popen(
+                trainer_cmd,
+                env={
+                    **os.environ,
+                    "CUDA_VISIBLE_DEVICES": ",".join(map(str, train_gpu_ids)),
+                    "LOGURU_FORCE_COLORS": "1",
+                    "WANDB_PROGRAM": "uv run rl",
+                    "WANDB_ARGS": json.dumps(start_command),
+                },
+                stdout=log_file,
+                stderr=log_file,
+            )
+        processes.append(trainer_process)
+
+        # Start monitoring thread
+        stop_event = Event()
+        stop_events["trainer"] = stop_event
+        monitor_thread = Thread(
+            target=monitor_process, args=(trainer_process, stop_event, error_queue, "trainer"), daemon=True
+        )
+        monitor_thread.start()
+        monitor_threads.append(monitor_thread)
+
+        # Monitor all processes for failures
+        logger.success("Startup complete. Showing trainer logs...")
+
+        tail_process = Popen(["tail", "-F", log_dir / "trainer.log"])
+        processes.append(tail_process)
+
+        # Check for errors from monitor threads
+        if config.node_rank == 0:
+            # Master node waits for both orchestrator and trainer
+            while not (stop_events["orchestrator"].is_set() and stop_events["trainer"].is_set()):
+                if error_queue:
+                    error = error_queue[0]
+                    logger.error(f"Error: {error}")
+                    logger.error("Terminating all processes...")
+                    cleanup_threads(monitor_threads)
+                    cleanup_processes(processes)
+                    sys.exit(1)
+
+                # Small delay to avoid busy waiting
+                time.sleep(1)
+        else:
+            # Worker nodes only wait for trainer
+            while not stop_events["trainer"].is_set():
+                if error_queue:
+                    error = error_queue[0]
+                    logger.error(f"Error: {error}")
+                    logger.error("Terminating all processes...")
+                    cleanup_threads(monitor_threads)
+                    cleanup_processes(processes)
+                    sys.exit(1)
+
+                # Small delay to avoid busy waiting
+                time.sleep(1)
+
+        logger.success("RL training finished!")
+
+        # Cleanup threads and processes
+        cleanup_threads(monitor_threads)
+        cleanup_processes(processes)
+
+    except KeyboardInterrupt:
+        logger.warning("Received interrupt signal, terminating all processes...")
+        cleanup_threads(monitor_threads)
+        cleanup_processes(processes)
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Error occurred: {e}")
+        cleanup_threads(monitor_threads)
+        cleanup_processes(processes)
+        raise
+    
+    # Setup logger
+    logger = setup_logger(config.log)
+    start_command = sys.argv
+    logger.info("Starting RL run")
+    logger.debug(f"RL start command: {' '.join(start_command)}")
+
+    # Prepare paths to communicate with the trainer
     log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
     ckpt_dir = get_ckpt_dir(config.output_dir) / f'rank-{config.node_rank}'
     weights_dir = get_weights_dir(config.output_dir) / f'rank-{config.node_rank}'
