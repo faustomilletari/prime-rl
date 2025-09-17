@@ -12,6 +12,8 @@ import wandb
 from prime_rl.utils.logger import get_logger
 
 
+node_rank = os.getenv("PET_NODE_RANK", "0")
+
 def rgetattr(obj: Any, attr_path: str) -> Any:
     """
     Try to get a (nested) attribute from an object. For example:
@@ -234,28 +236,28 @@ def get_cuda_visible_devices() -> list[int]:
 
 
 def get_log_dir(output_dir: Path) -> Path:
-    return output_dir / "logs"
+    return output_dir / "logs" / f"rank-{node_rank}"
 
 
 def get_ckpt_dir(output_dir: Path) -> Path:
-    return output_dir / "checkpoints"
+    return output_dir / "checkpoints" / f"rank-{node_rank}"
 
 
 def get_weights_dir(output_dir: Path) -> Path:
-    return output_dir / "weights"
+    return output_dir / "weights" / f"rank-{node_rank}"
 
 
 def get_rollout_dir(output_dir: Path) -> Path:
-    return output_dir / "rollouts"
+    return output_dir / "rollouts" / f"rank-{node_rank}"
 
 
 def get_eval_dir(output_dir: Path) -> Path:
-    return output_dir / "evals"
+    return output_dir / "evals" / f"rank-{node_rank}"
 
 
 def get_step_path(path: Path, step: int) -> Path:
-    return path / f"step_{step}"
+    return path / f"step_{step}" / f"rank-{node_rank}"
 
 
 def get_weight_ckpt_model_path(weights_dir: Path, step: int) -> Path:
-    return weights_dir / f"step_{step}" / "pytorch_model.bin"
+    return weights_dir / f"step_{step}" / f"rank-{node_rank}" / "pytorch_model.bin"

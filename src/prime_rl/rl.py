@@ -431,10 +431,10 @@ def rl(config: RLConfig):
     logger.debug(f"RL start command: {' '.join(start_command)}")
 
     # Prepare paths to communicate with the trainer
-    log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
-    ckpt_dir = get_ckpt_dir(config.output_dir) / f'rank-{config.node_rank}'
-    weights_dir = get_weights_dir(config.output_dir) / f'rank-{config.node_rank}'
-    rollout_dir = get_rollout_dir(config.output_dir) / f'rank-{config.node_rank}'
+    log_dir = get_log_dir(config.output_dir)
+    ckpt_dir = get_ckpt_dir(config.output_dir)
+    weights_dir = get_weights_dir(config.output_dir)
+    rollout_dir = get_rollout_dir(config.output_dir)
 
     # Clean up directories if specified
     if config.clean:
@@ -445,9 +445,6 @@ def rl(config: RLConfig):
         shutil.rmtree(log_dir, ignore_errors=True)
         
         log_dir.mkdir(parents=True, exist_ok=True)
-        weights_dir.mkdir(parents=True, exist_ok=True)
-        ckpt_dir.mkdir(parents=True, exist_ok=True)
-        rollout_dir.mkdir(parents=True, exist_ok=True)
 
         # Cleaning checkpoints and weights, unless resuming
         do_resume = config.trainer.ckpt and config.trainer.ckpt.resume_step
