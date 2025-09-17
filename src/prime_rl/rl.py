@@ -469,7 +469,7 @@ def rl(config: RLConfig):
 
     try:
         # Optionally, start inference process
-        if config.inference:
+        if config.inference and config.node_rank == 0:
             inference_file = get_temp_toml_file()
             with open(inference_file, "wb") as f:
                 tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
@@ -498,6 +498,10 @@ def rl(config: RLConfig):
             )
             monitor_thread.start()
             monitor_threads.append(monitor_thread)
+        elif config.node_rank != 0:
+            logger.warning(
+                "This node is not the master node, skipping starting inference server."
+            )
         else:
             logger.warning(
                 "No inference config specified, skipping starting inference server. Is your inference server running?"
