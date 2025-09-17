@@ -423,10 +423,10 @@ def rl(config: RLConfig):
     logger.debug(f"RL start command: {' '.join(start_command)}")
 
     # Prepare paths to communicate with the trainer
-    log_dir = get_log_dir(config.output_dir)
-    ckpt_dir = get_ckpt_dir(config.output_dir)
-    weights_dir = get_weights_dir(config.output_dir)
-    rollout_dir = get_rollout_dir(config.output_dir)
+    log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
+    ckpt_dir = get_ckpt_dir(config.output_dir) / f'rank-{config.node_rank}'
+    weights_dir = get_weights_dir(config.output_dir) / f'rank-{config.node_rank}'
+    rollout_dir = get_rollout_dir(config.output_dir) / f'rank-{config.node_rank}'
 
     # Clean up directories if specified
     if config.clean:
