@@ -432,9 +432,9 @@ def rl(config: RLConfig):
 
     # Prepare paths to communicate with the trainer
     log_dir = get_log_dir(config.output_dir) / f'rank-{config.node_rank}'
-    ckpt_dir = get_ckpt_dir(config.output_dir)
-    weights_dir = get_weights_dir(config.output_dir)
-    rollout_dir = get_rollout_dir(config.output_dir)
+    ckpt_dir = get_ckpt_dir(config.output_dir) / f'rank-{config.node_rank}'
+    weights_dir = get_weights_dir(config.output_dir) / f'rank-{config.node_rank}'
+    rollout_dir = get_rollout_dir(config.output_dir) / f'rank-{config.node_rank}'
 
     # Clean up directories if specified
     if config.clean:
@@ -469,7 +469,7 @@ def rl(config: RLConfig):
 
     try:
         # Optionally, start inference process
-        if config.inference and config.node_rank == 0:
+        if config.inference:
             inference_file = get_temp_toml_file()
             with open(inference_file, "wb") as f:
                 tomli_w.dump(config.inference.model_dump(exclude_none=True, mode="json"), f)
@@ -498,10 +498,6 @@ def rl(config: RLConfig):
             )
             monitor_thread.start()
             monitor_threads.append(monitor_thread)
-        elif config.node_rank != 0:
-            logger.warning(
-                "This node is not the master node, skipping starting inference server."
-            )
         else:
             logger.warning(
                 "No inference config specified, skipping starting inference server. Is your inference server running?"
