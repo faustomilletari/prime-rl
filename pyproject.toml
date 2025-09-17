@@ -17,10 +17,10 @@ dependencies = [
     "pydantic-settings>=2.10.1",
     "pylatexenc>=2.10",
     "tomli>=2.2.1",
-    "torch>=2.8.0",
+    "torch>=2.7.0",
     "transformers>=4.56.0",
     "uvloop>=0.21.0",
-    "vllm==0.10.2",
+    "vllm==0.10.1.1",
     "wandb>=0.20.1",
     "lovely-tensors>=0.1.18",
     "rich>=14.0.0",
@@ -45,7 +45,7 @@ sft = "prime_rl.trainer.sft.train:main"
 eval = "prime_rl.eval.eval:main"
 
 [project.optional-dependencies]
-flash-attn = ["flash-attn>=2.8.3"]
+flash-attn = ["flash-attn==2.8.2"]
 flash-infer = ["flashinfer-python>=0.2.8rc1"]
 
 vf = [
