@@ -1,6 +1,8 @@
 import asyncio
+from platform import node
 import time
 from loguru import logger
+import os
 
 # Import environment before any other imports
 # ruff: noqa: I001,F401
@@ -43,6 +45,8 @@ from prime_rl.utils.utils import (
 )
 import numpy as np
 
+
+node_rank = os.getenv("PET_NODE_RANK", 0)
 
 @clean_exit
 @logger.catch(reraise=True)
@@ -361,7 +365,7 @@ async def orchestrate(config: OrchestratorConfig):
         step_path = get_rollout_dir(config.output_dir) / f"step_{progress.step}"
         step_path.mkdir(parents=True, exist_ok=True)
         for i, batches in enumerate(all_data_ranks_batches):
-            batch_path = step_path / f"rank_{i}.pt"
+            batch_path = step_path / f"rank_{i + (config.num_train_worker * node_rank)}.pt"
             tmp_path = batch_path.with_suffix(".tmp")
             logger.debug(f"Saving rollouts for step {progress.step} for rank {i} to {batch_path}")
             torch.save(batches, tmp_path)
