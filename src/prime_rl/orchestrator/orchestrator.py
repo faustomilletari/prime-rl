@@ -365,7 +365,7 @@ async def orchestrate(config: OrchestratorConfig):
         step_path = get_rollout_dir(config.output_dir) / f"step_{progress.step}"
         step_path.mkdir(parents=True, exist_ok=True)
         for i, batches in enumerate(all_data_ranks_batches):
-            batch_path = step_path / f"rank_{int(i) + int(config.num_train_workers) * int(node_rank)}.pt"
+            batch_path = step_path / f"rank_{int(i)}" # + int(config.num_train_workers) * int(node_rank)}.pt"
             tmp_path = batch_path.with_suffix(".tmp")
             logger.debug(f"Saving rollouts for step {progress.step} for rank {i} to {batch_path}")
             torch.save(batches, tmp_path)
