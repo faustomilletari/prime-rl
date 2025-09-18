@@ -4,6 +4,7 @@ import time
 import warnings
 from pathlib import Path
 
+from prime_rl.utils import logger
 import torch
 from torch import Tensor, nn
 from torch.distributed.checkpoint.state_dict import _get_fqns as get_fqns
@@ -16,6 +17,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.utils import get_step_path, get_weight_ckpt_model_path, get_weights_dir
 
+logger = logger.get_logger()
 
 def _has_tt_moe_layers(state_dict: dict[str, Tensor]) -> bool:
     return any("mlp.router.gate" in i for i in state_dict.keys())
@@ -175,9 +177,9 @@ class WeightCheckpointManager:
                 )
                 thread.start()
             else:
-                print(f"Saving weight checkpoint for step (sync): {step}")
+                logger.info(f"Saving weight checkpoint for step (sync): {step}")
                 self._save_to_path(cpu_state, model, tokenizer, step)
-                print(f"Saved weight checkpoint for step (sync): {step}")
+                logger.info(f"Saved weight checkpoint for step (sync): {step}")
 
         return self._get_model_path(step)
 
