@@ -175,7 +175,9 @@ class WeightCheckpointManager:
                 )
                 thread.start()
             else:
+                print(f"Saving weight checkpoint for step (sync): {step}")
                 self._save_to_path(cpu_state, model, tokenizer, step)
+                print(f"Saved weight checkpoint for step (sync): {step}")
 
         return self._get_model_path(step)
 
@@ -204,16 +206,16 @@ class WeightCheckpointManager:
         1. The step is an evaluation step (e.g. step % weights.interval == 0)
         2. The step is a checkpoint step or at most async_level steps earlier
         """
-        if self.config.save_async:
-            thread = threading.Thread(
-                target=self._maybe_clean,
-                args=(step,),
-                name=f"weight-checkpoint-clean-{step}",
-            )
-            thread.start()
-        else:
-            pass
-            #self._maybe_clean(step)
+        if self._is_master:
+            if self.config.save_async:
+                thread = threading.Thread(
+                    target=self._maybe_clean,
+                    args=(step,),
+                    name=f"weight-checkpoint-clean-{step}",
+                )
+                thread.start()
+            else:
+                self._maybe_clean(step)
 
 
 def setup_weight_ckpt_manager(
