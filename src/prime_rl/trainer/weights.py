@@ -212,7 +212,8 @@ class WeightCheckpointManager:
             )
             thread.start()
         else:
-            self._maybe_clean(step)
+            pass
+            #self._maybe_clean(step)
 
 
 def setup_weight_ckpt_manager(
