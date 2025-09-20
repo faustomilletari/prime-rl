@@ -175,9 +175,7 @@ class WeightCheckpointManager:
                 )
                 thread.start()
             else:
-                print(f"Saving weight checkpoint for step (sync): {step}")
                 self._save_to_path(cpu_state, model, tokenizer, step)
-                print(f"Saved weight checkpoint for step (sync): {step}")
 
         return self._get_model_path(step)
 
