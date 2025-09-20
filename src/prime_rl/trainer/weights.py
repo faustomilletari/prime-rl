@@ -2,6 +2,7 @@ import shutil
 import threading
 import time
 import warnings
+import os
 from pathlib import Path
 
 import torch
@@ -166,7 +167,7 @@ class WeightCheckpointManager:
         if _has_tt_moe_layers(cpu_state):
             _convert_tt_moe_to_hf_(cpu_state)
 
-        if self._is_master:
+        if os.getenv("LOCAL_RANK", "0") == "0":
             if self.config.save_async:
                 thread = threading.Thread(
                     target=self._save_to_path,
@@ -204,7 +205,7 @@ class WeightCheckpointManager:
         1. The step is an evaluation step (e.g. step % weights.interval == 0)
         2. The step is a checkpoint step or at most async_level steps earlier
         """
-        if self._is_master:
+        if os.getenv("LOCAL_RANK", "0") == "0":
             if self.config.save_async:
                 thread = threading.Thread(
                     target=self._maybe_clean,
