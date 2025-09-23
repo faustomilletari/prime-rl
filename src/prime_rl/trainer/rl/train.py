@@ -44,7 +44,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-from prime_rl.utils.zmq_store import SyncDataStoreClient
+from prime_rl.utils.zmq_store import DataStoreClient
 
 
 @clean_exit
@@ -93,7 +93,7 @@ def train(config: RLTrainerConfig):
     zmq_client = None
     if config.zmq.enabled:
         logger.info(f"Initializing ZeroMQ client for weight checkpoints")
-        zmq_client = SyncDataStoreClient(
+        zmq_client = DataStoreClient(
             server_address=config.zmq.client_connect_address,
             server_port=config.zmq.port
         )

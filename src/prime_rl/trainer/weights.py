@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 import threading
 import time
@@ -24,6 +25,21 @@ def _has_tt_moe_layers(state_dict: dict[str, Tensor]) -> bool:
 
 def _get_max_layer_num(state_dict: dict[str, Tensor]) -> int:
     return max(int(i.split(".")[2]) for i in state_dict.keys() if "model.layers." in i) + 1
+
+
+def _run_async_in_thread(async_func, *args, **kwargs):
+    """Run an async function in a new event loop in a thread."""
+    def run_in_thread():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(async_func(*args, **kwargs))
+        finally:
+            loop.close()
+    
+    thread = threading.Thread(target=run_in_thread)
+    thread.start()
+    return thread
 
 
 def _convert_tt_moe_to_hf_(state_dict: dict[str, Tensor]):
@@ -161,8 +177,34 @@ class WeightCheckpointManager:
 
         self._logger.debug(f"Saved weight checkpoint to {step_path} in {time.time() - start_time:.2f} seconds")
 
+    async def _save_to_zmq_async(self, cpu_state: dict[str, Tensor], model: nn.Module, tokenizer: PreTrainedTokenizer, step: int):
+        """Save weight checkpoint to ZeroMQ store (async version)."""
+        try:
+            # Store the model state dict
+            weight_key = f"weight_step_{step}"
+            success = await self.zmq_client.store_data(weight_key, cpu_state)
+            if not success:
+                self._logger.error(f"Failed to store weight checkpoint {weight_key}")
+                return
+
+            # Store model config and tokenizer info
+            config_key = f"config_step_{step}"
+            config_data = {
+                "model_config": model.config.to_dict(),
+                "generation_config": model.generation_config.to_dict() if model.generation_config else None,
+                "tokenizer_config": tokenizer.init_kwargs,
+            }
+            success = await self.zmq_client.store_data(config_key, config_data)
+            if not success:
+                self._logger.error(f"Failed to store config for step {step}")
+                return
+
+            self._logger.debug(f"Saved weight checkpoint {step} to ZeroMQ store")
+        except Exception as e:
+            self._logger.error(f"Failed to save weight checkpoint {step} to ZeroMQ: {e}")
+
     def _save_to_zmq(self, cpu_state: dict[str, Tensor], model: nn.Module, tokenizer: PreTrainedTokenizer, step: int):
-        """Save weight checkpoint to ZeroMQ store."""
+        """Save weight checkpoint to ZeroMQ store (sync wrapper)."""
         try:
             # Store the model state dict
             weight_key = f"weight_step_{step}"
@@ -201,9 +243,14 @@ class WeightCheckpointManager:
 
         if self._is_master:
             if self.zmq_client:
-                # ZMQ operations are not thread-safe, so we always save synchronously
-                # to avoid serialization overhead from locks
-                self._save_to_zmq(cpu_state, model, tokenizer, step)
+                # Use async ZMQ operations for better performance
+                if self.config.save_async:
+                    _run_async_in_thread(
+                        self._save_to_zmq_async,
+                        cpu_state, model, tokenizer, step
+                    )
+                else:
+                    self._save_to_zmq(cpu_state, model, tokenizer, step)
             else:
                 # Use file system storage
                 if self.config.save_async:
