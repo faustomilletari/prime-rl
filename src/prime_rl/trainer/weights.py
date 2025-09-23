@@ -202,15 +202,7 @@ class WeightCheckpointManager:
         if self._is_master:
             if self.zmq_client:
                 # Use ZeroMQ storage
-                if self.config.save_async:
-                    thread = threading.Thread(
-                        target=self._save_to_zmq,
-                        args=(cpu_state, model, tokenizer, step),
-                        name=f"weight-checkpoint-save-{step}",
-                    )
-                    thread.start()
-                else:
-                    self._save_to_zmq(cpu_state, model, tokenizer, step)
+                self._save_to_zmq(cpu_state, model, tokenizer, step)
             else:
                 # Use file system storage
                 if self.config.save_async:
@@ -282,15 +274,7 @@ class WeightCheckpointManager:
         """
         if self._is_master:
             if self.zmq_client:
-                if self.config.save_async:
-                    thread = threading.Thread(
-                        target=self._maybe_clean_zmq,
-                        args=(step,),
-                        name=f"weight-checkpoint-clean-{step}",
-                    )
-                    thread.start()
-                else:
-                    self._maybe_clean_zmq(step)
+                self._maybe_clean_zmq(step)
             else:
                 if self.config.save_async:
                     thread = threading.Thread(
