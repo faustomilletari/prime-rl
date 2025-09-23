@@ -385,6 +385,35 @@ class SyncRolloutStoreClient:
             self._logger.error(f"Failed to retrieve rollout '{rollout_key}': {e}")
             return None
 
+    def delete_rollout(self, rollout_key: str) -> bool:
+        """
+        Delete a rollout from the server.
+
+        Args:
+            rollout_key: Unique identifier for the rollout
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        request = {
+            "type": MessageType.DELETE.value,
+            "rollout_key": rollout_key
+        }
+
+        try:
+            response = self._send_request(request)
+            success = response.get("status") == "success"
+
+            if success:
+                self._logger.debug(f"Successfully deleted rollout '{rollout_key}'")
+            else:
+                self._logger.error(f"Failed to delete rollout '{rollout_key}': {response.get('message')}")
+
+            return success
+        except Exception as e:
+            self._logger.error(f"Failed to delete rollout '{rollout_key}': {e}")
+            return False
+
     def rollout_exists(self, rollout_key: str) -> bool:
         """
         Check if a rollout exists on the server.
