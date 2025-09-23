@@ -87,9 +87,9 @@ class RolloutStoreServer:
 
         elif msg_type == MessageType.DELETE:
             if rollout_key in self.rollout_store:
-                del self.rollout_store[rollout_key]
+                self.rollout_store[rollout_key] = None
                 self._logger.debug(f"Deleted rollout '{rollout_key}'")
-                return {"status": "success", "message": f"Rollout '{rollout_key}' deleted"}
+                return {"status": "success", "message": f"Rollout '{rollout_key}' removed from store"}
             else:
                 return {"status": "error", "message": f"Rollout '{rollout_key}' not found"}
 
