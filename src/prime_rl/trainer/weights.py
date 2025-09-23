@@ -228,6 +228,10 @@ class WeightCheckpointManager:
     def _maybe_clean_zmq(self, step: int):
         """Clean up weight checkpoint from ZeroMQ store."""
         step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
+
+        print(f"Maybe cleaning weight checkpoint {step} from ZeroMQ store")
+
+        return
         
         try:
             weight_key = f"weight_step_{step}"
