@@ -42,6 +42,16 @@ def _run_async_in_thread(async_func, *args, **kwargs):
     return thread
 
 
+def _create_zmq_client_for_thread(original_client):
+    """Create a new ZMQ client for thread-safe operations."""
+    from prime_rl.utils.zmq_store import DataStoreClient
+    return DataStoreClient(
+        server_address=original_client.server_address,
+        server_port=original_client.server_port,
+        timeout=original_client.timeout
+    )
+
+
 def _convert_tt_moe_to_hf_(state_dict: dict[str, Tensor]):
     num_layers = _get_max_layer_num(state_dict)
     for i in range(num_layers):
@@ -179,10 +189,13 @@ class WeightCheckpointManager:
 
     async def _save_to_zmq_async(self, cpu_state: dict[str, Tensor], model: nn.Module, tokenizer: PreTrainedTokenizer, step: int):
         """Save weight checkpoint to ZeroMQ store (async version)."""
+        # Create a new ZMQ client for this thread to avoid state conflicts
+        thread_zmq_client = _create_zmq_client_for_thread(self.zmq_client)
+        
         try:
             # Store the model state dict
             weight_key = f"weight_step_{step}"
-            success = await self.zmq_client.store_data(weight_key, cpu_state)
+            success = await thread_zmq_client.store_data(weight_key, cpu_state)
             if not success:
                 self._logger.error(f"Failed to store weight checkpoint {weight_key}")
                 return
@@ -194,7 +207,7 @@ class WeightCheckpointManager:
                 "generation_config": model.generation_config.to_dict() if model.generation_config else None,
                 "tokenizer_config": tokenizer.init_kwargs,
             }
-            success = await self.zmq_client.store_data(config_key, config_data)
+            success = await thread_zmq_client.store_data(config_key, config_data)
             if not success:
                 self._logger.error(f"Failed to store config for step {step}")
                 return
@@ -202,6 +215,9 @@ class WeightCheckpointManager:
             self._logger.debug(f"Saved weight checkpoint {step} to ZeroMQ store")
         except Exception as e:
             self._logger.error(f"Failed to save weight checkpoint {step} to ZeroMQ: {e}")
+        finally:
+            # Clean up the thread-specific client
+            await thread_zmq_client.close()
 
     def _save_to_zmq(self, cpu_state: dict[str, Tensor], model: nn.Module, tokenizer: PreTrainedTokenizer, step: int):
         """Save weight checkpoint to ZeroMQ store (sync wrapper)."""
@@ -265,8 +281,38 @@ class WeightCheckpointManager:
 
         return self._get_model_path(step)
 
+    async def _maybe_clean_zmq_async(self, step: int):
+        """Clean up weight checkpoint from ZeroMQ store (async version)."""
+        step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
+        
+        # Create a new ZMQ client for this thread to avoid state conflicts
+        thread_zmq_client = _create_zmq_client_for_thread(self.zmq_client)
+        
+        try:
+            weight_key = f"weight_step_{step}"
+            config_key = f"config_step_{step}"
+            
+            # Check if we should keep this step
+            keep_for_eval = self.config.interval and step % self.config.interval == 0
+            keep_for_ckpt = (
+                self.ckpt_config
+                and self.ckpt_config.interval
+                and (self.ckpt_config.interval - (step % self.ckpt_config.interval)) % self.ckpt_config.interval
+                <= self.async_level
+            )
+            
+            if not (keep_for_eval or keep_for_ckpt):
+                await thread_zmq_client.delete_data(weight_key)
+                await thread_zmq_client.delete_data(config_key)
+                self._logger.debug(f"Removed weight checkpoint {step} from ZeroMQ store")
+        except Exception as e:
+            self._logger.error(f"Failed to clean weight checkpoint {step} from ZeroMQ: {e}")
+        finally:
+            # Clean up the thread-specific client
+            await thread_zmq_client.close()
+
     def _maybe_clean_zmq(self, step: int):
-        """Clean up weight checkpoint from ZeroMQ store."""
+        """Clean up weight checkpoint from ZeroMQ store (sync wrapper)."""
         step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
         
         try:
@@ -318,7 +364,13 @@ class WeightCheckpointManager:
         """
         if self._is_master:
             if self.zmq_client:
-                self._maybe_clean_zmq(step)
+                if self.config.save_async:
+                    _run_async_in_thread(
+                        self._maybe_clean_zmq_async,
+                        step
+                    )
+                else:
+                    self._maybe_clean_zmq(step)
             else:
                 if self.config.save_async:
                     thread = threading.Thread(
