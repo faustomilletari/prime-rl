@@ -81,12 +81,18 @@ class WeightCheckpointManager:
     """Utility class to save and cleanup HF-compatible weight checkpoints."""
 
     def __init__(
-        self, output_dir: Path, config: WeightCheckpointConfig, ckpt_config: CheckpointConfig | None, async_level: int
+        self, 
+        output_dir: Path, 
+        config: WeightCheckpointConfig, 
+        ckpt_config: CheckpointConfig | None, 
+        async_level: int,
+        zmq_client=None
     ):
         self.weights_dir = get_weights_dir(output_dir)
         self.config = config
         self.ckpt_config = ckpt_config
         self.async_level = async_level
+        self.zmq_client = zmq_client
         self._logger = get_logger()
         self._world = get_world()
         self._is_master = self._world.is_master
@@ -155,6 +161,32 @@ class WeightCheckpointManager:
 
         self._logger.debug(f"Saved weight checkpoint to {step_path} in {time.time() - start_time:.2f} seconds")
 
+    def _save_to_zmq(self, cpu_state: dict[str, Tensor], model: nn.Module, tokenizer: PreTrainedTokenizer, step: int):
+        """Save weight checkpoint to ZeroMQ store."""
+        try:
+            # Store the model state dict
+            weight_key = f"weight_step_{step}"
+            success = self.zmq_client.store_data(weight_key, cpu_state)
+            if not success:
+                self._logger.error(f"Failed to store weight checkpoint {weight_key}")
+                return
+
+            # Store model config and tokenizer info
+            config_key = f"config_step_{step}"
+            config_data = {
+                "model_config": model.config.to_dict(),
+                "generation_config": model.generation_config.to_dict() if model.generation_config else None,
+                "tokenizer_config": tokenizer.init_kwargs,
+            }
+            success = self.zmq_client.store_data(config_key, config_data)
+            if not success:
+                self._logger.error(f"Failed to store config for step {step}")
+                return
+
+            self._logger.debug(f"Saved weight checkpoint {step} to ZeroMQ store")
+        except Exception as e:
+            self._logger.error(f"Failed to save weight checkpoint {step} to ZeroMQ: {e}")
+
     def save(
         self,
         model: nn.Module,
@@ -168,36 +200,73 @@ class WeightCheckpointManager:
             _convert_tt_moe_to_hf_(cpu_state)
 
         if self._is_master:
-            if self.config.save_async:
-                thread = threading.Thread(
-                    target=self._save_to_path,
-                    args=(cpu_state, model, tokenizer, step),
-                    name=f"weight-checkpoint-save-{step}",
-                )
-                thread.start()
+            if self.zmq_client:
+                # Use ZeroMQ storage
+                if self.config.save_async:
+                    thread = threading.Thread(
+                        target=self._save_to_zmq,
+                        args=(cpu_state, model, tokenizer, step),
+                        name=f"weight-checkpoint-save-{step}",
+                    )
+                    thread.start()
+                else:
+                    self._save_to_zmq(cpu_state, model, tokenizer, step)
             else:
-                self._save_to_path(cpu_state, model, tokenizer, step)
+                # Use file system storage
+                if self.config.save_async:
+                    thread = threading.Thread(
+                        target=self._save_to_path,
+                        args=(cpu_state, model, tokenizer, step),
+                        name=f"weight-checkpoint-save-{step}",
+                    )
+                    thread.start()
+                else:
+                    self._save_to_path(cpu_state, model, tokenizer, step)
 
         return self._get_model_path(step)
 
     def _maybe_clean(self, step: int):
         """Synchronous helper of `clean`."""
         step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
-        candidate_path_to_delete = self._get_step_path(step)
-        keep_for_eval = self.config.interval and step % self.config.interval == 0
-        # For checkpointing step x, we need all weight checkpoints in [x-async_level, x] (for logprob model)
-        # To get [n-k, n] with interval n and buffer k over all natural numbers x, we use the condition (n - (x % n)) % n <= k
-        keep_for_ckpt = (
-            self.ckpt_config
-            and self.ckpt_config.interval
-            and (self.ckpt_config.interval - (step % self.ckpt_config.interval)) % self.ckpt_config.interval
-            <= self.async_level
-        )
-        if not (keep_for_eval or keep_for_ckpt):
-            self._logger.debug(
-                f"Removing past weight checkpoint {candidate_path_to_delete} ({keep_for_eval=}, {keep_for_ckpt=})"
+        
+        if self.zmq_client:
+            # Clean up from ZeroMQ store
+            try:
+                weight_key = f"weight_step_{step}"
+                config_key = f"config_step_{step}"
+                
+                # Check if we should keep this step
+                keep_for_eval = self.config.interval and step % self.config.interval == 0
+                keep_for_ckpt = (
+                    self.ckpt_config
+                    and self.ckpt_config.interval
+                    and (self.ckpt_config.interval - (step % self.ckpt_config.interval)) % self.ckpt_config.interval
+                    <= self.async_level
+                )
+                
+                if not (keep_for_eval or keep_for_ckpt):
+                    self.zmq_client.delete_data(weight_key)
+                    self.zmq_client.delete_data(config_key)
+                    self._logger.debug(f"Removed weight checkpoint {step} from ZeroMQ store")
+            except Exception as e:
+                self._logger.error(f"Failed to clean weight checkpoint {step} from ZeroMQ: {e}")
+        else:
+            # Clean up from file system
+            candidate_path_to_delete = self._get_step_path(step)
+            keep_for_eval = self.config.interval and step % self.config.interval == 0
+            # For checkpointing step x, we need all weight checkpoints in [x-async_level, x] (for logprob model)
+            # To get [n-k, n] with interval n and buffer k over all natural numbers x, we use the condition (n - (x % n)) % n <= k
+            keep_for_ckpt = (
+                self.ckpt_config
+                and self.ckpt_config.interval
+                and (self.ckpt_config.interval - (step % self.ckpt_config.interval)) % self.ckpt_config.interval
+                <= self.async_level
             )
-            shutil.rmtree(candidate_path_to_delete, ignore_errors=True)
+            if not (keep_for_eval or keep_for_ckpt):
+                self._logger.debug(
+                    f"Removing past weight checkpoint {candidate_path_to_delete} ({keep_for_eval=}, {keep_for_ckpt=})"
+                )
+                shutil.rmtree(candidate_path_to_delete, ignore_errors=True)
 
     def maybe_clean(self, step: int):
         """
@@ -222,5 +291,6 @@ def setup_weight_ckpt_manager(
     weight_ckpt_config: WeightCheckpointConfig,
     ckpt_config: CheckpointConfig | None,
     async_level: int,
+    zmq_client=None,
 ) -> WeightCheckpointManager:
-    return WeightCheckpointManager(output_dir, weight_ckpt_config, ckpt_config, async_level=async_level)
+    return WeightCheckpointManager(output_dir, weight_ckpt_config, ckpt_config, async_level=async_level, zmq_client=zmq_client)

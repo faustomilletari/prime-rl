@@ -43,7 +43,7 @@ from prime_rl.utils.utils import (
     get_weights_dir,
     to_col_format,
 )
-from prime_rl.utils.zmq_store import RolloutStoreServer, RolloutStoreClient
+from prime_rl.utils.zmq_store import DataStoreServer, DataStoreClient, wait_for_data
 import numpy as np
 
 
@@ -62,24 +62,24 @@ async def orchestrate(config: OrchestratorConfig):
             f"Running in benchmark mode (max_steps={config.max_steps}, async_level={format_num(config.async_level, precision=0)})"
         )
     
-    # Setup ZeroMQ rollout store server if enabled
-    rollout_server = None
-    rollout_client = None
+    # Setup ZeroMQ data store server if enabled
+    data_server = None
+    data_client = None
     if config.zmq.enabled:
-        logger.info(f"Starting ZeroMQ rollout store server on {config.zmq.server_bind_address}:{config.zmq.port}")
-        rollout_server = RolloutStoreServer(port=config.zmq.port)
+        logger.info(f"Starting ZeroMQ data store server on {config.zmq.server_bind_address}:{config.zmq.port}")
+        data_server = DataStoreServer(port=config.zmq.port)
         # Start server in background task
-        server_task = asyncio.create_task(rollout_server.start())
+        server_task = asyncio.create_task(data_server.start())
         
         # Give server time to start up
         await asyncio.sleep(1.0)
         
         # Create client for cleanup operations
-        rollout_client = RolloutStoreClient(
+        data_client = DataStoreClient(
             server_address=config.zmq.client_connect_address, 
             server_port=config.zmq.port
         )
-        logger.info("ZeroMQ rollout store initialized")
+        logger.info("ZeroMQ data store initialized")
 
     # Setup client
     assert config.client.server_type == "vllm", "Orchestrator only supports vLLM server type."
@@ -174,7 +174,15 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weight checkpoint {ckpt_step}")
             wait_for_weight_ckpt_start_time = time.time()
-            wait_for_weight_checkpoint(get_weights_dir(config.output_dir), ckpt_step)
+            
+            if config.zmq.enabled and data_client:
+                # Use ZeroMQ to wait for weight checkpoint
+                weight_key = f"weight_step_{ckpt_step}"
+                await wait_for_data(data_client, weight_key, interval=1.0, log_interval=10)
+            else:
+                # Use file system to wait for weight checkpoint
+                wait_for_weight_checkpoint(get_weights_dir(config.output_dir), ckpt_step)
+            
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
             logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
 
@@ -382,12 +390,12 @@ async def orchestrate(config: OrchestratorConfig):
             seq_len=config.seq_len,
         )
 
-        if config.zmq.enabled and rollout_client:
+        if config.zmq.enabled and data_client:
             # Store rollouts in ZeroMQ instead of file system
             logger.debug(f"Storing rollouts for step {progress.step} in ZeroMQ store")
             for i, batches in enumerate(all_data_ranks_batches):
                 rollout_key = f"step_{progress.step}_rank_{i}"
-                success = await rollout_client.store_rollout(rollout_key, batches)
+                success = await data_client.store_data(rollout_key, batches)
                 if not success:
                     logger.error(f"Failed to store rollout {rollout_key}")
         else:
@@ -546,10 +554,16 @@ async def orchestrate(config: OrchestratorConfig):
     logger.success("Orchestrator finished.")
     
     # Clean up ZeroMQ resources
-    if rollout_client:
-        await rollout_client.close()
-    if rollout_server:
-        await rollout_server.stop()
+    if data_client:
+        await data_client.close()
+    if data_server:
+        await data_server.stop()
+    if 'server_task' in locals():
+        server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
 
     # Optionally, print benchmark table
     if config.bench:

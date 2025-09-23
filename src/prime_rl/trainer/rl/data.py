@@ -1,7 +1,6 @@
 import time
 from pathlib import Path
 from typing import TypedDict
-
 import os
 import torch
 from jaxtyping import Bool, Float, Int
@@ -10,7 +9,7 @@ from torch import Tensor
 from prime_rl.trainer.rl.config import DataLoaderConfig, FakeDataLoaderConfig
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.utils import get_rollout_dir, wait_for_path
-from prime_rl.utils.zmq_store import SyncRolloutStoreClient, wait_for_rollout_sync
+from prime_rl.utils.zmq_store import SyncDataStoreClient, wait_for_data_sync
 from prime_rl.utils.logger import get_logger
 
 
@@ -18,11 +17,9 @@ class MicroBatch(TypedDict):
     # Token level
     input_ids: Int[Tensor, "batch seq"]
     position_ids: Int[Tensor, "batch seq"]
+    loss_mask: Bool[Tensor, "batch seq"]
     advantages: Float[Tensor, "batch seq"]
     logprobs: Float[Tensor, "batch seq"]
-    loss_mask: Bool[Tensor, "batch seq"]
-
-    # Batch level
     temperature: float
     total_tokens: int
 
@@ -53,24 +50,21 @@ class FakeDataLoader:
 
 
 class DataLoader:
-    """Loads serialized data from either ZeroMQ store or file system (legacy)."""
+    """Data loader for RL training that loads rollouts from disk or ZeroMQ store."""
 
-    def __init__(self, output_dir: Path, start_step: int, zmq_config=None):
-        self.rollout_dir = get_rollout_dir(output_dir)
-        self.current_step = start_step
+    def __init__(self, output_dir: Path, step: int, zmq_config=None):
+        self.output_dir = output_dir
+        self.step = step
+        self.zmq_config = zmq_config
         self.world = get_world()
-        self._logger = get_logger()
+        self.logger = get_logger()
         
-        # ZeroMQ configuration
-        self.use_zmq = zmq_config is not None and zmq_config.enabled
+        # Initialize ZeroMQ client if enabled
         self.zmq_client = None
-        
-        if self.use_zmq:
-            self._logger.info(f"DataLoader using ZeroMQ store at {zmq_config.client_connect_address}:{zmq_config.port}")
-            self.zmq_client = SyncRolloutStoreClient(
+        if zmq_config and zmq_config.enabled:
+            self.zmq_client = SyncDataStoreClient(
                 server_address=zmq_config.client_connect_address,
-                server_port=zmq_config.port,
-                timeout=1800
+                server_port=zmq_config.port
             )
         else:
             self._logger.info("DataLoader using file system")
@@ -83,25 +77,28 @@ class DataLoader:
         """Get rollout key for ZeroMQ approach."""
         return f"step_{self.current_step}_rank_{self.world.rank}"
 
-    def wait_for_batch(self) -> None:
-        """Wait for batch to become available."""
-        if self.use_zmq and self.zmq_client:
-            rollout_key = self.get_rollout_key()
-            self._logger.debug(f"Waiting for rollout {rollout_key} via ZeroMQ")
-            wait_for_rollout_sync(self.zmq_client, rollout_key)
+    def wait_for_batch(self):
+        """Wait for the batch to be available."""
+        if self.zmq_client:
+            # Wait for all rank batches to be available
+            for rank in range(self.world.world_size):
+                rollout_key = f"step_{self.current_step}_rank_{rank}"
+                self.logger.debug(f"Waiting for rollout {rollout_key}")
+                wait_for_data_sync(self.zmq_client, rollout_key)
         else:
             rollout_path = self.get_rollout_path()
             self._logger.debug(f"Waiting for rollout file {rollout_path}")
             wait_for_path(rollout_path)
 
-    def get_batch(self) -> list[MicroBatch]:
-        """Get batch data."""
-        if self.use_zmq and self.zmq_client:
+    def get_batch(self):
+        """Load the batch for the current step."""
+        if self.zmq_client:
+            # Load from ZeroMQ store
             rollout_key = self.get_rollout_key()
-            self._logger.debug(f"Loading rollout {rollout_key} from ZeroMQ")
-            batches = self.zmq_client.retrieve_rollout(rollout_key)
+            self.logger.debug(f"Loading rollout {rollout_key} from ZeroMQ store")
+            batches = self.zmq_client.retrieve_data(rollout_key)
             if batches is None:
-                raise RuntimeError(f"Failed to retrieve rollout {rollout_key} from ZeroMQ store")
+                raise RuntimeError(f"Failed to retrieve rollout {rollout_key}")
         else:
             rollout_path = self.get_rollout_path()
             self._logger.debug(f"Loading rollout from file {rollout_path}")
@@ -112,13 +109,14 @@ class DataLoader:
 
     def delete_rollout(self, rollout_key: str):
         """Delete rollout from ZeroMQ store."""
-        if self.use_zmq and self.zmq_client:
-            self.zmq_client.delete_rollout(rollout_key)
+        if self.zmq_client:
+            self.logger.debug(f"Deleting rollout {rollout_key} from ZeroMQ store")
+            self.zmq_client.delete_data(rollout_key)
         else:
             os.rmtree(self.rollout_dir / f"step_{rollout_key}")
             
 
     def close(self):
-        """Clean up resources."""
+        """Close the data loader."""
         if self.zmq_client:
             self.zmq_client.close()

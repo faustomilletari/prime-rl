@@ -44,7 +44,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-from prime_rl.utils.zmq_store import RolloutStoreServer, RolloutStoreClient, SyncRolloutStoreClient, wait_for_rollout_sync
+from prime_rl.utils.zmq_store import SyncDataStoreClient
 
 
 @clean_exit
@@ -89,9 +89,19 @@ def train(config: RLTrainerConfig):
     scheduler = setup_scheduler(optimizer, config.scheduler, config.max_steps)
     logger.info(f"Using `{config.scheduler.type}` scheduler ({config.scheduler})")
 
+    # Setup ZeroMQ client if enabled
+    zmq_client = None
+    if config.zmq.enabled:
+        logger.info(f"Initializing ZeroMQ client for weight checkpoints")
+        zmq_client = SyncDataStoreClient(
+            server_address=config.zmq.client_connect_address,
+            server_port=config.zmq.port
+        )
+        logger.info("ZeroMQ client initialized for weight checkpoints")
+
     # Get checkpoint managers
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
-    weight_ckpt_manager = setup_weight_ckpt_manager(config.output_dir, config.weights, config.ckpt, config.async_level)
+    weight_ckpt_manager = setup_weight_ckpt_manager(config.output_dir, config.weights, config.ckpt, config.async_level, zmq_client=zmq_client)
 
     logger.info(f"Initializing checkpoint manager ({config.ckpt})")
     ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
@@ -411,6 +421,10 @@ def train(config: RLTrainerConfig):
         logger.info("Writing final checkpoint")
         ckpt_manager.save(model, [optimizer], scheduler, progress, step=progress.step)
         ckpt_manager.maybe_clean()
+
+    # Clean up ZeroMQ client
+    if zmq_client:
+        zmq_client.close()
 
     logger.info(f"Peak memory: {torch.cuda.max_memory_allocated() / 1024**3:.2f} GB")
     logger.success("RL trainer finished!")
