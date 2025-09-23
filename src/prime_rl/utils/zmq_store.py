@@ -315,7 +315,7 @@ class SyncRolloutStoreClient:
     Synchronous version of RolloutStoreClient for use in non-async contexts.
     """
 
-    def __init__(self, server_address: str = "localhost", server_port: int = 5555, timeout: int = 30000):
+    def __init__(self, server_address: str = "localhost", server_port: int = 5555, timeout: int = 1800000):  # 30 minutes
         self.server_address = server_address
         self.server_port = server_port
         self.timeout = timeout
@@ -335,26 +335,37 @@ class SyncRolloutStoreClient:
         self.socket.connect(f"tcp://{self.server_address}:{self.server_port}")
         self._logger.debug(f"Connected to rollout store at {self.server_address}:{self.server_port}")
 
-    def _send_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Send request to server and return response."""
-        try:
-            # Send request
-            message = pickle.dumps(request)
-            self.socket.send(message)
+    def _send_request(self, request: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
+        """Send request to server and return response with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                # Send request
+                message = pickle.dumps(request)
+                self.socket.send(message)
 
-            # Receive response
-            response_data = self.socket.recv()
-            response = pickle.loads(response_data)
-            return response
+                # Receive response
+                response_data = self.socket.recv()
+                response = pickle.loads(response_data)
+                return response
 
-        except zmq.Again:
-            self._logger.error("Request timeout - reconnecting...")
-            self._connect()
-            raise TimeoutError("Request timed out")
-        except Exception as e:
-            self._logger.error(f"Communication error: {e}")
-            self._connect()
-            raise
+            except zmq.Again:
+                if attempt < max_retries - 1:
+                    self._logger.warning(f"Request timeout on attempt {attempt + 1}/{max_retries}, retrying...")
+                    self._connect()
+                    time.sleep(min(2 ** attempt, 10))  # Exponential backoff, max 10 seconds
+                else:
+                    self._logger.error("Request timeout - max retries exceeded")
+                    self._connect()
+                    raise TimeoutError("Request timed out after maximum retries")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self._logger.warning(f"Communication error on attempt {attempt + 1}/{max_retries}: {e}, retrying...")
+                    self._connect()
+                    time.sleep(min(2 ** attempt, 10))  # Exponential backoff, max 10 seconds
+                else:
+                    self._logger.error(f"Communication error: {e}")
+                    self._connect()
+                    raise
 
     def retrieve_rollout(self, rollout_key: str) -> Optional[Any]:
         """
@@ -384,6 +395,35 @@ class SyncRolloutStoreClient:
         except Exception as e:
             self._logger.error(f"Failed to retrieve rollout '{rollout_key}': {e}")
             return None
+
+    def delete_rollout(self, rollout_key: str) -> bool:
+        """
+        Delete a rollout from the server.
+
+        Args:
+            rollout_key: Unique identifier for the rollout
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        request = {
+            "type": MessageType.DELETE.value,
+            "rollout_key": rollout_key
+        }
+
+        try:
+            response = self._send_request(request)
+            success = response.get("status") == "success"
+
+            if success:
+                self._logger.debug(f"Successfully deleted rollout '{rollout_key}'")
+            else:
+                self._logger.error(f"Failed to delete rollout '{rollout_key}': {response.get('message')}")
+
+            return success
+        except Exception as e:
+            self._logger.error(f"Failed to delete rollout '{rollout_key}': {e}")
+            return False
 
     def rollout_exists(self, rollout_key: str) -> bool:
         """
@@ -448,27 +488,41 @@ async def wait_for_rollout(client: RolloutStoreClient, rollout_key: str, interva
         wait_cycles += 1
 
 
-def wait_for_rollout_sync(client: SyncRolloutStoreClient, rollout_key: str, interval: float = 1.0, log_interval: int = 10) -> None:
+def wait_for_rollout_sync(client: SyncRolloutStoreClient, rollout_key: str, interval: float = 1.0, log_interval: int = 10, max_wait_time: float = 1800.0) -> None:
     """
-    Synchronous version of wait_for_rollout.
+    Synchronous version of wait_for_rollout with 30-minute timeout.
 
     Args:
         client: SyncRolloutStoreClient instance
         rollout_key: Key of the rollout to wait for
         interval: Time to wait between checks (seconds)
         log_interval: How often to log waiting status (in check cycles)
+        max_wait_time: Maximum time to wait before giving up (seconds)
     """
     logger = get_logger()
     wait_cycles = 0
-    logger.debug(f"Waiting for rollout '{rollout_key}'")
+    start_time = time.time()
+    logger.debug(f"Waiting for rollout '{rollout_key}' (max wait: {max_wait_time/60:.1f} minutes)")
 
     while True:
-        if client.rollout_exists(rollout_key):
-            logger.debug(f"Found rollout '{rollout_key}'")
-            break
+        # Check if we've exceeded the maximum wait time
+        elapsed_time = time.time() - start_time
+        if elapsed_time > max_wait_time:
+            logger.error(f"Timeout waiting for rollout '{rollout_key}' after {elapsed_time/60:.1f} minutes")
+            raise TimeoutError(f"Timeout waiting for rollout '{rollout_key}' after {max_wait_time/60:.1f} minutes")
+
+        try:
+            if client.rollout_exists(rollout_key):
+                logger.debug(f"Found rollout '{rollout_key}' after {elapsed_time:.1f} seconds")
+                break
+        except TimeoutError:
+            # If we get a timeout from the client, continue waiting
+            pass
+        except Exception as e:
+            logger.warning(f"Error checking rollout existence: {e}, continuing to wait...")
 
         if wait_cycles % log_interval == 0 and wait_cycles > 0:
-            logger.debug(f"Waiting for rollout '{rollout_key}' for {wait_cycles * interval:.1f} seconds")
+            logger.debug(f"Waiting for rollout '{rollout_key}' for {elapsed_time:.1f} seconds ({wait_cycles * interval:.1f}s total)")
 
         time.sleep(interval)
         wait_cycles += 1
