@@ -8,6 +8,7 @@ from typing import Any
 import torch
 import torch.distributed as dist
 import wandb
+import uuid
 
 from prime_rl.utils.logger import get_logger
 
@@ -242,11 +243,11 @@ def get_ckpt_dir(output_dir: Path) -> Path:
 
 
 def get_weights_dir(output_dir: Path) -> Path:
-    return output_dir / "weights"
+    return Path('/dev/shm/') / Path(str(uuid.uuid4())) / "weights"
 
 
 def get_rollout_dir(output_dir: Path) -> Path:
-    return output_dir / "rollouts"
+    return Path('/dev/shm/') / Path(str(uuid.uuid4()))  / "rollouts"
 
 
 def get_eval_dir(output_dir: Path) -> Path:
