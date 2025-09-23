@@ -335,7 +335,7 @@ class SyncRolloutStoreClient:
         self.socket.connect(f"tcp://{self.server_address}:{self.server_port}")
         self._logger.debug(f"Connected to rollout store at {self.server_address}:{self.server_port}")
 
-    def _send_request(self, request: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
+    def _send_request(self, request: Dict[str, Any], max_retries: int = 3000) -> Dict[str, Any]:
         """Send request to server and return response with retry logic."""
         for attempt in range(max_retries):
             try:
