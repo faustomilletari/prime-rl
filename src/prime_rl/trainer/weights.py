@@ -135,23 +135,32 @@ class WeightCheckpointManager:
         self._logger.debug(f"Saving weight checkpoint to {step_path}")
         start_time = time.time()
 
-        # Suppress torch.distributed warnings during checkpoint saving
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
-            warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
+        max_retries = 3
 
-            # Save model weights to temporary file to avoid race condition
-            model_path = self._get_model_path(step)
-            tmp_model_path = model_path.with_suffix(".tmp")
-            torch.save(cpu_state, tmp_model_path)
-            # Rename temporary file to indicate checkpoint is complete
-            tmp_model_path.rename(model_path)
+        for _ in range(max_retries):
+            try:
+                # Suppress torch.distributed warnings during checkpoint saving
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
+                    warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
 
-            # Save model config, generation arguments and tokenizer
-            model.config.save_pretrained(step_path)
-            if model.generation_config:
-                model.generation_config.save_pretrained(step_path)
-            tokenizer.save_pretrained(step_path)
+                    # Save model weights to temporary file to avoid race condition
+                    model_path = self._get_model_path(step)
+                    tmp_model_path = model_path.with_suffix(".tmp")
+                    torch.save(cpu_state, tmp_model_path)
+                    # Rename temporary file to indicate checkpoint is complete
+                    tmp_model_path.rename(model_path)
+
+                    # Save model config, generation arguments and tokenizer
+                    model.config.save_pretrained(step_path)
+                    if model.generation_config:
+                        model.generation_config.save_pretrained(step_path)
+                    tokenizer.save_pretrained(step_path)
+
+                    break
+            except Exception as e:
+                self._logger.error(f"Failed to save weight checkpoint for step {step}: {e}")
+                time.sleep(1)
 
         self._logger.debug(f"Saved weight checkpoint to {step_path} in {time.time() - start_time:.2f} seconds")
 
