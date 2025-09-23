@@ -71,18 +71,18 @@ class DataLoader:
 
     def get_rollout_path(self) -> Path:
         """Get rollout path for file system approach."""
-        return self.rollout_dir / f"step_{self.current_step}" / f"rank_{self.world.rank}.pt"
+        return self.rollout_dir / f"step_{self.step}" / f"rank_{self.world.rank}.pt"
 
     def get_rollout_key(self) -> str:
         """Get rollout key for ZeroMQ approach."""
-        return f"step_{self.current_step}_rank_{self.world.rank}"
+        return f"step_{self.step}_rank_{self.world.rank}"
 
     def wait_for_batch(self):
         """Wait for the batch to be available."""
         if self.zmq_client:
             # Wait for all rank batches to be available
             for rank in range(self.world.world_size):
-                rollout_key = f"step_{self.current_step}_rank_{rank}"
+                rollout_key = f"step_{self.step}_rank_{rank}"
                 self.logger.debug(f"Waiting for rollout {rollout_key}")
                 wait_for_data_sync(self.zmq_client, rollout_key)
         else:
