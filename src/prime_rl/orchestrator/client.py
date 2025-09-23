@@ -1,14 +1,17 @@
 import asyncio
 import os
+import tempfile
 from pathlib import Path
 
 import httpx
+import torch
 from httpx import Response
 from openai import AsyncOpenAI, NotFoundError
 
 from prime_rl.orchestrator.config import ClientConfig
 from prime_rl.utils.logger import get_logger
 from prime_rl.utils.utils import get_weight_ckpt_model_path
+from prime_rl.utils.zmq_store import DataStoreClient
 
 
 def setup_client(client_config: ClientConfig) -> AsyncOpenAI:
@@ -70,6 +73,41 @@ async def update_weights(client: AsyncOpenAI, path: Path, step: int) -> None:
         await client.post(url, cast_to=Response, body={"model_path": model_path.as_posix()})
     except NotFoundError:
         logger.warning(f"The route {url} does not exist. Skipping weight update.")
+        return
+
+
+async def update_weights_zmq(client: AsyncOpenAI, data_client: DataStoreClient, step: int) -> None:
+    """Make a HTTP post request to the vLLM server to update the weights from ZMQ store."""
+    logger = get_logger()
+    url = str(client.base_url)[:-4] + "/update_weights"
+    
+    try:
+        # Retrieve weight data from ZMQ store
+        weight_key = f"weight_step_{step}"
+        weight_data = await data_client.retrieve_data(weight_key)
+        
+        if weight_data is None:
+            logger.error(f"Failed to retrieve weight data for step {step} from ZMQ store")
+            return
+        
+        # Save weight data to temporary file
+        with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            torch.save(weight_data, temp_path)
+        
+        try:
+            logger.debug(f"Sending request to {url} to update weights from ZMQ store (step {step})")
+            await client.post(url, cast_to=Response, body={"model_path": temp_path.as_posix()})
+            logger.debug(f"Successfully updated weights from ZMQ store for step {step}")
+        finally:
+            # Clean up temporary file
+            temp_path.unlink(missing_ok=True)
+            
+    except NotFoundError:
+        logger.warning(f"The route {url} does not exist. Skipping weight update.")
+        return
+    except Exception as e:
+        logger.error(f"Failed to update weights from ZMQ store for step {step}: {e}")
         return
 
 

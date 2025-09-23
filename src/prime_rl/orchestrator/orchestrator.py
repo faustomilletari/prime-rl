@@ -21,6 +21,7 @@ from prime_rl.orchestrator.client import (
     check_health,
     reload_weights,
     update_weights,
+    update_weights_zmq,
     setup_client,
 )
 from prime_rl.orchestrator.config import OrchestratorConfig
@@ -189,7 +190,12 @@ async def orchestrate(config: OrchestratorConfig):
             # Update the weights
             logger.info(f"Updating weights to weight checkpoint {ckpt_step}")
             update_weights_start_time = time.time()
-            await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
+            if config.zmq.enabled and data_client:
+                # Use ZeroMQ to update weights
+                await update_weights_zmq(client, data_client, ckpt_step)
+            else:
+                # Use file system to update weights
+                await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
             update_weights_time = time.time() - update_weights_start_time
             logger.debug(f"Updated weights in {update_weights_time:.2f}s")
 
