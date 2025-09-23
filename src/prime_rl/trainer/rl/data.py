@@ -104,7 +104,7 @@ class DataLoader:
             self._logger.debug(f"Loading rollout from file {rollout_path}")
             batches = torch.load(rollout_path)
         
-        self.current_step += 1
+        self.step += 1
         return batches
 
     def delete_rollout(self, rollout_key: str):
