@@ -190,9 +190,8 @@ class WeightCheckpointManager:
         return self._get_model_path(step)
 
     def _maybe_clean(self, step: int):
-        return
         """Synchronous helper of `clean`."""
-        step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
+        step = max(step - (self.async_level + 2), 0)  # Consider deleting async_level + 2 steps ago
         candidate_path_to_delete = self._get_step_path(step)
         keep_for_eval = self.config.interval and step % self.config.interval == 0
         # For checkpointing step x, we need all weight checkpoints in [x-async_level, x] (for logprob model)
