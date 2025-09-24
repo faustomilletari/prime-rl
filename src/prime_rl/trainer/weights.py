@@ -195,10 +195,10 @@ class WeightCheckpointManager:
             self._logger.info(f"WEIGHT_CHECKPOINT: Converting TT-MoE layers for step {step}")
             _convert_tt_moe_to_hf_(cpu_state)
 
-        local_rank = os.getenv("LOCAL_RANK", "0")
-        self._logger.info(f"WEIGHT_CHECKPOINT: LOCAL_RANK={local_rank}, save_async={self.config.save_async}")
+        world = get_world()
+        self._logger.info(f"WEIGHT_CHECKPOINT: LOCAL_RANK={world.local_rank}, save_async={self.config.save_async}")
         
-        if local_rank == "0":
+        if world.local_rank == 0:
             self._logger.info(f"WEIGHT_CHECKPOINT: Proceeding with save for step {step}")
 
             self._logger.info(f"WEIGHT_CHECKPOINT: Starting sync save for step {step}")
@@ -236,7 +236,8 @@ class WeightCheckpointManager:
         1. The step is an evaluation step (e.g. step % weights.interval == 0)
         2. The step is a checkpoint step or at most async_level steps earlier
         """
-        if os.getenv("LOCAL_RANK", "0") == "0":
+        world = get_world()
+        if world.local_rank == 0:
             self._maybe_clean(step)
 
 
