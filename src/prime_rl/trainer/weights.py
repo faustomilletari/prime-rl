@@ -200,18 +200,10 @@ class WeightCheckpointManager:
         
         if local_rank == "0":
             self._logger.info(f"WEIGHT_CHECKPOINT: Proceeding with save for step {step}")
-            if self.config.save_async:
-                self._logger.info(f"WEIGHT_CHECKPOINT: Starting async save for step {step}")
-                thread = threading.Thread(
-                    target=self._save_to_path,
-                    args=(cpu_state, model, tokenizer, step),
-                    name=f"weight-checkpoint-save-{step}",
-                )
-                thread.start()
-            else:
-                self._logger.info(f"WEIGHT_CHECKPOINT: Starting sync save for step {step}")
-                self._save_to_path(cpu_state, model, tokenizer, step)
-                self._logger.info(f"WEIGHT_CHECKPOINT: Completed sync save for step {step}")
+
+            self._logger.info(f"WEIGHT_CHECKPOINT: Starting sync save for step {step}")
+            self._save_to_path(cpu_state, model, tokenizer, step)
+            self._logger.info(f"WEIGHT_CHECKPOINT: Completed sync save for step {step}")
         else:
             self._logger.info(f"WEIGHT_CHECKPOINT: Skipping save for step {step} (not master rank)")
 
@@ -245,15 +237,7 @@ class WeightCheckpointManager:
         2. The step is a checkpoint step or at most async_level steps earlier
         """
         if os.getenv("LOCAL_RANK", "0") == "0":
-            if self.config.save_async:
-                thread = threading.Thread(
-                    target=self._maybe_clean,
-                    args=(step,),
-                    name=f"weight-checkpoint-clean-{step}",
-                )
-                thread.start()
-            else:
-                self._maybe_clean(step)
+            self._maybe_clean(step)
 
 
 def setup_weight_ckpt_manager(
