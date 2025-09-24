@@ -190,6 +190,7 @@ class WeightCheckpointManager:
         return self._get_model_path(step)
 
     def _maybe_clean(self, step: int):
+        return
         """Synchronous helper of `clean`."""
         step = max(step - (self.async_level + 1), 0)  # Consider deleting async_level + 1 steps ago
         candidate_path_to_delete = self._get_step_path(step)
