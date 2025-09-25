@@ -60,7 +60,6 @@ class DataLoader:
 
     def wait_for_batch(self) -> None:
         rollout_path = self.get_rollout_path()
-        logger = get_logger()
         logger.info(f"TRAINER: Waiting for batch at path: {rollout_path}")
         logger.info(f"TRAINER: World rank: {self.world.rank}, Current step: {self.current_step}")
         wait_for_path(rollout_path)
