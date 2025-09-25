@@ -7,6 +7,7 @@ from torch import Tensor
 
 from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.world import get_world
+from prime_rl.utils.logger import get_logger
 from prime_rl.utils.utils import get_rollout_dir, wait_for_path
 
 
@@ -59,9 +60,18 @@ class DataLoader:
         return self.rollout_dir / f"step_{self.current_step}" / f"rank_{self.world.rank}.pt"
 
     def wait_for_batch(self) -> None:
-        wait_for_path(self.get_rollout_path())
+        rollout_path = self.get_rollout_path()
+        logger = get_logger()
+        logger.info(f"TRAINER: Waiting for batch at path: {rollout_path}")
+        logger.info(f"TRAINER: World rank: {self.world.rank}, Current step: {self.current_step}")
+        wait_for_path(rollout_path)
 
     def get_batch(self) -> list[MicroBatch]:
-        batches = torch.load(self.get_rollout_path())
+        rollout_path = self.get_rollout_path()
+        logger = get_logger()
+        logger.info(f"TRAINER: Loading batch from path: {rollout_path}")
+        logger.info(f"TRAINER: File exists: {rollout_path.exists()}")
+        batches = torch.load(rollout_path)
+        logger.info(f"TRAINER: Successfully loaded batch, incrementing step from {self.current_step} to {self.current_step + 1}")
         self.current_step += 1
         return batches
