@@ -176,10 +176,6 @@ async def orchestrate(config: OrchestratorConfig):
             update_weights_time = time.time() - update_weights_start_time
             logger.debug(f"Updated weights in {update_weights_time:.2f}s")
 
-        # Increment progress after confirming checkpoint availability
-        progress.step += 1
-        is_first_step = False
-
         # Optionally, run online evals at the specified interval
         eval_time = 0
         if (
@@ -501,6 +497,10 @@ async def orchestrate(config: OrchestratorConfig):
             distributions[f"{func_name}_rewards"] = func_rewards.tolist()
 
         monitor.log_distributions(distributions=distributions, step=progress.step)
+
+        # Increment progress
+        progress.step += 1
+        is_first_step = False
 
     if config.eval:
         logger.info("Running final evals")
