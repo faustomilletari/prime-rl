@@ -174,11 +174,22 @@ def flexible_all_gather(tensor: Tensor) -> Tensor:
     if dist.get_world_size() == 1:
         return tensor
 
+    # Add barrier to ensure all ranks reach this point
+    dist.barrier()
+
     # Find the tensor with the most elements
     local_numel = tensor.numel()
     local_numel_tensor = torch.tensor(local_numel, device=tensor.device)
     all_numel_tensors = [torch.tensor(0, device=tensor.device) for _ in range(dist.get_world_size())]
-    dist.all_gather(all_numel_tensors, local_numel_tensor)
+    
+    try:
+        dist.all_gather(all_numel_tensors, local_numel_tensor)
+    except Exception as e:
+        logger = get_logger()
+        logger.error(f"Failed to all_gather tensor sizes: {e}")
+        logger.error(f"Local tensor shape: {tensor.shape}, local_numel: {local_numel}")
+        raise
+    
     all_numels = [numel.item() for numel in all_numel_tensors]
     max_numel = int(max(all_numels))
 
@@ -190,7 +201,15 @@ def flexible_all_gather(tensor: Tensor) -> Tensor:
     all_tensors = [
         torch.zeros(max_numel, dtype=tensor.dtype, device=tensor.device) for _ in range(dist.get_world_size())
     ]
-    dist.all_gather(all_tensors, tensor)
+    
+    try:
+        dist.all_gather(all_tensors, tensor)
+    except Exception as e:
+        logger = get_logger()
+        logger.error(f"Failed to all_gather tensors: {e}")
+        logger.error(f"Tensor shape: {tensor.shape}, max_numel: {max_numel}")
+        raise
+        
     all_tensors_unpadded = torch.cat([tensor[:numel] for tensor, numel in zip(all_tensors, all_numels)])
 
     return all_tensors_unpadded

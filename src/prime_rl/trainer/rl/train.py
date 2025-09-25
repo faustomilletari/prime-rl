@@ -328,6 +328,8 @@ def train(config: RLTrainerConfig):
             memory_profiler.step()
 
         # Synchronize the tensor metrics across all steps and ranks
+        # Add barrier to ensure all ranks reach this point
+        torch.distributed.barrier()
         tensor_stats = tensors.compute_stats()
 
         # Compute step metrics
