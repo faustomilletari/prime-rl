@@ -157,7 +157,7 @@ async def orchestrate(config: OrchestratorConfig):
             
             
             wait_for_weight_ckpt_start_time = time.time()
-            wait_for_weight_checkpoint(weights_dir, ckpt_step)
+            wait_for_weight_checkpoint(get_weights_dir(config.output_dir), ckpt_step)
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
             logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
             
