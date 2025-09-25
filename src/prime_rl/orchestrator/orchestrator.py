@@ -155,19 +155,12 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weight checkpoint {ckpt_step}")
             
-            # Debug: Show the exact path we're waiting for
-            weights_dir = get_weights_dir(config.output_dir)
-            expected_model_path = get_weight_ckpt_model_path(weights_dir, ckpt_step)
-            logger.info(f"ORCHESTRATOR: Looking for checkpoint file at: {expected_model_path}")
-            logger.info(f"ORCHESTRATOR: Checkpoint file exists: {expected_model_path.exists()}")
             
             wait_for_weight_ckpt_start_time = time.time()
             wait_for_weight_checkpoint(weights_dir, ckpt_step)
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
             logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
             
-            # Debug: Confirm we found it
-            logger.info(f"ORCHESTRATOR: Successfully found checkpoint {ckpt_step}")
 
             # Update the weights
             logger.info(f"Updating weights to weight checkpoint {ckpt_step}")

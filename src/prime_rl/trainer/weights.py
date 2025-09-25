@@ -140,43 +140,23 @@ class WeightCheckpointManager:
         self._logger.debug(f"Saving weight checkpoint to {step_path}")
         start_time = time.time()
 
-        max_retries = 3
+        # Suppress torch.distributed warnings during checkpoint saving
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
+            warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
 
-        for attempt in range(max_retries):
-            self._logger.info(f"WEIGHT_CHECKPOINT: Attempt {attempt + 1}/{max_retries} for step {step}")
-            try:
-                # Suppress torch.distributed warnings during checkpoint saving
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
-                    warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
+            # Save model weights to temporary file to avoid race condition
+            model_path = self._get_model_path(step)
+            tmp_model_path = model_path.with_suffix(".tmp")
+            torch.save(cpu_state, tmp_model_path)
+            # Rename temporary file to indicate checkpoint is complete
+            tmp_model_path.rename(model_path)
 
-                    # Save model weights to temporary file to avoid race condition
-                    model_path = self._get_model_path(step)
-                    tmp_model_path = model_path.with_suffix(".tmp")
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Saving weights to {tmp_model_path} for step {step}")
-                    
-                    torch.save(cpu_state, tmp_model_path)
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Saved weights to {tmp_model_path} for step {step}")
-                    
-                    # Rename temporary file to indicate checkpoint is complete
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Renaming {tmp_model_path} to {model_path} for step {step}")
-                    tmp_model_path.rename(model_path)
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Renamed to {model_path} for step {step}")
-
-                    # Save model config, generation arguments and tokenizer
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Saving model config to {step_path} for step {step}")
-                    model.config.save_pretrained(step_path)
-                    if model.generation_config:
-                        self._logger.info(f"WEIGHT_CHECKPOINT: Saving generation config to {step_path} for step {step}")
-                        model.generation_config.save_pretrained(step_path)
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Saving tokenizer to {step_path} for step {step}")
-                    tokenizer.save_pretrained(step_path)
-
-                    self._logger.info(f"WEIGHT_CHECKPOINT: Successfully completed save for step {step}")
-                    break
-            except Exception as e:
-                self._logger.error(f"Failed to save weight checkpoint for step {step}: {e}")
-                time.sleep(1)
+            # Save model config, generation arguments and tokenizer
+            model.config.save_pretrained(step_path)
+            if model.generation_config:
+                model.generation_config.save_pretrained(step_path)
+            tokenizer.save_pretrained(step_path)
 
         self._logger.debug(f"Saved weight checkpoint to {step_path} in {time.time() - start_time:.2f} seconds")
 
