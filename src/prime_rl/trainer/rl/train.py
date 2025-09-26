@@ -44,6 +44,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
+import torch.distributed as dist
 
 
 @clean_exit
@@ -245,7 +246,19 @@ def train(config: RLTrainerConfig):
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
         tensors = Tensors()  # Used to accumulate tensor statistics across micro-batches and ranks for logging
-        for micro_step, micro_batch in enumerate(micro_batches):
+        
+        # Each rank reports its number of micro-batches
+        local_count = torch.tensor([len(micro_batches)], dtype=torch.long, device="cuda")
+        all_counts = torch.zeros(world.world_size, dtype=torch.long, device="cuda")
+        dist.all_gather_into_tensor(all_counts, local_count)
+
+        # All ranks now have the counts from all other ranks
+        max_count = all_counts.max().item()
+        
+        for micro_step in range(max_count):
+            curr_step = micro_step % len(micro_batches)
+            micro_batch = micro_batches[curr_step]
+
             input_ids = micro_batch["input_ids"].to("cuda")
             position_ids = micro_batch["position_ids"].to("cuda")
             advantages = micro_batch["advantages"].to("cuda")
@@ -270,6 +283,11 @@ def train(config: RLTrainerConfig):
                 loss_config=config.loss,
                 loss_scale=loss_scale,
             )
+
+            if micro_step >= len(micro_batches):
+                loss = loss * 0.0
+            else:
+                loss = loss * 1.0
 
             # Compute entropy
             with torch.no_grad():
