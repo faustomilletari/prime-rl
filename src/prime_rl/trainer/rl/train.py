@@ -172,9 +172,6 @@ def train(config: RLTrainerConfig):
             reshard_module(logprob_model)
             tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
 
-        logger.info("Synchronizing all ranks before fetching next batch")
-        torch.distributed.barrier()
-
         # Wait for the batch to be available
         logger.info("Waiting for training batch to arrive")
         wait_for_batch_start_time = time.time()
@@ -309,7 +306,6 @@ def train(config: RLTrainerConfig):
                 micro_step_message += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
             logger.debug(micro_step_message)
 
-        torch.distributed.barrier()
         # Optionally, clip the gradients
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
@@ -332,8 +328,6 @@ def train(config: RLTrainerConfig):
             memory_profiler.step()
 
         # Synchronize the tensor metrics across all steps and ranks
-        # Add barrier to ensure all ranks reach this point
-        torch.distributed.barrier()
         tensor_stats = tensors.compute_stats()
 
         # Compute step metrics

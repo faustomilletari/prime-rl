@@ -13,7 +13,7 @@ def setup_logger(log_config: LogConfig, world: World) -> Logger:
     format = time + message + debug
 
     # Setup the logger handlers
-    logger = setup_handlers(loguru_logger, format, log_config, rank=world.rank)
+    logger = setup_handlers(loguru_logger, format, log_config, rank=world.local_rank)
     set_logger(logger)
 
     return logger
