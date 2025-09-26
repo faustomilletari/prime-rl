@@ -309,6 +309,7 @@ def train(config: RLTrainerConfig):
                 micro_step_message += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
             logger.debug(micro_step_message)
 
+        torch.distributed.barrier()
         # Optionally, clip the gradients
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.optim.max_norm).full_tensor()
 
