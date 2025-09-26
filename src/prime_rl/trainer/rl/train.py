@@ -172,6 +172,9 @@ def train(config: RLTrainerConfig):
             reshard_module(logprob_model)
             tensor_offloaded_repository[progress.step] = copy_model_to_cpu(model)
 
+        logger.info("Synchronizing all ranks before fetching next batch")
+        torch.distributed.barrier()
+
         # Wait for the batch to be available
         logger.info("Waiting for training batch to arrive")
         wait_for_batch_start_time = time.time()
