@@ -243,11 +243,11 @@ def get_ckpt_dir(output_dir: Path) -> Path:
 
 
 def get_weights_dir(output_dir: Path) -> Path:
-    return Path('/shared') / "weights"
+    return Path('/dev/shm') / "weights"
 
 
 def get_rollout_dir(output_dir: Path) -> Path:
-    return Path('/shared') / "rollouts"
+    return Path('/dev/shm') / "rollouts"
 
 
 def get_eval_dir(output_dir: Path) -> Path:
