@@ -89,7 +89,7 @@ class WeightCheckpointManager:
         self.async_level = async_level
         self._logger = get_logger()
         self._world = get_world()
-        self._is_master = self._world.is_master
+        self._is_master = self._world.local_rank == 0
 
     def _get_model_path(self, step: int) -> Path:
         return get_weight_ckpt_model_path(self.weights_dir, step)
