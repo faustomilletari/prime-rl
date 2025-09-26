@@ -145,6 +145,10 @@ class WeightCheckpointManager:
             warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
             warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
 
+            # Calculate checksum before saving
+            checksum = sum(t.sum().item() for t in cpu_state.values())
+            self._logger.info(f"WEIGHT_CHECKPOINT: Saving step {step} with checksum {checksum:.6f}")
+    
             # Save model weights to temporary file to avoid race condition
             model_path = self._get_model_path(step)
             tmp_model_path = model_path.with_suffix(".tmp")
