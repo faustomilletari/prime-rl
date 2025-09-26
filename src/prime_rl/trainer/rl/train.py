@@ -299,25 +299,34 @@ def train(config: RLTrainerConfig):
             # Backward pass
             loss.backward()
 
-            # Add relevant tensors to tensor dict for logging purposes
-            tensors["probs"].append(torch.exp(logprobs)[loss_mask].detach().to("cpu"))
-            tensors["old_probs"].append(torch.exp(old_logprobs)[loss_mask].detach().to("cpu"))
-            tensors["entropy"].append(entropy[loss_mask].detach().to("cpu"))
-            tensors["recomputed_logprob_error"].append(
-                recomputed_logprob_errors[micro_step][loss_mask].detach().to("cpu")
-            )
-            tensors["loss"].append(loss.detach().to("cpu").unsqueeze(0))
+            if micro_step < len(micro_batches):
+                # Add relevant tensors to tensor dict for logging purposes
+                tensors["probs"].append(torch.exp(logprobs)[loss_mask].detach().to("cpu"))
+                tensors["old_probs"].append(torch.exp(old_logprobs)[loss_mask].detach().to("cpu"))
+                tensors["entropy"].append(entropy[loss_mask].detach().to("cpu"))
+                tensors["recomputed_logprob_error"].append(
+                    recomputed_logprob_errors[micro_step][loss_mask].detach().to("cpu")
+                )
+                tensors["loss"].append(loss.detach().to("cpu").unsqueeze(0))
 
-            if is_tt_moe_model(model):
-                load_balance_stats = get_load_balance_stats(model)
-                for k, v in load_balance_stats.items():
-                    tensors[k].append(v)
+                if is_tt_moe_model(model):
+                    load_balance_stats = get_load_balance_stats(model)
+                    for k, v in load_balance_stats.items():
+                        tensors[k].append(v)
 
-            # Add loss tensors to tensor dict for logging purposes
-            for key, loss_tensor in loss_tensors.items():
-                loss_tensor = loss_tensor.detach()[loss_mask.squeeze()].detach().to("cpu")
-                tensors[key].append(loss_tensor)
-
+                # Add loss tensors to tensor dict for logging purposes
+                for key, loss_tensor in loss_tensors.items():
+                    loss_tensor = loss_tensor.detach()[loss_mask.squeeze()].detach().to("cpu")
+                    tensors[key].append(loss_tensor)
+            else:
+                # Padding iterations - neutral values
+                tensors["probs"].append(torch.tensor([1.0]))
+                tensors["old_probs"].append(torch.tensor([1.0]))
+                tensors["entropy"].append(torch.tensor([0.0]))
+                tensors["recomputed_logprob_error"].append(torch.tensor([1.0]))
+                tensors["loss"].append(torch.tensor([0.0]))
+                # Don't append MoE or loss_tensors for padding
+            
             # Debug log with *local, micro step* stats
             micro_step_message = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Entropy: {tensors['entropy'][-1].mean().item():.4f} | Importance Ratio: {tensors['importance_ratio'][-1].mean().item():.4f}"
             if "max_vio" in tensors:
