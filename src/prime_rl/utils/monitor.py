@@ -39,15 +39,21 @@ class WandbMonitor:
         assert config is not None
         self.logger.info(f"Initializing {self.__class__.__name__} ({config})")
         self._maybe_overwrite_wandb_command()
-        self.wandb = wandb.init(
-            project=config.project,
-            name=config.name,
-            id=config.id,
-            dir=output_dir,
-            resume="allow",
-            config=run_config.model_dump() if run_config else None,
-            mode="offline" if config.offline else None,
-        )
+        
+        try:
+            self.wandb = wandb.init(
+                project=config.project,
+                name=config.name,
+                id=config.id,
+                dir=output_dir,
+                resume="allow",
+                config=run_config.model_dump() if run_config else None,
+                mode="offline" if config.offline else None,
+            )
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize wandb: {e}. Training will continue without wandb logging.")
+            self.enabled = False
+            return
 
         # Optionally, initialize sample logging attributes
         if config is not None and config.log_extras:
@@ -67,10 +73,15 @@ class WandbMonitor:
                     "reward",
                     "advantage",
                 ]
-                self.samples_table = wandb.Table(
-                    columns=self.samples_cols,
-                    log_mode="INCREMENTAL",
-                )
+                try:
+                    self.samples_table = wandb.Table(
+                        columns=self.samples_cols,
+                        log_mode="INCREMENTAL",
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Failed to initialize samples table: {e}")
+                    self.enabled = False
+                    return
                 self.tokenizer = tokenizer
                 self.samples = []
 
@@ -93,7 +104,10 @@ class WandbMonitor:
             return
         if not self.enabled:
             return
-        wandb.log(metrics, step=metrics.get("step", None))
+        try:
+            wandb.log(metrics, step=metrics.get("step", None))
+        except Exception as e:
+            self.logger.warning(f"Failed to log metrics to wandb: {e}")
 
     def log_samples(
         self,
@@ -110,7 +124,8 @@ class WandbMonitor:
             input_tokens: List of input token sequences
             output_tokens: List of output token sequences
             rewards: List of rewards for each sample
-            task_rewards: Optional list of task-specific rewards
+            advantages: List of advantages for each sample
+            rollouts_per_problem: Number of rollouts per problem
             step: Current training step
         """
         if not self.is_master:
@@ -177,9 +192,12 @@ class WandbMonitor:
                 )
                 self.samples_table.add_data(*sample.values())
                 self.samples.append(sample)
-        wandb.log({"samples": self.samples_table}, step=step)
-        self.last_log_samples_step = step
-        self.logger.debug(f"Logged samples at step {step} to W&B table in {time.time() - start_time:.2f}s")
+        try:
+            wandb.log({"samples": self.samples_table}, step=step)
+            self.last_log_samples_step = step
+            self.logger.debug(f"Logged samples at step {step} to W&B table in {time.time() - start_time:.2f}s")
+        except Exception as e:
+            self.logger.warning(f"Failed to log samples to wandb at step {step}: {e}")
 
     def log_distributions(self, distributions: dict[str, list[float]], step: int) -> None:
         if not self.is_master:
@@ -210,9 +228,12 @@ class WandbMonitor:
         row = {"step": step, **distributions}
         self.distributions.append(row)
         self.distributions_table.add_data(*row.values())
-        wandb.log({"distributions": self.distributions_table}, step=step)
-        self.last_log_distributions_step = step
-        self.logger.debug(f"Logged distributions at step {step} to W&B table in {time.time() - start_time:.2f}s")
+        try:
+            wandb.log({"distributions": self.distributions_table}, step=step)
+            self.last_log_distributions_step = step
+            self.logger.debug(f"Logged distributions at step {step} to W&B table in {time.time() - start_time:.2f}s")
+        except Exception as e:
+            self.logger.warning(f"Failed to log distributions to wandb at step {step}: {e}")
 
     def log_final_samples(self) -> None:
         """Log final samples to W&B table."""
@@ -223,7 +244,10 @@ class WandbMonitor:
         self.logger.info("Logging final samples to W&B table")
         df = pd.DataFrame(self.samples)
         table = wandb.Table(dataframe=df)
-        wandb.log({"final-samples": table})
+        try:
+            wandb.log({"final-samples": table})
+        except Exception as e:
+            self.logger.warning(f"Failed to log final samples to wandb: {e}")
 
     def log_final_distributions(self) -> None:
         """Log final distributions to W&B table."""
@@ -234,7 +258,10 @@ class WandbMonitor:
         self.logger.info("Logging final distributions to W&B table")
         df = pd.DataFrame(self.distributions)
         table = wandb.Table(dataframe=df)
-        wandb.log({"final-distributions": table})
+        try:
+            wandb.log({"final-distributions": table})
+        except Exception as e:
+            self.logger.warning(f"Failed to log final distributions to wandb: {e}")
 
 
 _MONITOR: WandbMonitor | None = None
