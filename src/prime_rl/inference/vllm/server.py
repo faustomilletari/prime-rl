@@ -24,6 +24,7 @@ from vllm.logger import init_logger
 from vllm.utils import FlexibleArgumentParser
 
 from prime_rl.inference.config import InferenceConfig
+from prime_rl.utils.rdma_weights import InferenceWeightClient
 
 logger = init_logger("vllm.entrypoints.openai.api_server")
 
@@ -66,9 +67,7 @@ async def custom_run_server_worker(listen_address, sock, args, client_config=Non
         ### CUSTOM ENDPOINTS ###
         @app.post("/update_weights")
         async def _update_weights(request: Request):
-            data = await request.json()
-            model_path = data.get("model_path")
-            await engine_client.collective_rpc("update_weights", args=(model_path,))
+            await engine_client.collective_rpc("update_weights")
             return {"status": "ok"}
 
         @app.post("/reload_weights")

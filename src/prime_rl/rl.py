@@ -28,7 +28,7 @@ from prime_rl.utils.utils import (
     get_cuda_visible_devices,
     get_free_port,
     get_log_dir,
-    get_weights_dir,
+    # Remove get_weights_dir - we don't need it anymore
 )
 from prime_rl.utils.validation import (
     validate_shared_async_level,
@@ -397,25 +397,23 @@ def rl(config: RLConfig):
     # Prepare paths to communicate with the trainer
     log_dir = get_log_dir(config.output_dir)
     ckpt_dir = get_ckpt_dir(config.output_dir)
-    weights_dir = get_weights_dir(config.output_dir)
+    # Remove weights_dir - we don't use filesystem weights anymore
+    # weights_dir = get_weights_dir(config.output_dir)
 
     # Clean up directories if specified
     if config.clean:
-        logger.info("Cleaning checkpoint, logs, and weights directories")
+        logger.info("Cleaning checkpoint and logs directories")
 
         # Cleaning logs
         logger.info(f"Cleaning log dir ({log_dir})")
         shutil.rmtree(log_dir, ignore_errors=True)
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Cleaning checkpoints and weights, unless resuming
+        # Cleaning checkpoints, unless resuming
         do_resume = config.trainer.ckpt and config.trainer.ckpt.resume_step
         if not do_resume:  # Only clean if we don't resume
             logger.info(f"Cleaning checkpoint directory ({ckpt_dir})")
             shutil.rmtree(ckpt_dir, ignore_errors=True)
-
-            logger.info(f"Cleaning checkpoint weights directory ({weights_dir})")
-            shutil.rmtree(weights_dir, ignore_errors=True)
 
     # Start processes
     processes: list[Popen] = []

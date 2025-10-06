@@ -152,3 +152,99 @@ class VariableStoreClientConfig(BaseConfig):
             description="Timeout in seconds for variable store operations."
         ),
     ] = 300
+
+
+class TrainerWeightServerConfig(BaseConfig):
+    """Configures the UCP weight server on the trainer (rank 0)."""
+
+    host: Annotated[
+        str,
+        Field(
+            description="Host address to bind the trainer weight server to. Use 'localhost' for single-node setups, or '0.0.0.0' for multi-node setups."
+        ),
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port for the trainer weight server to bind to."
+        ),
+    ] = 13337
+
+
+class InferenceWeightClientConfig(BaseConfig):
+    """Configures the UCP weight client on the inference server."""
+
+    trainer_host: Annotated[
+        str,
+        Field(
+            description="Host address of the trainer weight server."
+        ),
+    ] = "localhost"
+
+    trainer_port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port of the trainer weight server."
+        ),
+    ] = 13337
+
+    timeout: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Timeout in seconds for UCP weight transfer operations."
+        ),
+    ] = 300
+
+
+class WeightSyncServerConfig(BaseConfig):
+    """Configures the weight synchronization coordinator server."""
+
+    host: Annotated[
+        str,
+        Field(
+            description="Host address to bind the weight sync server to. Use 'localhost' for single-node setups, or '0.0.0.0' for multi-node setups."
+        ),
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port for the weight sync server to bind to."
+        ),
+    ] = 13338
+
+
+class WeightSyncClientConfig(BaseConfig):
+    """Configures the weight synchronization coordinator client."""
+
+    host: Annotated[
+        str,
+        Field(
+            description="Host address of the weight sync server."
+        ),
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port of the weight sync server."
+        ),
+    ] = 13338
+
+    timeout: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Timeout in seconds for weight sync operations."
+        ),
+    ] = 300

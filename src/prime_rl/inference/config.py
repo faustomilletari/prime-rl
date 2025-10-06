@@ -91,8 +91,8 @@ class ModelConfig(BaseConfig):
     ] = "hermes"
 
 
-class InferenceConfig(BaseSettings):
-    """Configures inference."""
+class InferenceConfig(BaseConfig):
+    """Configures the inference server."""
 
     # The server configuration
     server: ServerConfig = ServerConfig()
@@ -116,6 +116,9 @@ class InferenceConfig(BaseSettings):
             description="Seed the inference components. If None, no seeding is used. Passed to vLLM as `--seed`",
         ),
     ] = None
+
+    # The UCP weight client configuration
+    weight_client: InferenceWeightClientConfig = InferenceWeightClientConfig()
 
     def to_vllm(self) -> Namespace:
         """Convert InferenceConfig to vLLM-compatible Namespace."""

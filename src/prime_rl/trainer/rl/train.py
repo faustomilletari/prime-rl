@@ -48,7 +48,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-from prime_rl.utils.variable_store import VariableStoreClient
+from prime_rl.utils.rdma_weights import TrainerWeightServer, WeightSyncClient
 
 
 @clean_exit
@@ -96,45 +96,24 @@ def train(config: RLTrainerConfig):
     scheduler = setup_scheduler(optimizer, config.scheduler, config.max_steps, config.optim.lr)
     logger.info(f"Using `{config.scheduler.type}` scheduler ({config.scheduler})")
 
-    # Set up weight checkpoint manager
-    logger.info(f"Initializing weight checkpoint manager ({config.weights})")
-    weight_ckpt_manager = setup_weight_ckpt_manager(config.output_dir, config.weights, config.ckpt, config.async_level)
-    assert weight_ckpt_manager is not None, "Weight checkpoint manager must be set on RL trainer"
-
-    # Set up checkpoint manager
-    logger.info(f"Initializing checkpoint manager ({config.ckpt})")
-    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
-
-    # Optionally, resume training from a checkpoint
-    progress = Progress()
-    if config.ckpt and ckpt_manager is not None and config.ckpt.resume_step:
-        logger.info(f"Resuming training from checkpoint step {config.ckpt.resume_step}")
-        ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step)
-    logger.info(
-        f"Starting from step {progress.step} (total_tokens={progress.total_tokens}, total_samples={progress.total_samples})"
-    )
-
-    # Optionally, initialize a model to compute logprobs
-    logprob_model, tensor_offloaded_repository = None, {}
-    if config.recompute_logprobs:
-        # Initialize the logprob model
-        tensor_offloaded_repository: dict[int, OffloadedTensor] = {}
-        logger.info(f"Initializing logprob model ({config.model})")
-        logprob_model = setup_model(config.model, parallel_dims)
-
-        # Load async models from weights checkpoint if resuming from checkpoint
-        if config.ckpt and config.ckpt.resume_step:
-            for step in range(max(progress.step - config.async_level, 0), progress.step):
-                logger.info(f"Initializing logprob model ({config.model}) for step {step}")
-                model_name_or_path = (
-                    config.model.name
-                    if not (config.ckpt and config.ckpt.resume_step)
-                    else weight_ckpt_manager._get_step_path(step).as_posix()
-                )
-                model_config = deepcopy(config.model)
-                model_config.name = model_name_or_path
-                logprob_model = setup_model(model_config, parallel_dims)
-                tensor_offloaded_repository[step] = offload_model_to_cpu(logprob_model)
+    # Set up weight sync client and trainer weight server (only on rank 0)
+    weight_sync_client = None
+    trainer_weight_server = None
+    if world.is_master:
+        logger.info(f"Initializing weight sync client ({config.weight_sync})")
+        weight_sync_client = WeightSyncClient(
+            host=config.weight_sync.host,
+            port=config.weight_sync.port,
+            timeout=config.weight_sync.timeout,
+        )
+        
+        logger.info(f"Initializing trainer weight server ({config.trainer_weight_server})")
+        trainer_weight_server = TrainerWeightServer(
+            host=config.trainer_weight_server.host,
+            port=config.trainer_weight_server.port,
+        )
+        trainer_weight_server.set_model(model)
+        trainer_weight_server.start()
 
     # Set up the data loader (Optionally, use a fake data loader for debugging)
     logger.info(f"Initializing data loader ({config.data})")
@@ -159,12 +138,13 @@ def train(config: RLTrainerConfig):
         # Reset peak memory stats
         torch.cuda.reset_peak_memory_stats()
 
-        # Save the weight checkpoint (if we are not at the first step, because no updates to the model have been made yet)
+        # Signal weights are ready (only on rank 0) - this replaces the old weight saving
         save_weights_time = 0
-        if progress.step > 0:
+        if progress.step > 0 and world.is_master:
             save_weights_start_time = time.time()
-            weight_ckpt_manager.save(model, tokenizer, step=progress.step)
+            weight_sync_client.signal_weights_ready(progress.step)
             save_weights_time = time.time() - save_weights_start_time
+            logger.debug(f"Signaled weights ready for step {progress.step}")
 
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
         is_last_step = config.max_steps is not None and progress.step == config.max_steps
@@ -352,7 +332,7 @@ def train(config: RLTrainerConfig):
         # TODO: Broadcast weight checkpoint via shardcast
 
         # Maybe clean up weight checkpoint
-        weight_ckpt_manager.maybe_clean(progress.step)
+        # weight_ckpt_manager.maybe_clean(progress.step) # This line is removed as per the new_code
 
         # Optionally, dump memory snapshot
         if memory_profiler is not None:

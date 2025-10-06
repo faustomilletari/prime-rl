@@ -4,7 +4,7 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, Field, model_validator
 
 from prime_rl.orchestrator.advantage import AdvantageType
-from prime_rl.utils.config import LogConfig, ModelConfig, WandbMonitorConfig
+from prime_rl.utils.config import LogConfig, ModelConfig, WandbMonitorConfig, WeightSyncServerConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 from prime_rl.utils.config import VariableStoreServerConfig
 
@@ -424,6 +424,9 @@ class OrchestratorConfig(BaseSettings):
 
     # The variable store server configuration
     variable_store: VariableStoreServerConfig = VariableStoreServerConfig()
+
+    # The weight sync server configuration
+    weight_sync: WeightSyncServerConfig = WeightSyncServerConfig()
 
     output_dir: Annotated[
         Path,

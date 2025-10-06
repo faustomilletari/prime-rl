@@ -62,6 +62,12 @@ class RLTrainerConfig(BaseSettings):
     # The variable store client configuration
     variable_store: VariableStoreClientConfig = VariableStoreClientConfig()
 
+    # The trainer weight server configuration (only used by rank 0)
+    trainer_weight_server: Annotated[TrainerWeightServerConfig, Field(discriminator="type")] = TrainerWeightServerConfig()
+
+    # The weight sync client configuration
+    weight_sync: Annotated[WeightSyncClientConfig, Field(discriminator="type")] = WeightSyncClientConfig()
+
     # The loss configuration
     loss: LossConfig = LossConfig()
 
@@ -74,8 +80,8 @@ class RLTrainerConfig(BaseSettings):
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
 
-    # The weight checkpoint configuration
-    weights: WeightCheckpointConfig = WeightCheckpointConfig()
+    # Remove the old weights config - we don't need it anymore
+    # weights: WeightCheckpointConfig = WeightCheckpointConfig()
 
     # The logging configuration
     log: LogConfig = LogConfig()

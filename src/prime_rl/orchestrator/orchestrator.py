@@ -27,7 +27,6 @@ from prime_rl.orchestrator.batch import prepare_batch
 from prime_rl.utils.logger import setup_logger
 from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
-    wait_for_weight_checkpoint,
     print_benchmark,
     parse_is_truncated_completions,
 )
@@ -36,11 +35,11 @@ from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import (
     clean_exit,
     format_num,
-    get_weights_dir,
     to_col_format,
 )
 from prime_rl.utils.variable_store import VariableStoreServer
 import numpy as np
+from prime_rl.utils.rdma_weights import WeightSyncCoordinator
 
 
 @clean_exit
@@ -60,6 +59,14 @@ async def orchestrate(config: OrchestratorConfig):
         steps_to_preserve=config.variable_store.steps_to_preserve,
     )
     variable_store_server.start()
+
+    # Initialize the weight sync coordinator
+    logger.info(f"Initializing weight sync coordinator ({config.weight_sync})")
+    weight_sync_coordinator = WeightSyncCoordinator(
+        host=config.weight_sync.host,
+        port=config.weight_sync.port,
+    )
+    weight_sync_coordinator.start()
 
     # Print warning if running in benchmark mode
     if config.bench:
@@ -113,14 +120,15 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
         ckpt_manager.load(progress, buffer, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
-        await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
+        # Update weights via UCP instead of filesystem
+        await update_weights(client)
     else:
         logger.info("Training from scratch. Resetting weights to base model")
         await reload_weights(client)
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
-    logger.info(f"Starting orchestrator loop ({max_steps=}")
+    logger.info(f"Starting orchestrator loop ({max_steps=})")
     ckpt_step = 0
     last_eval_step = -1
     is_first_step = True
@@ -149,25 +157,25 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info(f"Starting orchestrator step {progress.step} ({ckpt_step=})")
         step_start_time = time.time()
 
-        # Optionally, wait for the next checkpoint to be available
-        wait_for_weight_ckpt_time, update_weights_time = 0, 0
+        # Wait for weights to be ready and update via UCP
+        wait_for_weight_sync_time, update_weights_time = 0, 0
         if progress.step - ckpt_step > config.async_level:
             logger.debug(
                 f"Hit async barrier because step {progress.step} is {progress.step - ckpt_step} (>{config.async_level}) steps ahead of checkpoint step {ckpt_step}."
             )
 
-            # Wait for the checkpoint to be available
+            # Wait for weights to be ready
             ckpt_step = progress.step - config.async_level
-            logger.info(f"Waiting for weight checkpoint {ckpt_step}")
-            wait_for_weight_ckpt_start_time = time.time()
-            wait_for_weight_checkpoint(get_weights_dir(config.output_dir), ckpt_step)
-            wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
-            logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
+            logger.info(f"Waiting for weights to be ready at step {ckpt_step}")
+            wait_for_weight_sync_start_time = time.time()
+            weight_sync_coordinator.wait_for_weights(ckpt_step)
+            wait_for_weight_sync_time = time.time() - wait_for_weight_sync_start_time
+            logger.debug(f"Waited {wait_for_weight_sync_time:.2f}s for weights")
 
-            # Update the weights
-            logger.info(f"Updating weights to weight checkpoint {ckpt_step}")
+            # Update the weights via UCP
+            logger.info(f"Updating weights via UCP at step {ckpt_step}")
             update_weights_start_time = time.time()
-            await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
+            await update_weights(client)
             update_weights_time = time.time() - update_weights_start_time
             logger.debug(f"Updated weights in {update_weights_time:.2f}s")
 
@@ -455,7 +463,7 @@ async def orchestrate(config: OrchestratorConfig):
         # Log time metrics to monitor
         time_metrics = {
             "time/step": step_time,
-            "time/wait_for_weight_ckpt": wait_for_weight_ckpt_time,
+            "time/wait_for_weight_ckpt": wait_for_weight_sync_time,
             "time/generate_completions": generate_completions_time,
             "time/update_weights": update_weights_time,
             "time/save_ckpt": save_ckpt_time,
@@ -517,6 +525,7 @@ async def orchestrate(config: OrchestratorConfig):
     
     # Stop the variable store server
     variable_store_server.stop()
+    weight_sync_coordinator.stop()
 
     # Optionally, print benchmark table
     if config.bench:

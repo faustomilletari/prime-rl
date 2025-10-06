@@ -2,24 +2,41 @@ from pathlib import Path
 
 import torch
 
+from prime_rl.utils.rdma_weights import InferenceWeightClient
+
 
 class CheckpointWorker:
     """
     This is an extension of a vLLM worker that allows for loading checkpoints
-    from a specified directory via RPC calls from the AsyncLLMEngine class, exposed
-    by the vLLM server. This is useful in RL training, where we want to load the
-    recent policy model from a checkpoint directory.
+    directly from trainer's GPU via UCP. This is useful in RL training, where we want to load the
+    recent policy model directly from the trainer's GPU memory.
     """
 
-    def update_weights(self, model_path: Path) -> None:
-        """Update weights from a specified path pointing to a .pt file."""
-        state_dict = torch.load(model_path, map_location="cpu", mmap=True)
+    def __init__(self):
+        self.ucp_client = None
+
+    def setup_ucp_client_from_config(self, config):
+        """Setup UCP client from inference config."""
+        self.ucp_client = InferenceWeightClient(
+            trainer_host=config.weight_client.trainer_host,
+            trainer_port=config.weight_client.trainer_port,
+            timeout=config.weight_client.timeout,
+        )
+
+    def update_weights(self) -> None:
+        """Update weights directly from trainer's GPU via UCP."""
+        if self.ucp_client is None:
+            raise RuntimeError("UCP client not initialized")
+
+        # Get weights directly from trainer's GPU via UCP
+        import asyncio
+        gpu_state_dict = asyncio.run(self.ucp_client.fetch_weights())
 
         def weights_iterator():
-            for key, value in state_dict.items():
+            for key, value in gpu_state_dict.items():
                 if not key:
                     continue
-                yield key, value
+                yield key, value  # Already on GPU, no .cuda() needed
 
         self.model_runner.model.load_weights(weights_iterator())
 
@@ -28,3 +45,9 @@ class CheckpointWorker:
 
         device = next(self.model_runner.model.parameters()).device
         process_weights_after_loading(self.model_runner.model, self.model_runner.model_config, device)
+
+    def reload_weights(self) -> None:
+        """Reload weights (reset to base model)."""
+        # For now, this is a no-op as we don't have a base model reload mechanism
+        # In the future, this could reload from the original model checkpoint
+        pass
