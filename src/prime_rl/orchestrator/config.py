@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from prime_rl.orchestrator.advantage import AdvantageType
 from prime_rl.utils.config import LogConfig, ModelConfig, WandbMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
+from prime_rl.utils.config import VariableStoreServerConfig
 
 ServerType = Literal["vllm", "openai"]
 
@@ -420,6 +421,9 @@ class OrchestratorConfig(BaseSettings):
 
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
+
+    # The variable store server configuration
+    variable_store: VariableStoreServerConfig = VariableStoreServerConfig()
 
     output_dir: Annotated[
         Path,

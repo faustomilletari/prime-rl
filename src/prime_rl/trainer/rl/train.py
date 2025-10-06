@@ -7,6 +7,7 @@ from datetime import timedelta
 # ruff: noqa: I001
 
 import torch
+import torch.distributed as dist
 from torch.profiler import profile, ProfilerActivity, record_function
 from loguru import logger
 from prime_rl.trainer.ckpt import Progress, setup_ckpt_manager
@@ -47,6 +48,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
+from prime_rl.utils.variable_store import VariableStoreClient
 
 
 @clean_exit
@@ -136,9 +138,15 @@ def train(config: RLTrainerConfig):
 
     # Set up the data loader (Optionally, use a fake data loader for debugging)
     logger.info(f"Initializing data loader ({config.data})")
-    dataloader = DataLoader(config.output_dir, progress.step)
     if config.data.fake:
         dataloader = FakeDataLoader(config.data.fake)
+    else:
+        dataloader = DataLoader(
+            host=config.variable_store.host,
+            port=config.variable_store.port,
+            timeout=config.variable_store.timeout,
+            start_step=progress.step,
+        )
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
@@ -428,6 +436,10 @@ def train(config: RLTrainerConfig):
 
     # Log final (immutable) distributions to W&B table
     monitor.log_final_distributions()
+
+    # Close the data loader
+    if not config.data.fake:
+        dataloader.close()
 
     # Write final checkpoint
     if ckpt_manager is not None:

@@ -1,3 +1,6 @@
+import threading
+import time
+import socket
 from pathlib import Path
 from typing import Callable
 
@@ -6,13 +9,22 @@ import torch
 
 from prime_rl.orchestrator.batch import BatchSample
 from prime_rl.trainer.rl.data import MicroBatch
-from prime_rl.utils.utils import get_rollout_dir
+from prime_rl.utils.variable_store import VariableStoreServer
 from tests import Command, Environment, ProcessResult
 
 pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 
 ENV = {"CUDA_VISIBLE_DEVICES": "1"}
 CMD = ["uv", "run", "trainer", "@", "configs/debug/rl/train.toml"]
+
+
+def get_free_port() -> int:
+    """Find and return a free port"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
 
 
 def create_sample(seq_len: int) -> BatchSample:
@@ -37,44 +49,62 @@ def create_dummy_batch(batch_size: int, seq_len: int) -> MicroBatch:
 
 
 @pytest.fixture(scope="module")
-def fake_rollout_dir(
+def variable_store_server(
     tmp_path_factory: pytest.TempPathFactory,
-) -> Callable[[list[int], int, int, int], Path]:
-    """Create a temporary directory with dummy batches."""
+) -> tuple[VariableStoreServer, Path, int]:
+    """Create a variable store server with dummy batches."""
     output_dir = tmp_path_factory.mktemp("outputs")
-
-    def write_dummy_batches(
-        steps: list[int] = [1],
-        batch_size: int = 1,
-        micro_batch_size: int = 1,
-        seq_len: int = 10,
-    ) -> Path:
-        for step in steps:
-            step_path = get_rollout_dir(output_dir) / f"step_{step}"
-            step_path.mkdir(parents=True, exist_ok=True)
-            batch_path = step_path / "rank_0.pt"
-            tmp_path = batch_path.with_suffix(".tmp")
-            batches = []
-            assert batch_size % micro_batch_size == 0, "Batch size must be divisible by micro batch size"
-            for _ in range(batch_size // micro_batch_size):
-                micro_batch = create_dummy_batch(micro_batch_size, seq_len)
-                batches.append(micro_batch)
-            torch.save(batches, tmp_path)
-            tmp_path.rename(batch_path)
-
-        return output_dir
-
-    return write_dummy_batches
+    
+    # Get a free port to avoid conflicts
+    port = get_free_port()
+    
+    # Start variable store server
+    server = VariableStoreServer(host="localhost", port=port, steps_to_preserve=2)
+    server.start()
+    
+    # Give server time to start
+    time.sleep(0.1)
+    
+    yield server, output_dir, port
+    
+    # Clean up server
+    server.stop()
 
 
 @pytest.fixture(scope="module")
 def train_process(
     run_process: Callable[[Command, Environment], ProcessResult],
-    fake_rollout_dir: Callable[[list[int], int, int, int], Path],
+    variable_store_server: tuple[VariableStoreServer, Path, int],
 ):
-    output_dir = fake_rollout_dir(list(range(5)), 16, 8, 16)
+    server, output_dir, port = variable_store_server
+    
+    # Populate variable store with dummy batches
+    steps = list(range(5))
+    batch_size = 16
+    micro_batch_size = 8
+    seq_len = 16
+    
+    for step in steps:
+        batches = []
+        assert batch_size % micro_batch_size == 0, "Batch size must be divisible by micro batch size"
+        for _ in range(batch_size // micro_batch_size):
+            micro_batch = create_dummy_batch(micro_batch_size, seq_len)
+            batches.append(micro_batch)
+        
+        # Store batches for rank 0
+        key = f"step_{step}_rank_0"
+        server.put(key, batches)
+    
+    # Run trainer with variable store configuration
     return run_process(
-        CMD + ["--output-dir", output_dir.as_posix(), "--data.fake", "None", "--log.level", "debug"], ENV
+        CMD + [
+            "--output-dir", output_dir.as_posix(), 
+            "--data.fake", "None", 
+            "--log.level", "debug",
+            "--variable-store.host", "localhost",
+            "--variable-store.port", str(port),
+        ], 
+        ENV
     )
 
 

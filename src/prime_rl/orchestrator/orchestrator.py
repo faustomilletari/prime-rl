@@ -36,10 +36,10 @@ from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import (
     clean_exit,
     format_num,
-    get_rollout_dir,
     get_weights_dir,
     to_col_format,
 )
+from prime_rl.utils.variable_store import VariableStoreServer
 import numpy as np
 
 
@@ -51,6 +51,15 @@ async def orchestrate(config: OrchestratorConfig):
         config.log.level, log_file=config.output_dir / "logs" / "orchestrator.log" if config.log.file else None
     )
     logger.info("Starting orchestrator")
+
+    # Initialize the variable store server
+    logger.info(f"Initializing variable store server ({config.variable_store})")
+    variable_store_server = VariableStoreServer(
+        host=config.variable_store.host,
+        port=config.variable_store.port,
+        steps_to_preserve=config.variable_store.steps_to_preserve,
+    )
+    variable_store_server.start()
 
     # Print warning if running in benchmark mode
     if config.bench:
@@ -342,7 +351,7 @@ async def orchestrate(config: OrchestratorConfig):
         solve_none = rewards.sum(-1).eq(0).float().mean().item()
         effective_batch_size = 1 - solve_none - solve_all
 
-        # Write serialized batch to disk for trainer workers to consume
+        # Write serialized batch to variable store for trainer workers to consume
         all_data_ranks_batches = prepare_batch(
             rollouts=rollouts,
             temperature=config.sampling.temperature,
@@ -353,14 +362,13 @@ async def orchestrate(config: OrchestratorConfig):
             seq_len=config.seq_len,
         )
 
-        step_path = get_rollout_dir(config.output_dir) / f"step_{progress.step}"
-        step_path.mkdir(parents=True, exist_ok=True)
-        for i, batches in enumerate(all_data_ranks_batches):
-            batch_path = step_path / f"rank_{i}.pt"
-            tmp_path = batch_path.with_suffix(".tmp")
-            logger.debug(f"Saving rollouts for step {progress.step} for rank {i} to {batch_path}")
-            torch.save(batches, tmp_path)
-            tmp_path.rename(batch_path)
+        for rank_id, batches in enumerate(all_data_ranks_batches):
+            key = f"step_{progress.step}_rank_{rank_id}"
+            logger.debug(f"Storing variable for step {progress.step} for rank {rank_id} with key {key}")
+            variable_store_server.put(key, batches)
+
+        # Clean up old variables from the store
+        variable_store_server.maybe_clean(progress.step)
 
         # Log step metrics
         step_time = time.time() - step_start_time
@@ -506,6 +514,9 @@ async def orchestrate(config: OrchestratorConfig):
         ckpt_manager.save(progress, buffer, step=progress.step)
 
     logger.success("Orchestrator finished.")
+    
+    # Stop the variable store server
+    variable_store_server.stop()
 
     # Optionally, print benchmark table
     if config.bench:

@@ -245,10 +245,6 @@ def get_weights_dir(output_dir: Path) -> Path:
     return output_dir / "weights"
 
 
-def get_rollout_dir(output_dir: Path) -> Path:
-    return output_dir / "rollouts"
-
-
 def get_eval_dir(output_dir: Path) -> Path:
     return output_dir / "evals"
 

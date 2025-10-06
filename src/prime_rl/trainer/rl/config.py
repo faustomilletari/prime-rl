@@ -14,6 +14,7 @@ from prime_rl.trainer.config import (
 )
 from prime_rl.utils.config import LogConfig, WandbMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
+from prime_rl.utils.config import VariableStoreClientConfig
 
 
 class LossConfig(BaseModel):
@@ -57,6 +58,9 @@ class RLTrainerConfig(BaseSettings):
 
     # The data configuration
     data: DataLoaderConfig = DataLoaderConfig()
+
+    # The variable store client configuration
+    variable_store: VariableStoreClientConfig = VariableStoreClientConfig()
 
     # The loss configuration
     loss: LossConfig = LossConfig()

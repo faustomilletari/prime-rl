@@ -7,7 +7,7 @@ from torch import Tensor
 
 from prime_rl.trainer.rl.config import FakeDataLoaderConfig
 from prime_rl.trainer.world import get_world
-from prime_rl.utils.utils import get_rollout_dir, wait_for_path
+from prime_rl.utils.variable_store import VariableStoreClient
 
 
 class MicroBatch(TypedDict):
@@ -55,20 +55,23 @@ class FakeDataLoader:
 
 
 class DataLoader:
-    """Loads serialized data from a data path written by the orchestrator."""
+    """Loads serialized data from the variable store."""
 
-    def __init__(self, output_dir: Path, start_step: int):
-        self.rollout_dir = get_rollout_dir(output_dir)
+    def __init__(self, host: str, port: int, timeout: int, start_step: int):
+        self.variable_store_client = VariableStoreClient(host, port, timeout)
         self.current_step = start_step
         self.world = get_world()
 
-    def get_rollout_path(self) -> Path:
-        return self.rollout_dir / f"step_{self.current_step}" / f"rank_{self.world.rank}.pt"
+    def get_variable_key(self) -> str:
+        return f"step_{self.current_step}_rank_{self.world.rank}"
 
     def wait_for_batch(self) -> None:
-        wait_for_path(self.get_rollout_path())
+        self.variable_store_client.wait_for_key(self.get_variable_key())
 
     def get_batch(self) -> list[MicroBatch]:
-        batches = torch.load(self.get_rollout_path())
+        batches = self.variable_store_client.get(self.get_variable_key())
         self.current_step += 1
         return batches
+
+    def close(self):
+        self.variable_store_client.close()

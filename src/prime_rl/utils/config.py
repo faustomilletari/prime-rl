@@ -96,3 +96,59 @@ class WandbMonitorConfig(BaseConfig):
             description="Configuration for logging extras to W&B tables. If None, no extras are logged.",
         ),
     ] = LogExtrasConfig()
+
+
+class VariableStoreServerConfig(BaseConfig):
+    """Configures the ZeroMQ variable store server co-located with the orchestrator."""
+
+    host: Annotated[
+        str,
+        Field(
+            description="Host address to bind the variable store server to. Use 'localhost' for single-node setups, or '0.0.0.0' for multi-node setups."
+        ),
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port for the variable store server to bind to."
+        ),
+    ] = 22222
+
+    steps_to_preserve: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Number of recent steps to preserve in the variable store. Older steps will be automatically cleaned up."
+        ),
+    ] = 2
+
+
+class VariableStoreClientConfig(BaseConfig):
+    """Configures the ZeroMQ variable store client used by trainers."""
+
+    host: Annotated[
+        str,
+        Field(
+            description="Host address of the variable store server. Use 'localhost' for single-node setups."
+        ),
+    ] = "localhost"
+
+    port: Annotated[
+        int,
+        Field(
+            ge=1024,
+            le=65535,
+            description="Port of the variable store server."
+        ),
+    ] = 22222
+
+    timeout: Annotated[
+        int,
+        Field(
+            ge=1,
+            description="Timeout in seconds for variable store operations."
+        ),
+    ] = 300

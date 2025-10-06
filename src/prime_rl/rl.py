@@ -28,7 +28,6 @@ from prime_rl.utils.utils import (
     get_cuda_visible_devices,
     get_free_port,
     get_log_dir,
-    get_rollout_dir,
     get_weights_dir,
 )
 from prime_rl.utils.validation import (
@@ -112,7 +111,7 @@ class RLConfig(BaseSettings):
     clean: Annotated[
         bool,
         Field(
-            description="Whether to clean the rollouts, checkpoint, checkpoint weights and logs directories at the beginning of the run. If True, will forceably, and irreversibly, delete all directories.",
+            description="Whether to clean the checkpoints, weights and logs directories at the beginning of the run. If True, will forceably, and irreversibly, delete all directories.",
         ),
     ] = True
 
@@ -123,8 +122,10 @@ class RLConfig(BaseSettings):
 
     output_dir: Annotated[
         Path,
-        Field(description="The directory to store the outputs. Should typically be set to an experiment identifier."),
-    ] = Path("outputs")  # NOTE: Must match `OUTPUT_DIR` in `tmux.sh` to see logs
+        Field(
+            description="Directory to write outputs to. Will be populated with checkpoints, weights and logs as subdirectories. Should be set to a persistent directory with enough disk space. This value should be distinct across experiments running on a single node. See the README for more details."
+        ),
+    ] = Path("outputs")
 
     ckpt: Annotated[
         CheckpointConfig | None,
@@ -397,11 +398,10 @@ def rl(config: RLConfig):
     log_dir = get_log_dir(config.output_dir)
     ckpt_dir = get_ckpt_dir(config.output_dir)
     weights_dir = get_weights_dir(config.output_dir)
-    rollout_dir = get_rollout_dir(config.output_dir)
 
     # Clean up directories if specified
     if config.clean:
-        logger.info("Cleaning checkpoint, logs, weights and rollout directories")
+        logger.info("Cleaning checkpoint, logs, and weights directories")
 
         # Cleaning logs
         logger.info(f"Cleaning log dir ({log_dir})")
@@ -416,10 +416,6 @@ def rl(config: RLConfig):
 
             logger.info(f"Cleaning checkpoint weights directory ({weights_dir})")
             shutil.rmtree(weights_dir, ignore_errors=True)
-
-        # Cleaning rollouts
-        logger.info(f"Cleaning rollout dir ({rollout_dir})")
-        shutil.rmtree(rollout_dir, ignore_errors=True)
 
     # Start processes
     processes: list[Popen] = []
