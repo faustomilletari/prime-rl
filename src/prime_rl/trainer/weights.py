@@ -11,6 +11,12 @@ from torch.distributed.tensor import DTensor
 from transformers.tokenization_utils import PreTrainedTokenizer
 
 from prime_rl.trainer.config import CheckpointConfig
+from prime_rl.trainer.lora import (
+    clean_lora_state_dict,
+    has_lora_layers,
+    merge_lora_weights_inplace,
+    restore_lora_weights_inplace,
+)
 from prime_rl.trainer.rl.config import WeightCheckpointConfig
 from prime_rl.trainer.world import get_world
 from prime_rl.utils.logger import get_logger
@@ -44,13 +50,24 @@ def _convert_tt_moe_to_hf_(state_dict: dict[str, Tensor]):
         if f"model.layers.{i}.mlp.shared_expert.w1" in state_dict:
             state_dict[f"model.layers.{i}.mlp.shared_experts.gate_proj.weight"] = state_dict[
                 f"model.layers.{i}.mlp.shared_expert.w1"
-            ][0]
+            ]
             state_dict[f"model.layers.{i}.mlp.shared_experts.down_proj.weight"] = state_dict[
                 f"model.layers.{i}.mlp.shared_expert.w2"
-            ][0]
+            ]
             state_dict[f"model.layers.{i}.mlp.shared_experts.up_proj.weight"] = state_dict[
                 f"model.layers.{i}.mlp.shared_expert.w3"
-            ][0]
+            ]
+
+            if state_dict[f"model.layers.{i}.mlp.shared_experts.up_proj.weight"].shape[0] == 1:
+                state_dict[f"model.layers.{i}.mlp.shared_experts.up_proj.weight"] = state_dict[
+                    f"model.layers.{i}.mlp.shared_experts.up_proj.weight"
+                ][0]
+                state_dict[f"model.layers.{i}.mlp.shared_experts.down_proj.weight"] = state_dict[
+                    f"model.layers.{i}.mlp.shared_experts.down_proj.weight"
+                ][0]
+                state_dict[f"model.layers.{i}.mlp.shared_experts.gate_proj.weight"] = state_dict[
+                    f"model.layers.{i}.mlp.shared_experts.gate_proj.weight"
+                ][0]
             del state_dict[f"model.layers.{i}.mlp.shared_expert.w1"]
             del state_dict[f"model.layers.{i}.mlp.shared_expert.w2"]
             del state_dict[f"model.layers.{i}.mlp.shared_expert.w3"]
@@ -96,33 +113,43 @@ class WeightCheckpointManager:
     def _get_step_path(self, step: int) -> Path:
         return get_step_path(self.weights_dir, step)
 
-    def _gather_weights(self, model: nn.Module, dtype: torch.dtype = torch.bfloat16) -> dict[str, Tensor]:
+    def _gather_weights(
+        self, model: nn.Module, dtype: torch.dtype = torch.bfloat16, has_lora_layers: bool = False
+    ) -> dict[str, Tensor]:
         """Gather distributed weights for weight checkpoint."""
-        start_time = time.time()
-        self._logger.debug("Gathering sharded weights")
+        original_lora_state = None
+        if has_lora_layers:
+            original_lora_state = merge_lora_weights_inplace(model)
 
-        # Suppress torch.distributed warnings during checkpoint saving
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
-            warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning, module="torch.distributed")
+                warnings.filterwarnings("ignore", category=UserWarning, module="torch.distributed.*")
 
-            cpu_state = {}
-            for key, value in model.state_dict().items():
-                if isinstance(value, DTensor):
-                    value = value.to(dtype)
-                    # only gather after the downcast to dtype as it will be faster
-                    value = value.full_tensor()
+                cpu_state = {}
+                for key, value in model.state_dict().items():
+                    if isinstance(value, DTensor):
+                        value = value.to(dtype)
+                        # only gather after the downcast to dtype as it will be faster
+                        value = value.full_tensor()
 
-                if self._is_master:
-                    key = get_fqns(model, key)
-                    assert len(key) == 1
-                    key = next(iter(key))
-                    # TODO(Sami) Blocking to avoid race condition, should make non-blocking long-term tho
-                    cpu_state[key] = value.to("cpu", non_blocking=False)
+                    if self._is_master:
+                        key = get_fqns(model, key)
+                        assert len(key) == 1
+                        key = next(iter(key))
+                        # TODO(Sami) Blocking to avoid race condition, should make non-blocking long-term tho
+                        cpu_state[key] = value.to("cpu", non_blocking=False)
 
-            torch.distributed.barrier()
+                torch.distributed.barrier()
 
-        self._logger.debug(f"Gathered sharded weights in {time.time() - start_time:.2f} seconds")
+        finally:
+            # Always restore original LoRA state, even if gathering fails
+            if original_lora_state is not None:
+                restore_lora_weights_inplace(model, original_lora_state)
+
+        # Always clean up the state dict for HF compatibility
+        if any(".base_layer." in key or "lora_A" in key or "lora_B" in key for key in cpu_state.keys()):
+            cpu_state = clean_lora_state_dict(cpu_state)
 
         return cpu_state
 
@@ -162,7 +189,9 @@ class WeightCheckpointManager:
         dtype: torch.dtype = torch.bfloat16,
     ):
         """Save a HF-compatible weight-only checkpoint for a given step."""
-        cpu_state = self._gather_weights(model, dtype)
+        has_lora = has_lora_layers(model)
+
+        cpu_state = self._gather_weights(model, dtype, has_lora_layers=has_lora)
         if _has_tt_moe_layers(cpu_state):
             _convert_tt_moe_to_hf_(cpu_state)
 
@@ -217,8 +246,10 @@ class WeightCheckpointManager:
 
 def setup_weight_ckpt_manager(
     output_dir: Path,
-    weight_ckpt_config: WeightCheckpointConfig,
+    weight_ckpt_config: WeightCheckpointConfig | None,
     ckpt_config: CheckpointConfig | None,
     async_level: int,
-) -> WeightCheckpointManager:
+) -> WeightCheckpointManager | None:
+    if weight_ckpt_config is None:
+        return None
     return WeightCheckpointManager(output_dir, weight_ckpt_config, ckpt_config, async_level=async_level)

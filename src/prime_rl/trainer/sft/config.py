@@ -45,6 +45,15 @@ class FakeDataConfig(BaseDataConfig):
     input_ids: Literal["increasing", "random"] = "increasing"
 
 
+class LossMaskConfig(BaseModel):
+    """Configures which message types contribute to the loss. If True, the loss_mask will be True and the message type will contribute to the loss."""
+
+    system: Annotated[bool, Field(description="Whether system messages contribute to the loss.")] = False
+    user: Annotated[bool, Field(description="Whether user messages contribute to the loss.")] = False
+    assistant: Annotated[bool, Field(description="Whether assistant messages contribute to the loss.")] = True
+    tool: Annotated[bool, Field(description="Whether tool messages contribute to the loss.")] = False
+
+
 class SFTDataConfig(BaseDataConfig):
     """Configures the data used for training."""
 
@@ -55,6 +64,10 @@ class SFTDataConfig(BaseDataConfig):
     )
     splits: Annotated[list[str], Field(description="Splits to use from the HF dataset.")] = ["train"]
     shuffle: Annotated[bool, Field(description="Whether to shuffle the dataset at the beginning of each epoch.")] = True
+    seed: Annotated[int, Field(description="Random seed to use for shuffling the dataset. We also shuffle at the end of each epoch by adding epoch count to the seed.")] = 0
+
+    # Configuring
+    loss_mask: LossMaskConfig = LossMaskConfig()
 
 
 DataConfigType: TypeAlias = FakeDataConfig | SFTDataConfig
@@ -79,7 +92,7 @@ class SFTTrainerConfig(BaseSettings):
     ckpt: CheckpointConfig | None = None
 
     # The weight checkpoint configuration
-    weights: WeightCheckpointConfig = WeightCheckpointConfig()
+    weights: WeightCheckpointConfig | None = None
 
     # The logging configuration
     log: LogConfig = LogConfig()
@@ -108,6 +121,15 @@ class SFTTrainerConfig(BaseSettings):
         ),
     ] = False
 
+    trace_path: Annotated[Path | None, Field(description="Path to write pytorch profiler trace to.")] = None
+
+    dist_timeout_seconds: Annotated[
+        int,
+        Field(
+            description="Timeout in seconds for torch distributed ops. Defaults to 600 seconds.",
+        ),
+    ] = 600
+
     @model_validator(mode="after")
     def auto_setup_bench(self):
         if self.bench:
@@ -116,33 +138,6 @@ class SFTTrainerConfig(BaseSettings):
                 self.wandb.log_extras = None
             if self.ckpt:  # Do not checkpoint
                 self.ckpt = None
-        return self
-
-    @model_validator(mode="after")
-    def validate_scheduler(self):
-        # Constant scheduler does not require any validation/ setup
-        if self.scheduler.type == "constant":
-            return self
-
-        # Must specify max_steps when using a scheduler other than `constant`
-        if self.max_steps is None:
-            raise ValueError("Must specify max_steps when using a scheduler other than `constant`")
-
-        # If decay_steps is not specified, use remaining steps after warmup
-        if self.scheduler.decay_steps is None:
-            if not (self.scheduler.warmup_steps <= self.max_steps):
-                raise ValueError("config.scheduler.warmup_steps must be less than or equal to config.max_steps")
-
-            self.scheduler.decay_steps = self.max_steps - self.scheduler.warmup_steps
-            assert self.scheduler.decay_steps >= 0, "config.scheduler.decay_steps must be positive"
-
-        # If decay_steps is specified, validate it
-        else:
-            if not (self.scheduler.warmup_steps + self.scheduler.decay_steps <= self.max_steps):
-                raise ValueError(
-                    "config.scheduler.warmup_steps + config.scheduler.decay_steps must be less than or equal to config.max_steps"
-                )
-
         return self
 
     @model_validator(mode="after")
@@ -155,4 +150,42 @@ class SFTTrainerConfig(BaseSettings):
     def validate_pack_function(self):
         if self.model.cp > 1 and self.data.pack_function != "stack":
             raise ValueError("Packing function must be 'stack' when CP is enabled")
+        return self
+
+    @model_validator(mode="after")
+    def validate_seq_len(self):
+        if self.data.pack_function == "stack":
+            if self.data.seq_len % 256 != 0:
+                raise ValueError("The sequence length must be divisible by 256 when using pack function stack")
+        return self
+
+    @model_validator(mode="after")
+    def dont_do_massive_traces(self):
+        if self.trace_path:
+            if self.max_steps is None:
+                raise ValueError("Must specify max_steps when tracing")
+            if self.max_steps >= 10:
+                raise ValueError(
+                    "Tracing more than 10 steps is not recommended as your trace will be massive. Remove this line if you really want to trace more steps."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def validate_ckpt_managers(self):
+        # Ensures that we save a weight checkpoint with every full checkpoint as well
+        if self.ckpt is not None:
+            if self.weights is None:
+                self.weights = WeightCheckpointConfig()
+            # If not interval is specified, use the same interval as the full checkpoint
+            if self.ckpt.interval is not None and self.weights.interval is None:
+                self.weights.interval = self.ckpt.interval
+            # If an interval is specified, ensure that the weight checkpoint interval is a multiple of the full checkpoint interval
+            if (
+                self.ckpt.interval is not None
+                and self.weights.interval is not None
+                and self.ckpt.interval % self.weights.interval != 0
+            ):
+                raise ValueError(
+                    "Use a weight checkpoint interval that ensures that a weight checkpoint is saved with every full checkpoint"
+                )
         return self
