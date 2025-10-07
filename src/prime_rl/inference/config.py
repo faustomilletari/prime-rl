@@ -92,7 +92,7 @@ class ModelConfig(BaseConfig):
     ] = "hermes"
 
 
-class InferenceConfig(BaseConfig):
+class InferenceConfig(BaseSettings):
     """Configures the inference server."""
 
     # The server configuration
