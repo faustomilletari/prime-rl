@@ -63,10 +63,10 @@ class RLTrainerConfig(BaseSettings):
     variable_store: VariableStoreClientConfig = VariableStoreClientConfig()
 
     # The trainer weight server configuration (only used by rank 0)
-    trainer_weight_server: Annotated[TrainerWeightServerConfig, Field(discriminator="type")] = TrainerWeightServerConfig()
+    trainer_weight_server: TrainerWeightServerConfig = TrainerWeightServerConfig()
 
     # The weight sync client configuration
-    weight_sync: Annotated[WeightSyncClientConfig, Field(discriminator="type")] = WeightSyncClientConfig()
+    weight_sync: WeightSyncClientConfig = WeightSyncClientConfig()
 
     # The loss configuration
     loss: LossConfig = LossConfig()
@@ -79,9 +79,6 @@ class RLTrainerConfig(BaseSettings):
 
     # The checkpoint configuration
     ckpt: CheckpointConfig | None = None
-
-    # Remove the old weights config - we don't need it anymore
-    # weights: WeightCheckpointConfig = WeightCheckpointConfig()
 
     # The logging configuration
     log: LogConfig = LogConfig()
@@ -116,51 +113,48 @@ class RLTrainerConfig(BaseSettings):
     recompute_logprobs: Annotated[
         bool,
         Field(
-            description="Whether to recompute the logprobs. If True, will always recompute logprobs and overwrite those found in the training batch.",
+            description="Whether to recompute logprobs for the policy model. If False, will use the logprobs from the inference server. If True, will recompute them using the policy model.",
         ),
-    ] = False
-
-    bench: Annotated[
-        bool,
-        Field(
-            description="Whether to run in benchmark mode. It will automatically set the maximum number of steps to run to 5 and use fake data.",
-        ),
-    ] = False
-
-    trace_path: Annotated[Path | None, Field(description="Path to write pytorch profiler trace to.")] = None
+    ] = True
 
     dist_timeout_seconds: Annotated[
         int,
         Field(
-            description="Timeout in seconds for torch distributed ops. Defaults to 600 seconds.",
+            ge=1,
+            description="Timeout in seconds for distributed operations.",
         ),
-    ] = 600
+    ] = 1800
+
+    trace_path: Annotated[
+        Path | None,
+        Field(
+            description="Path to write trace to. If None, will not trace.",
+        ),
+    ] = None
+
+    bench: Annotated[
+        bool,
+        Field(
+            description="Whether to run in benchmark mode. It will automatically set the maximum number of steps to run to 5, max async level to ~infinity and disable W&B.",
+        ),
+    ] = False
 
     @model_validator(mode="after")
     def auto_setup_bench(self):
         if self.bench:
-            self.max_steps = 4  # 1 Warmup + 3 Benchmark
-            if not self.data.fake:
-                self.data.fake = FakeDataLoaderConfig()
-            if self.wandb:  # Do not log extras
+            self.max_steps = 4  # Run for 1 warmup step + 3 evaluation steps
+            self.async_level = int(1e9)  # Never wait for RL weight checkpoints
+
+            # Disable evaluation
+            if self.wandb:
                 self.wandb.log_extras = None
-            if self.ckpt:  # Do not checkpoint
-                self.ckpt = None
+
         return self
 
-    @model_validator(mode="after")
-    def disable_logging_wandb_samples(self):
-        if self.wandb and self.wandb.log_extras:
-            self.wandb.log_extras.samples = False
-        return self
 
-    @model_validator(mode="after")
-    def dont_do_massive_traces(self):
-        if self.trace_path:
-            if self.max_steps is None:
-                raise ValueError("Must specify max_steps when tracing")
-            if self.max_steps >= 10:
-                raise ValueError(
-                    "Tracing more than 10 steps is not recommended as your trace will be massive. Remove this line if you really want to trace more steps."
-                )
-        return self
+def main():
+    train(parse_argv(RLTrainerConfig))
+
+
+if __name__ == "__main__":
+    main()
