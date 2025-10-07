@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from prime_rl.orchestrator.advantage import AdvantageType
 from prime_rl.utils.config import LogConfig, ModelConfig, WandbMonitorConfig, WeightSyncServerConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
-from prime_rl.utils.config import VariableStoreServerConfig
+from prime_rl.utils.config import VariableStoreServerConfig, WeightSyncServerConfig
 
 ServerType = Literal["vllm", "openai"]
 

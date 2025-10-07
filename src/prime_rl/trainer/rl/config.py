@@ -14,7 +14,7 @@ from prime_rl.trainer.config import (
 )
 from prime_rl.utils.config import LogConfig, WandbMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
-from prime_rl.utils.config import VariableStoreClientConfig
+from prime_rl.utils.config import VariableStoreClientConfig, TrainerWeightServerConfig, WeightSyncClientConfig
 
 
 class LossConfig(BaseModel):

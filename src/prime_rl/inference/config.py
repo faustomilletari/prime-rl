@@ -5,6 +5,7 @@ from pydantic import Field
 
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings, get_all_fields
 from prime_rl.utils.utils import rgetattr, rsetattr
+from prime_rl.utils.config import InferenceWeightClientConfig
 
 # TODO: Set thinking/ solution budget
 
