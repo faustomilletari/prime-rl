@@ -12,7 +12,6 @@ from torch.profiler import profile, ProfilerActivity, record_function
 from loguru import logger
 from prime_rl.trainer.ckpt import Progress, setup_ckpt_manager
 from prime_rl.trainer.optim import setup_optimizer
-from prime_rl.trainer.weights import setup_weight_ckpt_manager
 from prime_rl.trainer.rl.config import RLTrainerConfig
 from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
 from prime_rl.utils.logger import setup_logger
@@ -96,6 +95,17 @@ def train(config: RLTrainerConfig):
     scheduler = setup_scheduler(optimizer, config.scheduler, config.max_steps, config.optim.lr)
     logger.info(f"Using `{config.scheduler.type}` scheduler ({config.scheduler})")
 
+    # Set up checkpoint manager
+    logger.info(f"Initializing checkpoint manager ({config.ckpt})")
+    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
+
+    # Initialize progress
+    progress = Progress()
+    if ckpt_manager is not None and config.ckpt and config.ckpt.resume_step:
+        logger.info(f"Resuming training from checkpoint step {config.ckpt.resume_step}")
+        ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step)
+    logger.info(f"Starting from step {progress.step}")
+
     # Set up weight sync client and trainer weight server (only on rank 0)
     weight_sync_client = None
     trainer_weight_server = None
@@ -126,6 +136,24 @@ def train(config: RLTrainerConfig):
             timeout=config.variable_store.timeout,
             start_step=progress.step,
         )
+
+    # Optionally, initialize a model to compute logprobs
+    logprob_model, tensor_offloaded_repository = None, {}
+    if config.recompute_logprobs:
+        # Initialize the logprob model
+        tensor_offloaded_repository: dict[int, OffloadedTensor] = {}
+        logger.info(f"Initializing logprob model ({config.model})")
+        logprob_model = setup_model(config.model, parallel_dims)
+
+        # Load async models from weights checkpoint if resuming from checkpoint
+        if config.ckpt and config.ckpt.resume_step:
+            for step in range(max(progress.step - config.async_level, 0), progress.step):
+                logger.info(f"Initializing logprob model ({config.model}) for step {step}")
+                # Use the base model name since we don't have step-specific checkpoints anymore
+                model_config = deepcopy(config.model)
+                logprob_model = setup_model(model_config, parallel_dims)
+                tensor_offloaded_repository[step] = offload_model_to_cpu(logprob_model)
+
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
@@ -328,11 +356,6 @@ def train(config: RLTrainerConfig):
         scheduler.step()
 
         forward_backward_time = time.time() - forward_backward_start_time
-
-        # TODO: Broadcast weight checkpoint via shardcast
-
-        # Maybe clean up weight checkpoint
-        # weight_ckpt_manager.maybe_clean(progress.step) # This line is removed as per the new_code
 
         # Optionally, dump memory snapshot
         if memory_profiler is not None:
