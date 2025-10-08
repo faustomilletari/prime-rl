@@ -6,6 +6,7 @@ from pydantic import Field
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings, get_all_fields
 from prime_rl.utils.utils import rgetattr, rsetattr
 from prime_rl.utils.config import InferenceWeightClientConfig
+import json
 
 # TODO: Set thinking/ solution budget
 
@@ -145,5 +146,16 @@ class InferenceConfig(BaseSettings):
 
         # Set `logprobs_mode` to `processed_logprobs` by default
         rsetattr(namespace, "logprobs_mode", "processed_logprobs")
+
+        # Pass weight_client config through additional_config
+        additional_config = {
+            "checkpoint_worker": {
+                "trainer_host": self.weight_client.trainer_host,
+                "trainer_port": self.weight_client.trainer_port,
+                "timeout": self.weight_client.timeout,
+            }
+        }
+        
+        rsetattr(namespace, "additional_config", json.dumps(additional_config))
 
         return namespace

@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import torch
-
 from prime_rl.utils.rdma_weights import InferenceWeightClient
 
 
@@ -12,7 +10,9 @@ class CheckpointWorker:
     recent policy model directly from the trainer's GPU memory.
     """
 
-    def __init__(self):
+    def __init__(self, args, kwargs):
+        print(args)
+        print(kwargs)
         self.ucp_client = None
 
     def setup_ucp_client_from_config(self, config):
