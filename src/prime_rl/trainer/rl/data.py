@@ -62,8 +62,8 @@ class DataLoader:
         self.current_step = start_step
         self.world = get_world()
 
-    def get_variable_key(self) -> str:
-        return f"step_{self.current_step}_rank_{self.world.rank}"
+    def get_variable_key(self) -> tuple[str, int, int]:
+        return ("rollout", self.current_step, self.world.rank)
 
     def wait_for_batch(self) -> None:
         self.variable_store_client.wait_for_key(self.get_variable_key())

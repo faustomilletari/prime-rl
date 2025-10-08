@@ -47,7 +47,8 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-from prime_rl.utils.rdma_weights import TrainerWeightServer, WeightSyncClient
+from prime_rl.utils.rdma_weights import TrainerWeightServer
+from prime_rl.utils.variable_store import VariableStoreClient
 
 
 @clean_exit
@@ -106,15 +107,15 @@ def train(config: RLTrainerConfig):
         ckpt_manager.load(model, [optimizer], scheduler, progress, step=config.ckpt.resume_step)
     logger.info(f"Starting from step {progress.step}")
 
-    # Set up weight sync client and trainer weight server (only on rank 0)
-    weight_sync_client = None
+    # Set up variable store client for signaling weights and trainer weight server (only on rank 0)
+    weight_signal_client = None
     trainer_weight_server = None
     if world.is_master:
-        logger.info(f"Initializing weight sync client ({config.weight_sync})")
-        weight_sync_client = WeightSyncClient(
-            host=config.weight_sync.host,
-            port=config.weight_sync.port,
-            timeout=config.weight_sync.timeout,
+        logger.info(f"Initializing variable store client for weight signaling ({config.variable_store})")
+        weight_signal_client = VariableStoreClient(
+            host=config.variable_store.host,
+            port=config.variable_store.port,
+            timeout=config.variable_store.timeout,
         )
         
         logger.info(f"Initializing trainer weight server ({config.trainer_weight_server})")
@@ -170,7 +171,7 @@ def train(config: RLTrainerConfig):
         save_weights_time = 0
         if progress.step > 0 and world.is_master:
             save_weights_start_time = time.time()
-            weight_sync_client.signal_weights_ready(progress.step)
+            weight_signal_client.signal("weights_ready", progress.step, True)
             save_weights_time = time.time() - save_weights_start_time
             logger.debug(f"Signaled weights ready for step {progress.step}")
 
@@ -443,6 +444,10 @@ def train(config: RLTrainerConfig):
     # Close the data loader
     if not config.data.fake:
         dataloader.close()
+
+    # Close the weight signal client
+    if weight_signal_client is not None:
+        weight_signal_client.close()
 
     # Write final checkpoint
     if ckpt_manager is not None:

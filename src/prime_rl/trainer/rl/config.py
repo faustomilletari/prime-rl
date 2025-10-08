@@ -14,7 +14,7 @@ from prime_rl.trainer.config import (
 )
 from prime_rl.utils.config import LogConfig, WandbMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
-from prime_rl.utils.config import VariableStoreClientConfig, TrainerWeightServerConfig, WeightSyncClientConfig
+from prime_rl.utils.config import VariableStoreClientConfig, TrainerWeightServerConfig
 
 
 class LossConfig(BaseModel):
@@ -64,9 +64,6 @@ class RLTrainerConfig(BaseSettings):
 
     # The trainer weight server configuration (only used by rank 0)
     trainer_weight_server: TrainerWeightServerConfig = TrainerWeightServerConfig()
-
-    # The weight sync client configuration
-    weight_sync: WeightSyncClientConfig = WeightSyncClientConfig()
 
     # The loss configuration
     loss: LossConfig = LossConfig()

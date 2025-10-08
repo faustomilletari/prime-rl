@@ -1,10 +1,21 @@
 import pickle
 import threading
 import time
+from enum import Enum
 from typing import Any
 
 import zmq
 from loguru import logger
+
+
+class MessageType(Enum):
+    """Message types for variable store operations."""
+    GET = "get"
+    PUT = "put"
+    DELETE = "delete"
+    LIST_KEYS = "list_keys"
+    SIGNAL = "signal"
+    CHECK_SIGNAL = "check_signal"
 
 
 class VariableStoreServer:
@@ -15,6 +26,7 @@ class VariableStoreServer:
         self.port = port
         self.steps_to_preserve = steps_to_preserve
         self.store: dict[str, bytes] = {}
+        self.signals: dict[str, Any] = {}
         self.lock = threading.Lock()
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
@@ -41,20 +53,38 @@ class VariableStoreServer:
                     message = self.socket.recv()
                     request = pickle.loads(message)
                     
-                    operation = request.get("operation")
-                    key = request.get("key")
+                    msg_type = request.get("type")
                     
-                    if operation == "get":
+                    try:
+                        message_type = MessageType(msg_type)
+                    except ValueError:
+                        response = {"status": "error", "message": f"Unknown message type: {msg_type}"}
+                        self.socket.send(pickle.dumps(response))
+                        continue
+                    
+                    if message_type == MessageType.GET:
+                        key = request.get("key")
                         response = self._handle_get(key)
-                    elif operation == "put":
+                    elif message_type == MessageType.PUT:
+                        key = request.get("key")
                         value = request.get("value")
                         response = self._handle_put(key, value)
-                    elif operation == "delete":
+                    elif message_type == MessageType.DELETE:
+                        key = request.get("key")
                         response = self._handle_delete(key)
-                    elif operation == "list_keys":
+                    elif message_type == MessageType.LIST_KEYS:
                         response = self._handle_list_keys()
+                    elif message_type == MessageType.SIGNAL:
+                        signal_name = request.get("signal_name")
+                        step = request.get("step")
+                        signal_data = request.get("signal_data")
+                        response = self._handle_signal(signal_name, step, signal_data)
+                    elif message_type == MessageType.CHECK_SIGNAL:
+                        signal_name = request.get("signal_name")
+                        step = request.get("step")
+                        response = self._handle_check_signal(signal_name, step)
                     else:
-                        response = {"status": "error", "message": f"Unknown operation: {operation}"}
+                        response = {"status": "error", "message": f"Unhandled message type: {message_type}"}
                     
                     self.socket.send(pickle.dumps(response))
             except Exception as e:
@@ -65,7 +95,7 @@ class VariableStoreServer:
                 except:
                     pass
 
-    def _handle_get(self, key: str) -> dict:
+    def _handle_get(self, key: str | tuple) -> dict:
         """Handle GET operation."""
         with self.lock:
             if key in self.store:
@@ -73,13 +103,13 @@ class VariableStoreServer:
             else:
                 return {"status": "error", "message": f"Key not found: {key}"}
 
-    def _handle_put(self, key: str, value: bytes) -> dict:
+    def _handle_put(self, key: str | tuple, value: bytes) -> dict:
         """Handle PUT operation."""
         with self.lock:
             self.store[key] = value
             return {"status": "success"}
 
-    def _handle_delete(self, key: str) -> dict:
+    def _handle_delete(self, key: str | tuple) -> dict:
         """Handle DELETE operation."""
         with self.lock:
             if key in self.store:
@@ -93,34 +123,72 @@ class VariableStoreServer:
         with self.lock:
             return {"status": "success", "keys": list(self.store.keys())}
 
-    def put(self, key: str, value: Any):
-        """Store a value in the variable store."""
+    def _handle_signal(self, signal_name: str, step: int, signal_data: Any) -> dict:
+        """Handle SIGNAL operation."""
+        with self.lock:
+            self.signals[(signal_name, step)] = signal_data
+            return {"status": "success"}
+
+    def _handle_check_signal(self, signal_name: str, step: int) -> dict:
+        """Handle CHECK_SIGNAL operation."""
+        with self.lock:
+            signal_key = (signal_name, step)
+            if signal_key in self.signals:
+                return {"status": "success", "exists": True, "signal_data": self.signals[signal_key]}
+            else:
+                return {"status": "success", "exists": False}
+
+    def put(self, key: str | tuple, value: Any):
+        """Store a value in the variable store (direct server-side access)."""
         serialized_value = pickle.dumps(value)
         with self.lock:
             self.store[key] = serialized_value
 
-    def delete(self, key: str):
-        """Delete a value from the variable store."""
+    def delete(self, key: str | tuple):
+        """Delete a value from the variable store (direct server-side access)."""
         with self.lock:
             if key in self.store:
                 del self.store[key]
 
     def maybe_clean(self, current_step: int):
-        """Clean up old variables based on current step."""
+        """Clean up old variables and signals based on current step."""
         with self.lock:
+            # Clean up old variables (rollouts use tuple keys: ("rollout", step, rank_id))
             keys_to_delete = []
             for key in self.store.keys():
-                if key.startswith("step_"):
+                step = None
+                
+                # Handle tuple keys like ("rollout", step, rank_id)
+                if isinstance(key, tuple) and len(key) >= 2:
+                    # Assume step is the second element for tuple keys
+                    if isinstance(key[1], int):
+                        step = key[1]
+                
+                # Handle legacy string keys like "step_X_rank_Y" (for backward compatibility)
+                elif isinstance(key, str) and key.startswith("step_"):
                     try:
                         step = int(key.split("_")[1].split("_")[0])
-                        if current_step - step > self.steps_to_preserve:
-                            keys_to_delete.append(key)
                     except (ValueError, IndexError):
                         continue
+                
+                if step is not None and current_step - step > self.steps_to_preserve:
+                    keys_to_delete.append(key)
             
             for key in keys_to_delete:
                 logger.debug(f"Removing old variable from store: {key}")
                 del self.store[key]
+            
+            # Clean up old signals (signals use tuple keys: (signal_name, step))
+            signals_to_delete = []
+            for signal_key in self.signals.keys():
+                if isinstance(signal_key, tuple) and len(signal_key) == 2:
+                    signal_name, step = signal_key
+                    if current_step - step > self.steps_to_preserve:
+                        signals_to_delete.append(signal_key)
+            
+            for signal_key in signals_to_delete:
+                logger.debug(f"Removing old signal from store: {signal_key}")
+                del self.signals[signal_key]
 
     def stop(self):
         """Stop the variable store server."""
@@ -153,9 +221,9 @@ class VariableStoreClient:
             self.context.term()
             raise ConnectionError(f"Failed to connect to variable store at {address}: {e}")
 
-    def get(self, key: str) -> Any:
+    def get(self, key: str | tuple) -> Any:
         """Retrieve a value from the variable store."""
-        request = {"operation": "get", "key": key}
+        request = {"type": MessageType.GET.value, "key": key}
         try:
             self.socket.send(pickle.dumps(request))
             response = pickle.loads(self.socket.recv())
@@ -167,10 +235,10 @@ class VariableStoreClient:
         else:
             raise KeyError(f"Failed to get key '{key}': {response.get('message', 'Unknown error')}")
 
-    def put(self, key: str, value: Any):
+    def put(self, key: str | tuple, value: Any):
         """Store a value in the variable store."""
         serialized_value = pickle.dumps(value)
-        request = {"operation": "put", "key": key, "value": serialized_value}
+        request = {"type": MessageType.PUT.value, "key": key, "value": serialized_value}
         try:
             self.socket.send(pickle.dumps(request))
             response = pickle.loads(self.socket.recv())
@@ -180,9 +248,9 @@ class VariableStoreClient:
         if response["status"] != "success":
             raise RuntimeError(f"Failed to put key '{key}': {response.get('message', 'Unknown error')}")
 
-    def delete(self, key: str):
+    def delete(self, key: str | tuple):
         """Delete a value from the variable store."""
-        request = {"operation": "delete", "key": key}
+        request = {"type": MessageType.DELETE.value, "key": key}
         try:
             self.socket.send(pickle.dumps(request))
             response = pickle.loads(self.socket.recv())
@@ -194,7 +262,7 @@ class VariableStoreClient:
 
     def list_keys(self) -> list[str]:
         """List all keys in the variable store."""
-        request = {"operation": "list_keys"}
+        request = {"type": MessageType.LIST_KEYS.value}
         try:
             self.socket.send(pickle.dumps(request))
             response = pickle.loads(self.socket.recv())
@@ -206,7 +274,57 @@ class VariableStoreClient:
         else:
             raise RuntimeError(f"Failed to list keys: {response.get('message', 'Unknown error')}")
 
-    def wait_for_key(self, key: str, interval: float = 1.0, log_interval: float = 10.0):
+    def signal(self, signal_name: str, step: int, signal_data: Any = True):
+        """Send a signal to the variable store."""
+        request = {
+            "type": MessageType.SIGNAL.value,
+            "signal_name": signal_name,
+            "step": step,
+            "signal_data": signal_data
+        }
+        try:
+            self.socket.send(pickle.dumps(request))
+            response = pickle.loads(self.socket.recv())
+        except Exception as e:
+            raise ConnectionError(f"Failed to communicate with variable store: {e}")
+        
+        if response["status"] != "success":
+            raise RuntimeError(f"Failed to send signal '{signal_name}' for step {step}: {response.get('message', 'Unknown error')}")
+
+    def check_signal(self, signal_name: str, step: int) -> tuple[bool, Any]:
+        """Check if a signal exists and return (exists, signal_data)."""
+        request = {
+            "type": MessageType.CHECK_SIGNAL.value,
+            "signal_name": signal_name,
+            "step": step
+        }
+        try:
+            self.socket.send(pickle.dumps(request))
+            response = pickle.loads(self.socket.recv())
+        except Exception as e:
+            raise ConnectionError(f"Failed to communicate with variable store: {e}")
+        
+        if response["status"] == "success":
+            return response["exists"], response.get("signal_data")
+        else:
+            raise RuntimeError(f"Failed to check signal '{signal_name}' for step {step}: {response.get('message', 'Unknown error')}")
+
+    def wait_for_signal(self, signal_name: str, step: int, interval: float = 1.0, log_interval: float = 10.0):
+        """Wait for a signal to become available in the variable store."""
+        wait_time = 0
+        logger.debug(f"Waiting for signal `{signal_name}` at step {step}")
+        while True:
+            exists, _ = self.check_signal(signal_name, step)
+            if exists:
+                logger.debug(f"Found signal `{signal_name}` at step {step}")
+                return
+            
+            if wait_time % log_interval == 0 and wait_time > 0:
+                logger.debug(f"Waiting for signal `{signal_name}` at step {step} for {wait_time} seconds")
+            time.sleep(interval)
+            wait_time += interval
+
+    def wait_for_key(self, key: str | tuple, interval: float = 1.0, log_interval: float = 10.0):
         """Wait for a key to become available in the variable store."""
         wait_time = 0
         logger.debug(f"Waiting for key `{key}`")

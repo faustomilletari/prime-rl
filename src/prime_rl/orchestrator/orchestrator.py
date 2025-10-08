@@ -37,9 +37,8 @@ from prime_rl.utils.utils import (
     format_num,
     to_col_format,
 )
-from prime_rl.utils.variable_store import VariableStoreServer
+from prime_rl.utils.variable_store import VariableStoreServer, VariableStoreClient
 import numpy as np
-from prime_rl.utils.rdma_weights import WeightSyncCoordinator
 
 
 @clean_exit
@@ -60,13 +59,13 @@ async def orchestrate(config: OrchestratorConfig):
     )
     variable_store_server.start()
 
-    # Initialize the weight sync coordinator
-    logger.info(f"Initializing weight sync coordinator ({config.weight_sync})")
-    weight_sync_coordinator = WeightSyncCoordinator(
-        host=config.weight_sync.host,
-        port=config.weight_sync.port,
+    # Initialize the variable store client for waiting on weight signals
+    logger.info(f"Initializing variable store client for weight signals ({config.variable_store})")
+    variable_store_client = VariableStoreClient(
+        host=config.variable_store.host,
+        port=config.variable_store.port,
+        timeout=config.variable_store.timeout,
     )
-    weight_sync_coordinator.start()
 
     # Print warning if running in benchmark mode
     if config.bench:
@@ -168,7 +167,7 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weights to be ready at step {ckpt_step}")
             wait_for_weight_sync_start_time = time.time()
-            weight_sync_coordinator.wait_for_weights(ckpt_step)
+            variable_store_client.wait_for_signal("weights_ready", ckpt_step)
             wait_for_weight_sync_time = time.time() - wait_for_weight_sync_start_time
             logger.debug(f"Waited {wait_for_weight_sync_time:.2f}s for weights")
 
@@ -371,8 +370,8 @@ async def orchestrate(config: OrchestratorConfig):
         )
 
         for rank_id, batches in enumerate(all_data_ranks_batches):
-            key = f"step_{progress.step}_rank_{rank_id}"
-            logger.debug(f"Storing variable for step {progress.step} for rank {rank_id} with key {key}")
+            key = ("rollout", progress.step, rank_id)
+            logger.debug(f"Storing rollout for step {progress.step} for rank {rank_id}")
             variable_store_server.put(key, batches)
 
         # Clean up old variables from the store
@@ -523,9 +522,9 @@ async def orchestrate(config: OrchestratorConfig):
 
     logger.success("Orchestrator finished.")
     
-    # Stop the variable store server
+    # Stop the variable store server and client
+    variable_store_client.close()
     variable_store_server.stop()
-    weight_sync_coordinator.stop()
 
     # Optionally, print benchmark table
     if config.bench:
