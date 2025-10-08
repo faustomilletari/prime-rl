@@ -1,17 +1,20 @@
+from contextlib import nullcontext
 import time
 from copy import deepcopy
+from datetime import timedelta
 
 # Import environment before any other imports
 # ruff: noqa: I001
 
 import torch
+from torch.profiler import profile, ProfilerActivity, record_function
 from loguru import logger
 from prime_rl.trainer.ckpt import Progress, setup_ckpt_manager
 from prime_rl.trainer.optim import setup_optimizer
 from prime_rl.trainer.weights import setup_weight_ckpt_manager
 from prime_rl.trainer.rl.config import RLTrainerConfig
 from prime_rl.trainer.rl.data import DataLoader, FakeDataLoader
-from prime_rl.trainer.logger import setup_logger
+from prime_rl.utils.logger import setup_logger
 from prime_rl.trainer.rl.loss import (
     shift_logits,
     selective_log_softmax,
@@ -52,7 +55,10 @@ import torch.distributed as dist
 def train(config: RLTrainerConfig):
     # Setup world and logger
     world = get_world()
-    logger = setup_logger(config.log, world)
+    logger = setup_logger(
+        config.log.level,
+        log_file=config.output_dir / "logs" / "trainer" / f"rank_{world.rank}.log" if config.log.file else None,
+    )
     logger.info(f"Starting RL trainer in {world}")
 
     # Print warning if running in benchmark mode
@@ -64,7 +70,7 @@ def train(config: RLTrainerConfig):
     monitor = setup_monitor(config.wandb, output_dir=config.output_dir, run_config=config)
 
     # Set precision
-    setup_torch_distributed()
+    setup_torch_distributed(timeout=timedelta(seconds=config.dist_timeout_seconds))
     torch.set_float32_matmul_precision("high")
 
     # Initialize parallel dimensions
@@ -81,18 +87,26 @@ def train(config: RLTrainerConfig):
 
     # Set up the optimizer
     logger.info(f"Initializing optimizer ({config.optim})")
-    logger.info(f"Using `{config.loss.type}` loss ({config.loss})")
+    logger.info(f"Using `{config.loss.ratio_type}` importance ratio ({config.loss})")
 
     optimizer = setup_optimizer(config.optim, model, parallel_dims.world_mesh["dp_shard_cp"])
 
     # Set up the learning rate scheduler
-    scheduler = setup_scheduler(optimizer, config.scheduler, config.max_steps)
+    scheduler = setup_scheduler(optimizer, config.scheduler, config.max_steps, config.optim.lr)
     logger.info(f"Using `{config.scheduler.type}` scheduler ({config.scheduler})")
 
-    # Get checkpoint managers
+    # Set up weight checkpoint manager
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
-    weight_ckpt_manager = setup_weight_ckpt_manager(config.output_dir, config.weights, config.ckpt, config.async_level)
+    weight_ckpt_manager = setup_weight_ckpt_manager(
+        config.output_dir,
+        config.weights,
+        config.ckpt,
+        config.async_level,
+        config.model.experimental.lora
+    )
+    assert weight_ckpt_manager is not None, "Weight checkpoint manager must be set on RL trainer"
 
+    # Set up checkpoint manager
     logger.info(f"Initializing checkpoint manager ({config.ckpt})")
     ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
 
@@ -135,6 +149,11 @@ def train(config: RLTrainerConfig):
 
     logger.info(f"Starting training loop ({config.max_steps=})")
     is_first_step = True
+    maybe_record_function = nullcontext
+    if config.trace_path:
+        logger.info(f"Tracing to {config.trace_path}")
+        prof = profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True).__enter__()
+        maybe_record_function = record_function
     while True:
         # Save the weight checkpoint (if we are not at the first step, because no updates to the model have been made yet)
         save_weights_time = 0
@@ -239,9 +258,9 @@ def train(config: RLTrainerConfig):
         batch_size = micro_batch_size * num_micro_batches
 
         # Normalize by the local number of unmasked tokens in the batch (per-batch length normalization)
-        if config.loss.norm_type == "token":
+        if config.loss.ratio_type == "token":
             loss_scale = sum(micro_batch["loss_mask"].sum().item() for micro_batch in micro_batches)
-        elif config.loss.norm_type == "sequence":
+        elif config.loss.ratio_type == "sequence":
             loss_scale = batch_size
 
         logger.info(f"Starting forward and backward pass ({num_micro_batches=})")
@@ -268,7 +287,8 @@ def train(config: RLTrainerConfig):
             micro_batch_size, seq_len = input_ids.shape
 
             # Forward pass
-            logits = forward(model, input_ids, position_ids).float().contiguous()
+            with maybe_record_function("forward"):
+                logits = forward(model, input_ids, position_ids).float().contiguous()
             shifted_logits = shift_logits(logits)
             shifted_logits = shifted_logits / temperature
             logprobs = selective_log_softmax(shifted_logits, input_ids)
@@ -297,7 +317,8 @@ def train(config: RLTrainerConfig):
             del logits, shifted_logits
 
             # Backward pass
-            loss.backward()
+            with maybe_record_function("backward"):
+                loss.backward()
 
             if micro_step < len(micro_batches):
                 # Add relevant tensors to tensor dict for logging purposes
@@ -328,7 +349,7 @@ def train(config: RLTrainerConfig):
                 # Don't append MoE or loss_tensors for padding
             
             # Debug log with *local, micro step* stats
-            micro_step_message = f"Micro Step {micro_step} | Loss: {tensors['loss'][-1].mean().item():.4f} | Entropy: {tensors['entropy'][-1].mean().item():.4f} | Importance Ratio: {tensors['importance_ratio'][-1].mean().item():.4f}"
+            micro_step_message = f"Micro Step {micro_step}/{len(micro_batches)} | Loss: {tensors['loss'][-1].mean().item():.4f} | Entropy: {tensors['entropy'][-1].mean().item():.4f} | Importance Ratio: {tensors['importance_ratio'][-1].mean().item():.4f}"
             if "max_vio" in tensors:
                 micro_step_message += f" | Max Vio: {tensors['max_vio'][-1].mean().item():.4f}"
             logger.debug(micro_step_message)
@@ -341,6 +362,7 @@ def train(config: RLTrainerConfig):
         optimizer.zero_grad()
 
         # Update learning rate scheduler
+        current_lr = optimizer.param_groups[0]["lr"]
         scheduler.step()
 
         forward_backward_time = time.time() - forward_backward_start_time
@@ -421,8 +443,15 @@ def train(config: RLTrainerConfig):
         progress.step += 1
         is_first_step = False
 
+    if config.trace_path:
+        prof.__exit__(None, None, None)
+        config.trace_path.mkdir(parents=True, exist_ok=True)
+        trace_file = str(config.trace_path / f"trace_{dist.get_rank()}.json.gz")
+        logger.info(f"Saving trace to {trace_file}")
+        prof.export_chrome_trace(trace_file)
+        logger.info(f"Saved trace to {trace_file}")
+
     # Log final (immutable) distributions to W&B table
-    logger.info("Logging final distributions as W&B table")
     monitor.log_final_distributions()
 
     # Write final checkpoint

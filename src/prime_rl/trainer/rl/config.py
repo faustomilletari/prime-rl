@@ -19,14 +19,10 @@ from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
 class LossConfig(BaseModel):
     """Base config for loss."""
 
-    norm_type: Annotated[
-        Literal["token", "sequence"],
-        Field(
-            description="Normalization type for loss scaling. 'token' normalizes by the total number of unmasked tokens in the batch, 'sequence' normalizes by the total tokens within a sequence."
-        ),
-    ] = "token"
-
-    type: Annotated[Literal["gspo", "grpo"], Field(description="Type of loss to use.")] = "grpo"
+    ratio_type: Annotated[Literal["token", "sequence"], Field(description="Type of importance ratio to use.")] = "token"
+    ratio_length_norm: Annotated[
+        bool, Field(description="Whether to normalize the importance ratio by the sequence length.")
+    ] = False
 
     clip_ratio: Annotated[float, Field(ge=0)] = 8.0
 
@@ -34,8 +30,8 @@ class LossConfig(BaseModel):
 class FakeDataLoaderConfig(BaseConfig):
     """Configures a fake data loader sampling random micro batches for debugging."""
 
-    micro_batch_size: Annotated[int, Field(ge=1)] = 8
-    batch_size: Annotated[int, Field(ge=1)] = 8
+    micro_batch_size: Annotated[int, Field(ge=1)] = 1
+    batch_size: Annotated[int, Field(ge=1)] = 2
     seq_len: Annotated[int, Field(ge=1)] = 128
 
     @model_validator(mode="after")
@@ -121,6 +117,15 @@ class RLTrainerConfig(BaseSettings):
         ),
     ] = False
 
+    trace_path: Annotated[Path | None, Field(description="Path to write pytorch profiler trace to.")] = None
+
+    dist_timeout_seconds: Annotated[
+        int,
+        Field(
+            description="Timeout in seconds for torch distributed ops. Defaults to 600 seconds.",
+        ),
+    ] = 600
+
     @model_validator(mode="after")
     def auto_setup_bench(self):
         if self.bench:
@@ -134,34 +139,33 @@ class RLTrainerConfig(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def validate_scheduler(self):
-        # Constant scheduler does not require any validation/ setup
-        if self.scheduler.type == "constant":
-            return self
-
-        # Must specify max_steps when using a scheduler other than `constant`
-        if self.max_steps is None:
-            raise ValueError("Must specify max_steps when using a scheduler other than `constant`")
-
-        # If decay_steps is not specified, use remaining steps after warmup
-        if self.scheduler.decay_steps is None:
-            if not (self.scheduler.warmup_steps <= self.max_steps):
-                raise ValueError("config.scheduler.warmup_steps must be less than or equal to config.max_steps")
-
-            self.scheduler.decay_steps = self.max_steps - self.scheduler.warmup_steps
-            assert self.scheduler.decay_steps >= 0, "config.scheduler.decay_steps must be positive"
-
-        # If decay_steps is specified, validate it
-        else:
-            if not (self.scheduler.warmup_steps + self.scheduler.decay_steps <= self.max_steps):
-                raise ValueError(
-                    "config.scheduler.warmup_steps + config.scheduler.decay_steps must be less than or equal to config.max_steps"
-                )
-
-        return self
-
-    @model_validator(mode="after")
     def disable_logging_wandb_samples(self):
         if self.wandb and self.wandb.log_extras:
             self.wandb.log_extras.samples = False
+        return self
+
+    @model_validator(mode="after")
+    def dont_do_massive_traces(self):
+        if self.trace_path:
+            if self.max_steps is None:
+                raise ValueError("Must specify max_steps when tracing")
+            if self.max_steps >= 10:
+                raise ValueError(
+                    "Tracing more than 10 steps is not recommended as your trace will be massive. Remove this line if you really want to trace more steps."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def validate_lora_adapter_saving(self):
+        if self.weights and self.weights.save_adapter_separately:
+            lora_enabled = (
+                self.model 
+                and self.model.experimental 
+                and self.model.experimental.lora
+            )
+            if not lora_enabled:
+                raise ValueError(
+                    "save_adapter_separately=True requires LoRA to be enabled. "
+                    "Set model.experimental.lora or disable save_adapter_separately."
+                )
         return self
