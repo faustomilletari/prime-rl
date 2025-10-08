@@ -96,7 +96,13 @@ def train(config: RLTrainerConfig):
 
     # Set up weight checkpoint manager
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
-    weight_ckpt_manager = setup_weight_ckpt_manager(config.output_dir, config.weights, config.ckpt, config.async_level)
+    weight_ckpt_manager = setup_weight_ckpt_manager(
+        config.output_dir,
+        config.weights,
+        config.ckpt,
+        config.async_level,
+        config.model.experimental.lora
+    )
     assert weight_ckpt_manager is not None, "Weight checkpoint manager must be set on RL trainer"
 
     # Set up checkpoint manager
@@ -319,7 +325,10 @@ def train(config: RLTrainerConfig):
 
             # Add loss tensors to tensor dict for logging purposes
             for key, loss_tensor in loss_tensors.items():
-                loss_tensor = loss_tensor.detach()[loss_mask.squeeze()].detach().to("cpu")
+                if config.loss.ratio_type == "sequence":
+                    loss_tensor = loss_tensor.detach().to("cpu")
+                else:
+                    loss_tensor = loss_tensor.detach()[loss_mask.squeeze()].detach().to("cpu")
                 tensors[key].append(loss_tensor)
 
             # Debug log with *local, micro step* stats
