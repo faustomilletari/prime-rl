@@ -73,20 +73,24 @@ class TrainerWeightServer:
                     await ep.close()
                     return
                 
-                # Extract model weights using standard state_dict()
-                # For DP training, rank 0 has full weights so this works correctly
-                # Note: This won't work for FSDP/TP where weights are sharded
+                # Extract model weights, converting DTensors to regular GPU tensors
+                # For DP training, rank 0 has full weights
                 try:
                     with torch.no_grad():
-                        # Standard state_dict() - works for DP, returns local shards for FSDP/TP
-                        # We clone to ensure we don't hold references to model tensors
-                        raw_state = self.model.state_dict()
                         state_dict = {}
                         
-                        for name, tensor in raw_state.items():
-                            # Detach and clone to CPU first, then back to CUDA to avoid any
-                            # issues with distributed tensor tracking
-                            state_dict[name] = tensor.detach().cpu().clone().cuda().contiguous()
+                        for name, param in self.model.named_parameters():
+                            tensor = param.data
+                            
+                            # If this is a DTensor, extract the actual underlying tensor
+                            if hasattr(tensor, '_local_tensor'):
+                                tensor = tensor._local_tensor
+                            elif hasattr(tensor, 'to_local'):
+                                tensor = tensor.to_local()
+                            
+                            # Clone on GPU to create a new independent tensor
+                            # The clone breaks any connection to the model's tensor tracking
+                            state_dict[name] = tensor.detach().clone().contiguous()
                             
                 except Exception as e:
                     logger.error(f"Error extracting model weights: {e}", exc_info=True)
