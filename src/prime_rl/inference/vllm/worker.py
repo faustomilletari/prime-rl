@@ -1,8 +1,9 @@
 import os
-
 import torch
-from prime_rl.utils.rdma_weights import InferenceWeightClient
+import asyncio
+import gc
 
+from prime_rl.utils.rdma_weights import InferenceWeightClient
 
 
 class CheckpointWorker:
@@ -24,26 +25,46 @@ class CheckpointWorker:
 
     def update_weights_new(self) -> None:
         """Update weights directly from trainer's GPU via UCP."""
+        
+        # Free GPU memory before transfer
+        torch.cuda.empty_cache()
+        gc.collect()
+        
         ucp_client = self._get_ucp_client()
 
-        # Get weights directly from trainer's GPU via UCP
-        import asyncio
-        gpu_state_dict = asyncio.run(ucp_client.fetch_weights())
-
+        # Stream weights directly - fetch and load one parameter at a time to minimize memory usage
+        async def fetch_and_stream_weights():
+            """Fetch weights and yield them one at a time to minimize memory usage."""
+            async for name, tensor in ucp_client.stream_weights():
+                yield name, tensor
+                # Allow each tensor to be used immediately, then freed
+                
+        # Load weights using streaming approach
         def weights_iterator():
-            for key, value in gpu_state_dict.items():
-                if not key:
-                    continue
-                yield key, value
+            # Run the async generator in sync context
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                async_gen = fetch_and_stream_weights()
+                while True:
+                    try:
+                        name, tensor = loop.run_until_complete(async_gen.__anext__())
+                        if name:
+                            yield name, tensor
+                    except StopAsyncIteration:
+                        break
+            finally:
+                loop.close()
 
         self.model_runner.model.load_weights(weights_iterator())
 
-        # CRITICAL: Free the temporary state_dict after loading
-        del gpu_state_dict
-        torch.cuda.empty_cache()  # Force PyTorch to release unused memory
-
-        # Process weights after loading
+        # Force cleanup after loading
+        gc.collect()
+        torch.cuda.empty_cache()
+        
+        # Process weights after loading (important for some models)
         from vllm.model_executor.model_loader.utils import process_weights_after_loading
+
         device = next(self.model_runner.model.parameters()).device
         process_weights_after_loading(self.model_runner.model, self.model_runner.model_config, device)
 

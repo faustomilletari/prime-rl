@@ -254,6 +254,96 @@ class InferenceWeightClient:
         self.trainer_port = trainer_port
         self.timeout = timeout
 
+    async def stream_weights(self):
+        """Stream weights one at a time to minimize memory usage.
+        
+        Yields (name, tensor) pairs one at a time instead of accumulating all in memory.
+        """
+        try:
+            if create_endpoint is None:
+                raise RuntimeError("UCP not available, cannot fetch weights")
+                
+            logger.info(f"Connecting to trainer at {self.trainer_host}:{self.trainer_port}")
+            ep = await asyncio.wait_for(
+                create_endpoint(self.trainer_host, self.trainer_port),
+                timeout=float(self.timeout)
+            )
+            
+            # Receive number of parameters
+            num_params_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            await ep.recv(num_params_buffer)
+            num_params = num_params_buffer[0].item()
+            logger.info(f"Streaming {num_params} parameters via UCP")
+            
+            # Reusable buffers for metadata to reduce allocations
+            name_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            shape_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            dtype_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            
+            # Receive each parameter and yield immediately
+            for idx in range(num_params):
+                # Receive name
+                await ep.recv(name_len_buffer)
+                name_len = name_len_buffer[0].item()
+                
+                name_buffer = torch.empty(name_len, dtype=torch.uint8, device='cuda')
+                await ep.recv(name_buffer)
+                name = name_buffer.cpu().numpy().tobytes().decode('utf-8')
+                del name_buffer
+                
+                # Receive tensor shape
+                await ep.recv(shape_len_buffer)
+                shape_len = shape_len_buffer[0].item()
+                
+                shape_buffer = torch.empty(shape_len, dtype=torch.int64, device='cuda')
+                await ep.recv(shape_buffer)
+                shape = tuple(shape_buffer.cpu().numpy())
+                del shape_buffer
+                
+                # Receive dtype
+                await ep.recv(dtype_len_buffer)
+                dtype_len = dtype_len_buffer[0].item()
+                
+                dtype_buffer = torch.empty(dtype_len, dtype=torch.uint8, device='cuda')
+                await ep.recv(dtype_buffer)
+                dtype_str = dtype_buffer.cpu().numpy().tobytes().decode('utf-8')
+                del dtype_buffer
+                
+                # Convert dtype string to torch dtype
+                dtype_map = {
+                    'float32': torch.float32,
+                    'float16': torch.float16,
+                    'bfloat16': torch.bfloat16,
+                    'int32': torch.int32,
+                    'int64': torch.int64,
+                }
+                dtype = dtype_map.get(dtype_str, torch.float32)
+                
+                logger.debug(f"Streaming parameter {idx+1}/{num_params}: {name}, shape={shape}, dtype={dtype}")
+                
+                # Receive tensor data
+                tensor = torch.empty(shape, dtype=dtype, device='cuda')
+                
+                # Receive with timeout handling for large tensors
+                try:
+                    await asyncio.wait_for(ep.recv(tensor), timeout=float(self.timeout))
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout receiving parameter {name}, expected size={tensor.numel() * tensor.element_size()} bytes")
+                    raise
+                
+                # Yield immediately - don't accumulate in memory
+                yield name, tensor
+                # Tensor will be freed when caller is done with it
+            
+            # Clean up metadata buffers
+            del num_params_buffer, name_len_buffer, shape_len_buffer, dtype_len_buffer
+            
+            await ep.close()
+            logger.info(f"Successfully streamed {num_params} weights via UCP from trainer")
+            
+        except Exception as e:
+            raise ConnectionError(f"Failed to stream weights via UCP: {e}")
+
     async def fetch_weights(self) -> dict[str, torch.Tensor]:
         """Fetch weights directly from trainer's GPU via UCP."""
         try:
