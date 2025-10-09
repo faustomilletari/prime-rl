@@ -20,7 +20,7 @@ dependencies = [
     "tomli>=2.2.1",
     "torch>=2.8.0",
     "transformers>=4.56.0",
-    "ucx-py~=0.41.0",
+    "ucx-py-cu12~=0.41.0",
     "uvloop>=0.21.0",
     "vllm==0.10.2",
     "wandb>=0.20.1",
