@@ -77,10 +77,13 @@ class TrainerWeightServer:
                 state_dict = {}
                 for name, param in self.model.named_parameters():
                     if param.requires_grad:
-                        # Handle DTensor (distributed tensor) by converting to local tensor
+                        # Handle DTensor (distributed tensor) by gathering to full tensor
                         param_data = param.data
-                        if hasattr(param_data, '_local_tensor'):
-                            # This is a DTensor, get the local shard
+                        if hasattr(param_data, 'full_tensor'):
+                            # This is a DTensor, gather the full tensor across all ranks
+                            param_data = param_data.full_tensor()
+                        elif hasattr(param_data, '_local_tensor'):
+                            # Fallback: get local shard if full_tensor not available
                             param_data = param_data._local_tensor
                         elif hasattr(param_data, 'to_local'):
                             # Alternative DTensor API
