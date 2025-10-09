@@ -67,12 +67,12 @@ async def custom_run_server_worker(listen_address, sock, args, client_config=Non
         ### CUSTOM ENDPOINTS ###
         @app.post("/update_weights")
         async def _update_weights(request: Request):
-            await engine_client.collective_rpc("update_weights")
+            await engine_client.collective_rpc("update_weights_new")
             return {"status": "ok"}
 
         @app.post("/reload_weights")
         async def _reload_weights(request: Request):
-            await engine_client.collective_rpc("reload_weights")
+            await engine_client.collective_rpc("reload_weights_new")
             return {"status": "ok"}
 
         vllm_config = await engine_client.get_vllm_config()

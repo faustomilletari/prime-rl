@@ -23,7 +23,7 @@ class CheckpointWorker:
             timeout=config.weight_client.timeout,
         )
 
-    def update_weights(self) -> None:
+    def update_weights_new(self) -> None:
         """Update weights directly from trainer's GPU via UCP."""
         if self.ucp_client is None:
             raise RuntimeError("UCP client not initialized")
@@ -46,7 +46,7 @@ class CheckpointWorker:
         device = next(self.model_runner.model.parameters()).device
         process_weights_after_loading(self.model_runner.model, self.model_runner.model_config, device)
 
-    def reload_weights(self) -> None:
+    def reload_weights_new(self) -> None:
         """Reload weights (reset to base model)."""
         # For now, this is a no-op as we don't have a base model reload mechanism
         # In the future, this could reload from the original model checkpoint
