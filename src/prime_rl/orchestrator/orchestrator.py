@@ -38,6 +38,7 @@ from prime_rl.utils.utils import (
     to_col_format,
 )
 from prime_rl.utils.variable_store import VariableStoreServer, VariableStoreClient
+from prime_rl.utils.config import VariableStoreClientConfig
 import numpy as np
 
 
@@ -60,11 +61,16 @@ async def orchestrate(config: OrchestratorConfig):
     variable_store_server.start()
 
     # Initialize the variable store client for waiting on weight signals
-    logger.info(f"Initializing variable store client for weight signals ({config.variable_store})")
-    variable_store_client = VariableStoreClient(
+    variable_store_client_config = VariableStoreClientConfig(
         host=config.variable_store.host,
         port=config.variable_store.port,
-        timeout=config.variable_store.timeout,
+    )
+    
+    logger.info(f"Initializing variable store client for weight signals ({variable_store_client_config})")
+    variable_store_client = VariableStoreClient(
+        host=variable_store_client_config.host,
+        port=variable_store_client_config.port,
+        timeout=variable_store_client_config.timeout,
     )
 
     # Print warning if running in benchmark mode
