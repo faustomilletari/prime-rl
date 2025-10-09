@@ -12,7 +12,7 @@ class CheckpointWorker:
 
     def __init__(self, args, kwargs):
         print(args)
-        print(kwargs)
+        # print(kwargs)
         self.ucp_client = None
 
     def setup_ucp_client_from_config(self, config):

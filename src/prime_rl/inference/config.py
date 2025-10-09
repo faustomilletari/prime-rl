@@ -6,7 +6,6 @@ from pydantic import Field
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings, get_all_fields
 from prime_rl.utils.utils import rgetattr, rsetattr
 from prime_rl.utils.config import InferenceWeightClientConfig
-import json
 
 # TODO: Set thinking/ solution budget
 
@@ -156,6 +155,6 @@ class InferenceConfig(BaseSettings):
             }
         }
         
-        rsetattr(namespace, "additional_config", json.dumps(additional_config))
+        rsetattr(namespace, "additional_config", additional_config)
 
         return namespace
