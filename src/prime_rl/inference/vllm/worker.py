@@ -11,19 +11,23 @@ class CheckpointWorker:
     recent policy model directly from the trainer's GPU memory.
     """
 
-    def __init__(self, args, kwargs):
-        self.ucp_client = InferenceWeightClient(
-            trainer_host=os.getenv('MASTER_ADDR'),
-        )
+    def _get_ucp_client(self) -> InferenceWeightClient:
+        """Lazy initialization of UCP client."""
+        if not hasattr(self, '_ucp_client'):
+            self._ucp_client = InferenceWeightClient(
+                trainer_host=os.getenv('MASTER_ADDR', 'localhost'),
+                trainer_port=int(os.getenv('UCP_PORT', '13337')),
+                timeout=int(os.getenv('UCP_TIMEOUT', '300')),
+            )
+        return self._ucp_client
 
     def update_weights_new(self) -> None:
         """Update weights directly from trainer's GPU via UCP."""
-        if self.ucp_client is None:
-            raise RuntimeError("UCP client not initialized")
+        ucp_client = self._get_ucp_client()
 
         # Get weights directly from trainer's GPU via UCP
         import asyncio
-        gpu_state_dict = asyncio.run(self.ucp_client.fetch_weights())
+        gpu_state_dict = asyncio.run(ucp_client.fetch_weights())
 
         def weights_iterator():
             for key, value in gpu_state_dict.items():
