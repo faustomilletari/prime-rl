@@ -73,26 +73,41 @@ class TrainerWeightServer:
                     await ep.close()
                     return
                 
-                # Get current weights directly from GPU
-                state_dict = {}
-                for name, param in self.model.named_parameters():
-                    if param.requires_grad:
-                        # Handle DTensor (distributed tensor) by gathering to full tensor
-                        param_data = param.data
-                        if hasattr(param_data, 'full_tensor'):
-                            # This is a DTensor, gather the full tensor across all ranks
-                            param_data = param_data.full_tensor()
-                        elif hasattr(param_data, '_local_tensor'):
-                            # Fallback: get local shard if full_tensor not available
-                            param_data = param_data._local_tensor
-                        elif hasattr(param_data, 'to_local'):
-                            # Alternative DTensor API
-                            param_data = param_data.to_local()
-                        state_dict[name] = param_data.contiguous()
+                # Get current weights - handle DTensor by extracting local tensor
+                # For DP models on rank 0, this should be the full weights
+                # For TP/FSDP, we only send rank 0's shard (vLLM will need to handle this)
+                try:
+                    with torch.no_grad():
+                        state_dict = {}
+                        for name, param in self.model.named_parameters():
+                            if not param.requires_grad:
+                                continue
+                            
+                            param_data = param.data
+                            # Check if this is a DTensor (distributed tensor)
+                            if hasattr(param_data, '_local_tensor'):
+                                # Get local shard without triggering collective ops
+                                param_data = param_data._local_tensor
+                            elif hasattr(param_data, 'to_local'):
+                                param_data = param_data.to_local()
+                            
+                            # Ensure it's contiguous and cloned
+                            state_dict[name] = param_data.detach().clone().contiguous()
+                            
+                except Exception as e:
+                    logger.error(f"Error extracting model weights: {e}", exc_info=True)
+                    await ep.close()
+                    return
             
             # Send metadata (number of parameters)
             num_params = len(state_dict)
-            logger.debug(f"Sending {num_params} parameters via UCP")
+            total_params = sum(t.numel() for t in state_dict.values())
+            logger.info(f"Sending {num_params} parameters ({total_params:,} total elements) via UCP")
+            
+            # Log first few parameter shapes for debugging
+            for idx, (name, tensor) in enumerate(list(state_dict.items())[:5]):
+                logger.debug(f"  {name}: shape={tensor.shape}, dtype={tensor.dtype}")
+            
             await ep.send(torch.tensor([num_params], dtype=torch.int64, device='cuda'))
             
             # Send each parameter name and tensor
