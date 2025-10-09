@@ -73,26 +73,18 @@ class TrainerWeightServer:
                     await ep.close()
                     return
                 
-                # Get current weights - handle DTensor by extracting local tensor
-                # For DP models on rank 0, this should be the full weights
-                # For TP/FSDP, we only send rank 0's shard (vLLM will need to handle this)
+                # Get full state dict using FSDP's built-in gathering mechanism
+                # This handles all parallelism strategies (DP, TP, FSDP) correctly
                 try:
+                    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, StateDictType
+                    
                     with torch.no_grad():
-                        state_dict = {}
-                        for name, param in self.model.named_parameters():
-                            if not param.requires_grad:
-                                continue
-                            
-                            param_data = param.data
-                            # Check if this is a DTensor (distributed tensor)
-                            if hasattr(param_data, '_local_tensor'):
-                                # Get local shard without triggering collective ops
-                                param_data = param_data._local_tensor
-                            elif hasattr(param_data, 'to_local'):
-                                param_data = param_data.to_local()
-                            
-                            # Ensure it's contiguous and cloned
-                            state_dict[name] = param_data.detach().clone().contiguous()
+                        # Use FSDP context to gather full weights on rank 0
+                        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT):
+                            state_dict = self.model.state_dict()
+                        
+                        # Ensure all tensors are contiguous
+                        state_dict = {k: v.detach().clone().contiguous() for k, v in state_dict.items()}
                             
                 except Exception as e:
                     logger.error(f"Error extracting model weights: {e}", exc_info=True)
