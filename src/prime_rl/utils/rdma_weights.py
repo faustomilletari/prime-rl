@@ -5,7 +5,7 @@ from typing import Any
 
 import torch
 from loguru import logger
-from ucp.core import create_endpoint, create_listener
+from ucp import create_endpoint, create_listener
 
 
 class TrainerWeightServer:
