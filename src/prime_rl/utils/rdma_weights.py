@@ -13,16 +13,16 @@ try:
     # Set UCX environment variables for InfiniBand RDMA with GPU-Direct
     if 'UCX_TLS' not in os.environ:
         # Use InfiniBand transports with GPU-Direct RDMA
-        # rc_mlx5 = InfiniBand RC via Mellanox driver (GPU-Direct capable)
+        # rc = InfiniBand RC (works with all RDMA devices)
+        # tcp = For connection management when no IPoIB
         # cuda_copy = GPU memory operations
         # cuda_ipc = GPU IPC for same-node
-        os.environ['UCX_TLS'] = 'rc_mlx5,cuda_copy,cuda_ipc'
+        os.environ['UCX_TLS'] = 'rc,tcp,cuda_copy,cuda_ipc'
     
-    # Specify InfiniBand devices (ibp0-ibp7)
+    # Specify InfiniBand devices (ibp0-ibp7) and eth0 for connection management
     if 'UCX_NET_DEVICES' not in os.environ:
-        # Use the ibpX devices (InfiniBand, not the mlx5 Ethernet ones)
-        # UCX will load-balance across them
-        os.environ['UCX_NET_DEVICES'] = 'ibp0:1,ibp1:1,ibp2:1,ibp3:1,ibp4:1,ibp5:1,ibp6:1,ibp7:1'
+        # Include eth0 for connection management, InfiniBand devices for data transfer
+        os.environ['UCX_NET_DEVICES'] = 'ibp0:1,ibp1:1,ibp2:1,ibp3:1,ibp4:1,ibp5:1,ibp6:1,ibp7:1,eth0'
     
     # GPU-Direct RDMA settings
     if 'UCX_MEMTYPE_CACHE' not in os.environ:
@@ -32,7 +32,13 @@ try:
     if 'UCX_IB_GPU_DIRECT_RDMA' not in os.environ:
         os.environ['UCX_IB_GPU_DIRECT_RDMA'] = 'yes'
     
-    from ucp import create_endpoint, create_listener
+    # Allow UCX to use all devices for connection management
+    if 'UCX_CM_USE_ALL_DEVICES' not in os.environ:
+        os.environ['UCX_CM_USE_ALL_DEVICES'] = 'y'
+    
+    # Import after setting environment variables
+    create_endpoint = ucp.create_endpoint
+    create_listener = ucp.create_listener
     logger.info(f"UCP initialized with transports: {os.environ.get('UCX_TLS', 'default')}")
 except ImportError:
     logger.warning("UCP not available, weight transfer via RDMA will not work")
@@ -180,7 +186,9 @@ class TrainerWeightServer:
             for idx, (name, tensor) in enumerate(list(state_dict.items())[:5]):
                 logger.debug(f"  {name}: shape={tensor.shape}, dtype={tensor.dtype}")
             
-            await ep.send(torch.tensor([num_params], dtype=torch.int64, device='cuda'))
+            # Send number of parameters
+            num_params_buffer = torch.tensor([num_params], dtype=torch.int64, device='cuda')
+            await ep.send(num_params_buffer)
             
             # Send each parameter name and tensor
             for idx, (name, tensor) in enumerate(state_dict.items()):
@@ -188,14 +196,26 @@ class TrainerWeightServer:
                 
                 # Send name length and name
                 name_bytes = name.encode('utf-8')
-                name_len = torch.tensor([len(name_bytes)], dtype=torch.int64, device='cuda')
-                await ep.send(name_len)
-                await ep.send(torch.frombuffer(name_bytes, dtype=torch.uint8).to('cuda'))
+                name_len_buffer = torch.tensor([len(name_bytes)], dtype=torch.int64, device='cuda')
+                await ep.send(name_len_buffer)
                 
-                # Send tensor shape, dtype, and data
-                shape = torch.tensor(tensor.shape, dtype=torch.int64, device='cuda')
-                await ep.send(torch.tensor([len(shape)], dtype=torch.int64, device='cuda'))
-                await ep.send(shape)
+                name_buffer = torch.frombuffer(name_bytes, dtype=torch.uint8).cuda()
+                await ep.send(name_buffer)
+                
+                # Send tensor shape
+                shape_buffer = torch.tensor(tensor.shape, dtype=torch.int64, device='cuda')
+                shape_len_buffer = torch.tensor([len(shape_buffer)], dtype=torch.int64, device='cuda')
+                await ep.send(shape_len_buffer)
+                await ep.send(shape_buffer)
+                
+                # Send dtype info (as string for simplicity)
+                dtype_str = str(tensor.dtype).split('.')[-1]  # e.g., "float32"
+                dtype_bytes = dtype_str.encode('utf-8')
+                dtype_len_buffer = torch.tensor([len(dtype_bytes)], dtype=torch.int64, device='cuda')
+                await ep.send(dtype_len_buffer)
+                
+                dtype_buffer = torch.frombuffer(dtype_bytes, dtype=torch.uint8).cuda()
+                await ep.send(dtype_buffer)
                 
                 # Ensure tensor is contiguous and on CUDA
                 tensor = tensor.contiguous().cuda()
@@ -247,9 +267,9 @@ class InferenceWeightClient:
             )
             
             # Receive number of parameters
-            num_params_tensor = torch.empty(1, dtype=torch.int64, device='cuda')
-            await ep.recv(num_params_tensor)
-            num_params = num_params_tensor[0].item()
+            num_params_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            await ep.recv(num_params_buffer)
+            num_params = num_params_buffer[0].item()
             logger.info(f"Receiving {num_params} parameters via UCP")
             
             state_dict = {}
@@ -257,27 +277,46 @@ class InferenceWeightClient:
             # Receive each parameter
             for idx in range(num_params):
                 # Receive name
-                name_len_tensor = torch.empty(1, dtype=torch.int64, device='cuda')
-                await ep.recv(name_len_tensor)
-                name_len = name_len_tensor[0].item()
+                name_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+                await ep.recv(name_len_buffer)
+                name_len = name_len_buffer[0].item()
                 
-                name_bytes_tensor = torch.empty(name_len, dtype=torch.uint8, device='cuda')
-                await ep.recv(name_bytes_tensor)
-                name = name_bytes_tensor.cpu().numpy().tobytes().decode('utf-8')
+                name_buffer = torch.empty(name_len, dtype=torch.uint8, device='cuda')
+                await ep.recv(name_buffer)
+                name = name_buffer.cpu().numpy().tobytes().decode('utf-8')
                 
-                # Receive tensor shape and data
-                shape_len_tensor = torch.empty(1, dtype=torch.int64, device='cuda')
-                await ep.recv(shape_len_tensor)
-                shape_len = shape_len_tensor[0].item()
+                # Receive tensor shape
+                shape_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+                await ep.recv(shape_len_buffer)
+                shape_len = shape_len_buffer[0].item()
                 
-                shape_tensor = torch.empty(shape_len, dtype=torch.int64, device='cuda')
-                await ep.recv(shape_tensor)
-                shape = tuple(shape_tensor.cpu().numpy())
+                shape_buffer = torch.empty(shape_len, dtype=torch.int64, device='cuda')
+                await ep.recv(shape_buffer)
+                shape = tuple(shape_buffer.cpu().numpy())
                 
-                logger.debug(f"Receiving parameter {idx+1}/{num_params}: {name}, shape={shape}")
+                # Receive dtype
+                dtype_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+                await ep.recv(dtype_len_buffer)
+                dtype_len = dtype_len_buffer[0].item()
                 
-                # Receive tensor data (assume float32 for now, could be enhanced to receive dtype info)
-                tensor = torch.empty(shape, dtype=torch.float32, device='cuda')
+                dtype_buffer = torch.empty(dtype_len, dtype=torch.uint8, device='cuda')
+                await ep.recv(dtype_buffer)
+                dtype_str = dtype_buffer.cpu().numpy().tobytes().decode('utf-8')
+                
+                # Convert dtype string to torch dtype
+                dtype_map = {
+                    'float32': torch.float32,
+                    'float16': torch.float16,
+                    'bfloat16': torch.bfloat16,
+                    'int32': torch.int32,
+                    'int64': torch.int64,
+                }
+                dtype = dtype_map.get(dtype_str, torch.float32)
+                
+                logger.debug(f"Receiving parameter {idx+1}/{num_params}: {name}, shape={shape}, dtype={dtype}")
+                
+                # Receive tensor data
+                tensor = torch.empty(shape, dtype=dtype, device='cuda')
                 
                 # Receive with timeout handling for large tensors
                 try:
