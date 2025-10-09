@@ -10,12 +10,30 @@ from loguru import logger
 # Initialize UCP before importing functions
 try:
     import ucp
-    # Set UCX environment variables if not already set
+    # Set UCX environment variables for InfiniBand RDMA with GPU-Direct
     if 'UCX_TLS' not in os.environ:
-        os.environ['UCX_TLS'] = 'tcp,cuda_copy,cuda_ipc'
-    if 'UCX_TCP_CM_REUSEADDR' not in os.environ:
-        os.environ['UCX_TCP_CM_REUSEADDR'] = 'y'
+        # Use InfiniBand transports with GPU-Direct RDMA
+        # rc_mlx5 = InfiniBand RC via Mellanox driver (GPU-Direct capable)
+        # cuda_copy = GPU memory operations
+        # cuda_ipc = GPU IPC for same-node
+        os.environ['UCX_TLS'] = 'rc_mlx5,cuda_copy,cuda_ipc'
+    
+    # Specify InfiniBand devices (ibp0-ibp7)
+    if 'UCX_NET_DEVICES' not in os.environ:
+        # Use the ibpX devices (InfiniBand, not the mlx5 Ethernet ones)
+        # UCX will load-balance across them
+        os.environ['UCX_NET_DEVICES'] = 'ibp0:1,ibp1:1,ibp2:1,ibp3:1,ibp4:1,ibp5:1,ibp6:1,ibp7:1'
+    
+    # GPU-Direct RDMA settings
+    if 'UCX_MEMTYPE_CACHE' not in os.environ:
+        os.environ['UCX_MEMTYPE_CACHE'] = 'n'
+    
+    # Enable CUDA GPU-Direct RDMA
+    if 'UCX_IB_GPU_DIRECT_RDMA' not in os.environ:
+        os.environ['UCX_IB_GPU_DIRECT_RDMA'] = 'yes'
+    
     from ucp import create_endpoint, create_listener
+    logger.info(f"UCP initialized with transports: {os.environ.get('UCX_TLS', 'default')}")
 except ImportError:
     logger.warning("UCP not available, weight transfer via RDMA will not work")
     create_endpoint = None
