@@ -12,10 +12,6 @@ class CheckpointWorker:
     """
 
     def __init__(self, args, kwargs):
-        self.ucp_client = None
-
-    def setup_ucp_client_from_config(self, config):
-        """Setup UCP client from inference config."""
         self.ucp_client = InferenceWeightClient(
             trainer_host=os.getenv('MASTER_ADDR'),
         )
