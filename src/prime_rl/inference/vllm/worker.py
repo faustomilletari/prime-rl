@@ -1,5 +1,6 @@
 import os
 
+import torch
 from prime_rl.utils.rdma_weights import InferenceWeightClient
 
 
@@ -33,13 +34,16 @@ class CheckpointWorker:
             for key, value in gpu_state_dict.items():
                 if not key:
                     continue
-                yield key, value  # Already on GPU, no .cuda() needed
+                yield key, value
 
         self.model_runner.model.load_weights(weights_iterator())
 
-        # Process weights after loading (important for some models)
-        from vllm.model_executor.model_loader.utils import process_weights_after_loading
+        # CRITICAL: Free the temporary state_dict after loading
+        del gpu_state_dict
+        torch.cuda.empty_cache()  # Force PyTorch to release unused memory
 
+        # Process weights after loading
+        from vllm.model_executor.model_loader.utils import process_weights_after_loading
         device = next(self.model_runner.model.parameters()).device
         process_weights_after_loading(self.model_runner.model, self.model_runner.model_config, device)
 

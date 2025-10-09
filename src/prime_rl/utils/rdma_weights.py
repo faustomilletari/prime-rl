@@ -274,34 +274,39 @@ class InferenceWeightClient:
             
             state_dict = {}
             
+            # Reusable buffers for metadata to reduce allocations
+            name_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            shape_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            dtype_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
+            
             # Receive each parameter
             for idx in range(num_params):
                 # Receive name
-                name_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
                 await ep.recv(name_len_buffer)
                 name_len = name_len_buffer[0].item()
                 
                 name_buffer = torch.empty(name_len, dtype=torch.uint8, device='cuda')
                 await ep.recv(name_buffer)
                 name = name_buffer.cpu().numpy().tobytes().decode('utf-8')
+                del name_buffer  # Free immediately after use
                 
                 # Receive tensor shape
-                shape_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
                 await ep.recv(shape_len_buffer)
                 shape_len = shape_len_buffer[0].item()
                 
                 shape_buffer = torch.empty(shape_len, dtype=torch.int64, device='cuda')
                 await ep.recv(shape_buffer)
                 shape = tuple(shape_buffer.cpu().numpy())
+                del shape_buffer  # Free immediately after use
                 
                 # Receive dtype
-                dtype_len_buffer = torch.empty(1, dtype=torch.int64, device='cuda')
                 await ep.recv(dtype_len_buffer)
                 dtype_len = dtype_len_buffer[0].item()
                 
                 dtype_buffer = torch.empty(dtype_len, dtype=torch.uint8, device='cuda')
                 await ep.recv(dtype_buffer)
                 dtype_str = dtype_buffer.cpu().numpy().tobytes().decode('utf-8')
+                del dtype_buffer  # Free immediately after use
                 
                 # Convert dtype string to torch dtype
                 dtype_map = {
@@ -326,6 +331,9 @@ class InferenceWeightClient:
                     raise
                 
                 state_dict[name] = tensor
+            
+            # Clean up metadata buffers
+            del num_params_buffer, name_len_buffer, shape_len_buffer, dtype_len_buffer
             
             await ep.close()
             logger.info(f"Successfully received {len(state_dict)} weights via UCP from trainer")
