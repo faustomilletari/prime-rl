@@ -73,18 +73,20 @@ class TrainerWeightServer:
                     await ep.close()
                     return
                 
-                # Get full state dict using FSDP's built-in gathering mechanism
-                # This handles all parallelism strategies (DP, TP, FSDP) correctly
+                # Extract model weights using standard state_dict()
+                # For DP training, rank 0 has full weights so this works correctly
+                # Note: This won't work for FSDP/TP where weights are sharded
                 try:
-                    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, StateDictType
-                    
                     with torch.no_grad():
-                        # Use FSDP context to gather full weights on rank 0
-                        with FSDP.state_dict_type(self.model, StateDictType.FULL_STATE_DICT):
-                            state_dict = self.model.state_dict()
+                        # Standard state_dict() - works for DP, returns local shards for FSDP/TP
+                        # We clone to ensure we don't hold references to model tensors
+                        raw_state = self.model.state_dict()
+                        state_dict = {}
                         
-                        # Ensure all tensors are contiguous
-                        state_dict = {k: v.detach().clone().contiguous() for k, v in state_dict.items()}
+                        for name, tensor in raw_state.items():
+                            # Detach and clone to CPU first, then back to CUDA to avoid any
+                            # issues with distributed tensor tracking
+                            state_dict[name] = tensor.detach().cpu().clone().cuda().contiguous()
                             
                 except Exception as e:
                     logger.error(f"Error extracting model weights: {e}", exc_info=True)
