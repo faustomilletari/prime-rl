@@ -171,7 +171,7 @@ def train(config: RLTrainerConfig):
         save_weights_time = 0
         if progress.step > 0 and world.is_master:
             save_weights_start_time = time.time()
-            weight_signal_client.signal("weights_ready", progress.step, True)
+            weight_signal_client.put(("weights_ready", progress.step), True)
             save_weights_time = time.time() - save_weights_start_time
             logger.debug(f"Signaled weights ready for step {progress.step}")
 

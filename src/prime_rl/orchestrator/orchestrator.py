@@ -167,7 +167,7 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weights to be ready at step {ckpt_step}")
             wait_for_weight_sync_start_time = time.time()
-            variable_store_client.wait_for_signal("weights_ready", ckpt_step)
+            variable_store_client.wait_for_key(("weights_ready", ckpt_step))
             wait_for_weight_sync_time = time.time() - wait_for_weight_sync_start_time
             logger.debug(f"Waited {wait_for_weight_sync_time:.2f}s for weights")
 
