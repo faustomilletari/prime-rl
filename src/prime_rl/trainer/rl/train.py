@@ -47,7 +47,7 @@ from prime_rl.trainer.world import get_world
 from prime_rl.utils.monitor import setup_monitor
 from prime_rl.utils.pydantic_config import parse_argv
 from prime_rl.utils.utils import clean_exit, to_col_format
-from prime_rl.utils.rdma_weights import TrainerWeightServer
+from prime_rl.utils.rdma_weights import TrainerWeightServer, extract_full_weights_collective
 from prime_rl.utils.variable_store import VariableStoreClient
 
 
@@ -167,13 +167,25 @@ def train(config: RLTrainerConfig):
         # Reset peak memory stats
         torch.cuda.reset_peak_memory_stats()
 
-        # Signal weights are ready (only on rank 0) - this replaces the old weight saving
+        # Extract and cache full weights for UCP transfer (all ranks participate in gather)
         save_weights_time = 0
-        if progress.step > 0 and world.is_master:
+        if progress.step > 0:
             save_weights_start_time = time.time()
-            weight_signal_client.put(("weights_ready", progress.step), True)
+            
+            # All ranks participate in extracting full weights via collective operations
+            logger.debug(f"Extracting full weights for step {progress.step}")
+            full_weights = extract_full_weights_collective(model)
+            
+            # Only rank 0 caches and signals
+            if world.is_master:
+                if trainer_weight_server is not None and full_weights is not None:
+                    trainer_weight_server.update_cached_weights(full_weights)
+                    logger.debug(f"Cached {len(full_weights)} full weights for UCP transfer")
+                
+                weight_signal_client.put(("weights_ready", progress.step), True)
+                logger.debug(f"Signaled weights ready for step {progress.step}")
+            
             save_weights_time = time.time() - save_weights_start_time
-            logger.debug(f"Signaled weights ready for step {progress.step}")
 
         # Save the full checkpoint (if we are at an interval step and not at the first or last step)
         is_last_step = config.max_steps is not None and progress.step == config.max_steps

@@ -22,6 +22,59 @@ except ImportError:
     create_listener = None
 
 
+def extract_full_weights_collective(model: torch.nn.Module) -> dict[str, torch.Tensor] | None:
+    """Extract full model weights using collective operations.
+    
+    This function handles DTensor models where weights are sharded across ranks.
+    It uses collective operations (full_tensor()) to gather complete weights.
+    
+    **IMPORTANT:** All ranks must call this function simultaneously for collective
+    operations to work. The typical usage is:
+    
+        # In training loop, all ranks execute:
+        full_weights = extract_full_weights_collective(model)
+        
+        # Only rank 0 gets the full weights:
+        if rank == 0:
+            weight_server.update_cached_weights(full_weights)
+    
+    Args:
+        model: The model to extract weights from
+        
+    Returns:
+        Full state dict on rank 0, None on other ranks
+    """
+    import torch.distributed as dist
+    
+    is_rank_0 = not dist.is_initialized() or dist.get_rank() == 0
+    
+    with torch.no_grad():
+        state_dict = {}
+        
+        for name, param in model.named_parameters():
+            tensor = param.data
+            
+            # Check if this is a DTensor that needs gathering
+            if hasattr(tensor, 'full_tensor'):
+                # This is a DTensor - gather full tensor (collective operation)
+                full_tensor = tensor.full_tensor()
+                # Only keep on rank 0
+                if is_rank_0:
+                    state_dict[name] = full_tensor.detach().clone().contiguous()
+            elif hasattr(tensor, '_local_tensor'):
+                # Fallback for older DTensor API
+                full_tensor = tensor.full_tensor() if hasattr(tensor, 'full_tensor') else tensor._local_tensor
+                if is_rank_0:
+                    state_dict[name] = full_tensor.detach().clone().contiguous()
+            else:
+                # Regular tensor (not distributed)
+                if is_rank_0:
+                    state_dict[name] = tensor.detach().clone().contiguous()
+    
+    # Return full dict on rank 0, None on others
+    return state_dict if is_rank_0 else None
+
+
 class TrainerWeightServer:
     """UCP server on trainer (rank 0) that exposes current GPU weights for direct access."""
 
@@ -29,6 +82,7 @@ class TrainerWeightServer:
         self.host = host
         self.port = port
         self.model = None
+        self.cached_weights = None  # Cache for pre-extracted full weights
         self.lock = threading.Lock()
         self.running = False
         self.server_thread = None
@@ -36,6 +90,16 @@ class TrainerWeightServer:
     def set_model(self, model: torch.nn.Module):
         """Set the model whose weights will be served."""
         self.model = model
+    
+    def update_cached_weights(self, state_dict: dict[str, torch.Tensor]):
+        """Update the cached weights that will be sent to inference.
+        
+        This should be called with full (non-sharded) weights extracted using
+        collective operations where all ranks participate.
+        """
+        with self.lock:
+            self.cached_weights = state_dict
+            logger.debug(f"Updated cached weights: {len(state_dict)} parameters")
 
     def start(self):
         """Start the weight server in a background thread."""
@@ -69,31 +133,23 @@ class TrainerWeightServer:
         """Handle a client connection for weight transfer."""
         try:
             with self.lock:
-                if self.model is None:
-                    await ep.close()
-                    return
-                
-                # Extract model weights, converting DTensors to regular GPU tensors
-                # For DP training, rank 0 has full weights
-                try:
-                    with torch.no_grad():
-                        state_dict = {}
-                        
-                        for name, param in self.model.named_parameters():
-                            tensor = param.data
-                            
-                            # If this is a DTensor, extract the actual underlying tensor
-                            if hasattr(tensor, '_local_tensor'):
-                                tensor = tensor._local_tensor
-                            elif hasattr(tensor, 'to_local'):
-                                tensor = tensor.to_local()
-                            
-                            # Clone on GPU to create a new independent tensor
-                            # The clone breaks any connection to the model's tensor tracking
-                            state_dict[name] = tensor.detach().clone().contiguous()
-                            
-                except Exception as e:
-                    logger.error(f"Error extracting model weights: {e}", exc_info=True)
+                # Use cached weights if available, otherwise extract from model
+                if self.cached_weights is not None:
+                    state_dict = self.cached_weights
+                    logger.debug("Using cached weights for transfer")
+                elif self.model is not None:
+                    # Fallback: extract local shards (may not work correctly for sharded models)
+                    logger.warning("No cached weights available, extracting from model (may be sharded)")
+                    state_dict = {}
+                    for name, param in self.model.named_parameters():
+                        tensor = param.data
+                        if hasattr(tensor, '_local_tensor'):
+                            tensor = tensor._local_tensor
+                        elif hasattr(tensor, 'to_local'):
+                            tensor = tensor.to_local()
+                        state_dict[name] = tensor.detach().clone().contiguous()
+                else:
+                    logger.error("No model or cached weights available")
                     await ep.close()
                     return
             
