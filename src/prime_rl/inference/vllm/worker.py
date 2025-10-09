@@ -1,10 +1,8 @@
-from pathlib import Path
-from vllm.logger import init_logger
+import os
 
 from prime_rl.utils.rdma_weights import InferenceWeightClient
 
 
-logger = init_logger("vllm.entrypoints.openai.api_server")
 
 class CheckpointWorker:
     """
@@ -14,18 +12,12 @@ class CheckpointWorker:
     """
 
     def __init__(self, args, kwargs):
-        logger.info(f'args {args}')
-        logger.info(f'kwargs {kwargs}')
-        print(args)
-        print(kwargs)
         self.ucp_client = None
 
     def setup_ucp_client_from_config(self, config):
         """Setup UCP client from inference config."""
         self.ucp_client = InferenceWeightClient(
-            trainer_host=config.weight_client.trainer_host,
-            trainer_port=config.weight_client.trainer_port,
-            timeout=config.weight_client.timeout,
+            trainer_host=os.getenv('MASTER_ADDR'),
         )
 
     def update_weights_new(self) -> None:
