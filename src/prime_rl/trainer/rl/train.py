@@ -108,7 +108,7 @@ def train(config: RLTrainerConfig):
 
     # Set up checkpoint manager
     logger.info(f"Initializing checkpoint manager ({config.ckpt})")
-    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
+    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt, save_hf=True)
 
     # Optionally, resume training from a checkpoint
     progress = Progress()

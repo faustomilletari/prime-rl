@@ -74,7 +74,7 @@ def train(config: SFTTrainerConfig):
 
     # Set up the checkpoint manager
     logger.info(f"Initializing checkpoint manager ({config.ckpt})")
-    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt)
+    ckpt_manager = setup_ckpt_manager(config.output_dir, config.ckpt, save_hf=True)
 
     # Set up the weight checkpoint manager
     logger.info(f"Initializing weight checkpoint manager ({config.weights})")
