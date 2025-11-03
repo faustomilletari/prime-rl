@@ -11,7 +11,7 @@ class World:
         self.local_rank = envs.LOCAL_RANK
         self.local_world_size = envs.LOCAL_WORLD_SIZE
         self._check_world()
-        self.num_nodes = os.environ.get("TOTAL_NODES", self.world_size // self.local_world_size) #self.world_size // self.local_world_size
+        self.num_nodes = int(os.environ.get("PET_NNODES", 1)) #self.world_size // self.local_world_size
 
     def _check_world(self):
         assert 0 <= self.local_rank < self.local_world_size
