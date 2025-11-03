@@ -24,23 +24,24 @@ class LossConfig(BaseModel):
         bool, Field(description="Whether to normalize the importance ratio by the sequence length.")
     ] = False
 
-    clip_ratio: Annotated[float, Field(ge=0)] = 8.0
+    mask_ratio_high: Annotated[float, Field(ge=0)] = 8.0
+    mask_ratio_low: Annotated[float, Field(ge=0)] = 0.125
+    sequence_mask_ratio_low: Annotated[
+        float,
+        Field(
+            ge=0,
+            description=(
+                "If set, masks entire sequences when any generated token has an importance ratio below this value."
+            ),
+        ),
+    ] = 0.0
 
 
 class FakeDataLoaderConfig(BaseConfig):
     """Configures a fake data loader sampling random micro batches for debugging."""
 
-    micro_batch_size: Annotated[int, Field(ge=1)] = 1
     batch_size: Annotated[int, Field(ge=1)] = 2
     seq_len: Annotated[int, Field(ge=1)] = 128
-
-    @model_validator(mode="after")
-    def validate_batch_size(self):
-        if self.batch_size % self.micro_batch_size != 0:
-            raise ValueError("Batch size must be divisible by micro batch size")
-        if self.batch_size < self.micro_batch_size:
-            raise ValueError("Batch size must be greater than or equal to micro batch size")
-        return self
 
 
 class DataLoaderConfig(BaseConfig):
@@ -103,13 +104,6 @@ class RLTrainerConfig(BaseSettings):
 
     memory_profiler_path: Annotated[Path | None, Field(description="Path to write memory profile to.")] = None
 
-    recompute_logprobs: Annotated[
-        bool,
-        Field(
-            description="Whether to recompute the logprobs. If True, will always recompute logprobs and overwrite those found in the training batch.",
-        ),
-    ] = False
-
     bench: Annotated[
         bool,
         Field(
@@ -158,11 +152,7 @@ class RLTrainerConfig(BaseSettings):
     @model_validator(mode="after")
     def validate_lora_adapter_saving(self):
         if self.weights and self.weights.save_adapter_separately:
-            lora_enabled = (
-                self.model 
-                and self.model.experimental 
-                and self.model.experimental.lora
-            )
+            lora_enabled = self.model and self.model.experimental and self.model.experimental.lora
             if not lora_enabled:
                 raise ValueError(
                     "save_adapter_separately=True requires LoRA to be enabled. "

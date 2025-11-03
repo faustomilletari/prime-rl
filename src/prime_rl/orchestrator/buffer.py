@@ -1,5 +1,6 @@
 import json
 import random
+import uuid
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
@@ -88,14 +89,19 @@ class Buffer(ABC):
 
     def __init__(self, dataset: Dataset, buffer_config: DataBufferConfigType):
         self.logger = get_logger()
+        self.config = buffer_config
+        if self.config.seed is not None:
+            random.seed(self.config.seed)
 
         # Initialize buffer
-        self._init_buffer(dataset, buffer_config.from_scratch)
+        self._init_buffer(dataset, self.config.from_scratch)
 
     def _init_buffer(self, dataset: Dataset, from_scratch: bool) -> None:
         """Initializes the buffer state from a dataset."""
         # Store problem IDs
-        self.problem_ids = list(range(len(dataset)))
+        if "id" not in dataset.column_names:
+            dataset = dataset.add_column("id", list(range(len(dataset))), new_fingerprint=str(uuid.uuid4()))
+        self.problem_ids = dataset["id"]
 
         if from_scratch:
             self.logger.debug("Initializing metadata and rollouts in buffer from scratch.")
@@ -160,7 +166,7 @@ class Buffer(ABC):
         self._init_buffer(self.dataset, from_scratch=False)
 
     @abstractmethod
-    def sample_problems(self, n: int) -> tuple[list[int], list[dict]]:
+    def sample_problems(self, n: int) -> list[dict]:
         """
         Samples `n` problems from the dataset. Returns a list of problem IDs
         and a list of dictionaries representing the problems. The dictionary keys
@@ -214,7 +220,7 @@ class SimpleBuffer(Buffer):
         super().__init__(dataset, buffer_config)
         self.config = buffer_config
 
-    def sample_problems(self, n: int) -> tuple[list[int], list[dict]]:
+    def sample_problems(self, n: int) -> list[dict]:
         # Get indices to sample
         assert len(self.problem_ids) >= n, (
             f"There should be at least {n} problems in the buffer, but found only {len(self.problem_ids)}"
@@ -226,7 +232,7 @@ class SimpleBuffer(Buffer):
         # Get problems from indices
         sampled_problems = [self.problem_buffer[problem_id] for problem_id in sampled_problem_ids]
 
-        return sampled_problem_ids, sampled_problems
+        return sampled_problems
 
     def update(self, rollouts: list[Rollout]):
         # Group rollouts by problem_id
@@ -278,7 +284,7 @@ class DifficultyPoolBuffer(Buffer):
                     f"Invalid difficulty {self.metadata[problem_id]['difficulty']} for problem {problem_id}. Should be one of `easy`, `normal` or `hard`."
                 )
 
-    def sample_problems(self, n: int) -> tuple[list[int], list[dict]]:
+    def sample_problems(self, n: int) -> list[dict]:
         # Compute number of easy, normal and hard problems to sample
         n_easy = int(n * self.config.easy_fraction)
         n_hard = int(n * self.config.hard_fraction)
@@ -336,7 +342,7 @@ class DifficultyPoolBuffer(Buffer):
         # Sample problems
         sampled_problems = [self.problem_buffer[problem_id] for problem_id in sampled_problem_ids]
 
-        return sampled_problem_ids, sampled_problems
+        return sampled_problems
 
     def update(self, rollouts: list[Rollout]):
         # Group rollouts by problem_id
@@ -398,7 +404,7 @@ class OnlineDifficultyBuffer(Buffer):
         super().__init__(dataset, buffer_config)
         self.config = buffer_config
 
-    def sample_problems(self, n: int) -> tuple[list[int], list[dict]]:
+    def sample_problems(self, n: int) -> list[dict]:
         # Multiply by oversampling factor
         n = int(self.config.oversampling_factor * n)
 
@@ -412,7 +418,7 @@ class OnlineDifficultyBuffer(Buffer):
         # Sample problems
         sampled_problems = [self.problem_buffer[problem_id] for problem_id in sampled_problem_ids]
 
-        return sampled_problem_ids, sampled_problems
+        return sampled_problems
 
     def update(self, rollouts: list[Rollout]):
         # Group rollouts by problem_id

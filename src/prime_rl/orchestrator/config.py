@@ -3,49 +3,8 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, Field, model_validator
 
-from prime_rl.orchestrator.advantage import AdvantageType
-from prime_rl.utils.config import LogConfig, ModelConfig, WandbMonitorConfig
+from prime_rl.utils.config import ClientConfig, LogConfig, ModelConfig, WandbMonitorConfig
 from prime_rl.utils.pydantic_config import BaseConfig, BaseSettings
-
-ServerType = Literal["vllm", "openai"]
-
-
-class ClientConfig(BaseConfig):
-    """Configures the client to be used for inference."""
-
-    timeout: Annotated[
-        int,
-        Field(
-            description="Timeout in seconds for the OpenAI API. By default, it is set to 1200 seconds.",
-        ),
-    ] = 1200
-
-    base_url: Annotated[
-        str,
-        Field(
-            description="Base URL to use for the OpenAI API. By default, it is set to None, which means ",
-        ),
-    ] = "http://localhost:8000/v1"
-
-    api_key_var: Annotated[
-        str,
-        Field(
-            description="Name of environment varaible containing the API key to use for the OpenAI API. Will parse using `os.getenv(client_config.api_key_var)`. Can be set to an arbitrary string if the inference server is not protected by an API key .",
-        ),
-    ] = "OPENAI_API_KEY"
-
-    server_type: Annotated[
-        ServerType,
-        Field(
-            description="Type of inference server that the client is connected to. Can be 'vllm' or 'openai'. Defaults to vLLM, which is our default client for training.",
-        ),
-    ] = "vllm"
-
-    @model_validator(mode="after")
-    def auto_setup_server_type(self):
-        if self.base_url == "https://api.openai.com/v1":
-            self.server_type = "openai"
-        return self
 
 
 class SamplingConfig(BaseConfig):
@@ -159,6 +118,58 @@ class EvalSamplingConfig(BaseConfig):
     ] = None
 
 
+class EvalSaveDiskConfig(BaseConfig):
+    """Configures how to save the eval results to disk."""
+
+    path: Annotated[
+        Path | None,
+        Field(
+            description="The path to save the eval results to. If None, will default to <output_dir>/evals/<step_path>/<env_id> for online evals and the verifiers default for offline evals."
+        ),
+    ] = None
+
+
+class EvalSaveHFConfig(BaseConfig):
+    """Configures how to save the eval results to HF."""
+
+    dataset_name: Annotated[
+        str | None,
+        Field(
+            description="The name of the HF dataset to save the eval results to. If None, will auto-generate a name."
+        ),
+    ] = None
+
+    dataset_subset: Annotated[
+        str | None,
+        Field(
+            description="The subset name of the HF dataset to save the evaluation results. If None, will default to the environment ID.",
+        ),
+    ] = None
+
+    dataset_split: Annotated[
+        str | None,
+        Field(
+            description="The split name of the HF dataset to save the evaluation results. If None, will default to 'evals'.",
+        ),
+    ] = None
+
+    private: Annotated[
+        bool,
+        Field(description="Whether to save the eval results to a private HF dataset."),
+    ] = False
+
+
+class EvalSaveConfig(BaseConfig):
+    disk: EvalSaveDiskConfig | None = None
+    hf: EvalSaveHFConfig | None = None
+    env_hub: Annotated[
+        bool,
+        Field(
+            description="Whether to push eval results to Prime Environment Hub. Automatically pushes all evaluated environments. Requires PRIME_API_KEY and authorization for the environments."
+        ),
+    ] = False
+
+
 class EnvironmentConfig(BaseConfig):
     """Configures the environment to be used for inference."""
 
@@ -198,30 +209,21 @@ class EvalConfig(BaseConfig):
     ] = []
 
     max_concurrent: Annotated[
-        list[int],
+        int | None,
         Field(
-            description="Maximum number of concurrent rollouts to generate and score. If empty, will default to -1 for all environments.",
+            description="Maximum number of concurrent rollouts to generate and score. Will create a global semaphore and pass to verifiers Environment. If None, will not limit concurrency.",
         ),
-    ] = []
+    ] = None
 
     sampling: EvalSamplingConfig = Field(
         default_factory=EvalSamplingConfig,
         description="Shared sampling configuration for evals; can differ from training sampling.",
     )
 
-    save_to_disk: Annotated[
-        bool,
-        Field(
-            description="Whether to save the evaluation artifacts to the outputs directory.",
-        ),
-    ] = True
-
-    save_to_hf: Annotated[
-        str | None,
-        Field(
-            description="The name of the HF dataset to save the evaluation results to. Defaults to None, which means we do not save to HF Hub. If multiple environments are evaluated, we upload a dataset with one split per environment. If a checkpoint is evaluated, we suffix the HF Hub name with the checkpoint step.",
-        ),
-    ] = None
+    save: EvalSaveConfig = Field(
+        default_factory=EvalSaveConfig,
+        description="Configures how to save the eval results.",
+    )
 
     @model_validator(mode="after")
     def _validate_and_fill_eval_lists(self):
@@ -243,21 +245,6 @@ class EvalConfig(BaseConfig):
         if len(self.num_examples) != len(self.environment_ids):
             raise ValueError("Number of num_examples entries must match number of ids")
 
-        # max_concurrent: if empty/unspecified, default to -1 for all; else length must match ids
-        if len(self.max_concurrent) == 0:
-            self.max_concurrent = [-1 for _ in self.environment_ids]
-        elif len(self.max_concurrent) == 1:
-            self.max_concurrent = [self.max_concurrent[0] for _ in self.environment_ids]
-
-        elif len(self.max_concurrent) != len(self.environment_ids):
-            raise ValueError("Number of max_concurrent entries must match number of ids")
-
-        return self
-
-    @model_validator(mode="after")
-    def save_to_disk_if_save_to_hf(self):
-        if self.save_to_hf is not None:
-            self.save_to_disk = True
         return self
 
 
@@ -288,8 +275,8 @@ class CheckpointConfig(BaseConfig):
     resume_step: Annotated[
         int | None,
         Field(
-            ge=1,
-            description="Step to resume orchestrator from. If None, will start from scratch.",
+            ge=-1,
+            description="Step to resume orchestrator from. If None, will start from scratch. If -1, will restart from latest checkpoint available.",
         ),
     ] = None
 
@@ -311,6 +298,13 @@ class BufferConfig(BaseModel):
             description="Whether to initialize the metadata and rollout buffer from scratch. Defaults to True, which means we will initialize empty metadata and rollout buffers. If False, we expect columns `metadata` and `rollouts` to be present in the environment dataset to initialize the buffer from.",
         ),
     ] = True
+
+    seed: Annotated[
+        int | None,
+        Field(
+            description="Random seed to use for the buffer. If set, the sampling from the buffer will be deterministic.",
+        ),
+    ] = None
 
 
 class SimpleBufferConfig(BufferConfig):
@@ -391,6 +385,13 @@ class OnlineDifficultyBufferConfig(BufferConfig):
 DataBufferConfigType: TypeAlias = SimpleBufferConfig | DifficultyPoolBufferConfig | OnlineDifficultyBufferConfig
 
 
+class AdvantageConfig(BaseConfig):
+    std_norm: Literal["local", "global"] | None = None
+    length_weighted_mean: bool = False
+    leave_one_out: bool = False
+    neg_clipped: bool = False
+
+
 class OrchestratorConfig(BaseSettings):
     """Configures the orchestrator for RL training."""
 
@@ -412,6 +413,9 @@ class OrchestratorConfig(BaseSettings):
     # Data buffer configuration
     buffer: Annotated[DataBufferConfigType, Field(discriminator="type")] = SimpleBufferConfig()
 
+    # The advantage configuration
+    advantage: AdvantageConfig | None = AdvantageConfig()
+
     # The logging configuration
     log: LogConfig = LogConfig()
 
@@ -428,15 +432,14 @@ class OrchestratorConfig(BaseSettings):
         ),
     ] = Path("outputs")
 
-    batch_size: Annotated[int, Field(ge=1, description="Number of samples to train on per step.")] = 128
-
-    micro_batch_size: Annotated[
-        int,
+    max_concurrent: Annotated[
+        int | None,
         Field(
-            ge=1,
-            description="Number of samples to train on per micro batch. This value should be tuned based on the hardware available. Usually, to the largest value divisble by the training batch size.",
+            description="Maximum number of concurrent rollouts to generate and score. Will create a global semaphore and pass to verifiers Environment. If None, will not limit concurrency.",
         ),
-    ] = 128
+    ] = 1024
+
+    batch_size: Annotated[int, Field(ge=1, description="Number of samples to train on per step.")] = 128
 
     rollouts_per_example: Annotated[
         int,
@@ -445,13 +448,6 @@ class OrchestratorConfig(BaseSettings):
             description="Number of output sequences to return per example during training.",
         ),
     ] = 1
-
-    advantage_type: Annotated[
-        AdvantageType,
-        Field(
-            description="Type of advantage computation to use. For details on the variants please refer directly to their docstrings."
-        ),
-    ] = "drgrpo"
 
     seq_len: Annotated[
         int,
@@ -480,13 +476,6 @@ class OrchestratorConfig(BaseSettings):
             description="Whether to override reward scores with 0 for truncated completions.",
         ),
     ] = False
-
-    length_bonus: Annotated[
-        float | None,
-        Field(
-            description="Add an extra reward to the shortest correct answer in fully correct rollout groups.",
-        ),
-    ] = 0.0
 
     # TODO(Mika): This should be automatic from the number of ZMQ connections
     num_train_workers: Annotated[
@@ -522,10 +511,6 @@ class OrchestratorConfig(BaseSettings):
     def validate_batch_size(self):
         if self.batch_size % self.rollouts_per_example != 0:
             raise ValueError("Batch size must be divisible by the number of samples per problem")
-        if self.batch_size % self.micro_batch_size != 0:
-            raise ValueError("Batch size must be divisible by micro batch size")
-        if self.batch_size < self.micro_batch_size:
-            raise ValueError("Batch size must be greater than or equal to micro batch size")
         return self
 
     @model_validator(mode="after")

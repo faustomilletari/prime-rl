@@ -1,9 +1,9 @@
-from pathlib import Path
-from typing import Any
+from typing import Any, List, Optional
 
+import openai.types.chat
 import pandas as pd
-from openai.types.chat import ChatCompletion
-from openai.types.chat.chat_completion import Choice
+import verifiers as vf
+from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.completion_usage import CompletionUsage
 from rich.console import Console
 from rich.table import Table
@@ -11,9 +11,64 @@ from rich.table import Table
 from prime_rl.utils.utils import (
     format_num,
     format_time,
-    get_weight_ckpt_model_path,
-    wait_for_path,
 )
+
+
+def monkey_patch_chat_completion_logprobs():
+    """
+    At large batch sizes and context, constructing OAI's Pydantic model
+    ChatCompletion with logprobs is causing heavy CPU overhead (~200ms per
+    object at 32K context, which translates to >10min overhead at 4K batch
+    size). This function monkey-patches the OAI type and verifiers'
+    post-processing utils to avoid validating the complex logprobs field.
+    """
+
+    class ChoiceAny(Choice):
+        """Same as openai.types.chat.chat_completion.Choice, but without type validation for logprobs field."""
+
+        logprobs: Optional[Any] = None
+
+    class ChatCompletionAny(ChatCompletion):
+        """Same as openai.types.chat.chat_completion.ChatCompletion, but but using ChoiceAny instead of Choice."""
+
+        choices: List[ChoiceAny]  # type: ignore
+
+    # Patch OAI types
+    openai.types.chat.chat_completion.Choice = ChoiceAny
+    openai.types.chat.chat_completion.ChatCompletion = ChatCompletionAny
+
+    # Patch verifiers parse_chat_completion_logprobs
+    def patched_parse_chat_completion_logprobs(chat_completion: ChatCompletionAny) -> list[float]:
+        """Same as verifiers.utils.processing_utils.parse_chat_completion_logprobs, but using arbitrary logprobs type."""
+        assert len(chat_completion.choices) == 1, "Response should always have one choice"
+        assert chat_completion.choices[0].logprobs is not None, (
+            "Logprobs should not be None. Make sure to set logprobs=True in the extra body when making the request to /v1/chat/completions"
+        )
+        assert chat_completion.choices[0].logprobs["content"] is not None, (
+            "Logprob content should not be None. Make sure to set logprobs=True in the extra body when making the request to /v1/chat/completions"
+        )
+        logprobs = [logprob["logprob"] for logprob in chat_completion.choices[0].logprobs["content"]]
+        return logprobs
+
+    # Patch verifiers parse_chat_completion_logprobs
+    def patched_parse_chat_completion_tokens(chat_completion: ChatCompletionAny) -> list[int]:
+        """Same as verifiers.utils.processing_utils.parse_chat_completion_tokens, but using arbitrary logprobs type."""
+        assert len(chat_completion.choices) == 1, "Response should always have one choice"
+        assert chat_completion.choices[0].logprobs is not None, (
+            "Logprobs should not be None. Make sure to set logprobs=True in the extra body when making the request to /v1/chat/completions"
+        )
+        assert chat_completion.choices[0].logprobs["content"] is not None, (
+            "Logprob content should not be None. Make sure to set logprobs=True in the extra body when making the request to /v1/chat/completions"
+        )
+        tokens = [
+            # tokens are token_id:<int> because we request `return_tokens_as_token_ids` from vllm in GRPOTrainer
+            int(token["token"].split(":")[-1])
+            for token in chat_completion.choices[0].logprobs["content"]
+        ]
+        return tokens
+
+    vf.utils.processing_utils.parse_chat_completion_logprobs = patched_parse_chat_completion_logprobs
+    vf.utils.processing_utils.parse_chat_completion_tokens = patched_parse_chat_completion_tokens
 
 
 def parse_num_completion_tokens(responses: list[list[ChatCompletion]]) -> list[int]:
@@ -48,11 +103,6 @@ def parse_is_truncated_completions(responses: list[list[ChatCompletion]]) -> lis
                 is_truncated = True
         all_is_truncated.append(is_truncated)
     return all_is_truncated
-
-
-def wait_for_weight_checkpoint(path: Path, step: int, interval: int = 1, log_interval: int = 10) -> None:
-    model_path = get_weight_ckpt_model_path(path, step)
-    wait_for_path(model_path, interval, log_interval)
 
 
 def print_benchmark(history: dict[str, list[Any]]) -> None:

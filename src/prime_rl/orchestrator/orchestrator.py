@@ -5,21 +5,29 @@ from loguru import logger
 # Import environment before any other imports
 # ruff: noqa: I001,F401
 from prime_rl.orchestrator import envs
+from prime_rl.orchestrator.utils import monkey_patch_chat_completion_logprobs
+
+# This monkey patch is necessary to avoid heavy CPU overhead from constructing the OAI ChatCompletion Pydantic model with logprobs
+monkey_patch_chat_completion_logprobs()
 
 import lovely_tensors as lt
 import torch
+import verifiers as vf
 from verifiers import load_environment
 from verifiers.types import GenerateOutputs, ProcessedOutputs
 from transformers import AutoTokenizer
 
 from prime_rl.orchestrator.ckpt import Progress, setup_ckpt_manager
 from prime_rl.eval.utils import run_evals
-from prime_rl.orchestrator.client import (
+from prime_rl.utils.vf import generate_batch
+from prime_rl.utils.client import (
     check_has_model,
     check_health,
     reload_weights,
+    setup_admin_clients,
+    setup_clients,
+    setup_evals_client,
     update_weights,
-    setup_client,
 )
 from prime_rl.orchestrator.config import OrchestratorConfig
 from prime_rl.orchestrator.buffer import setup_buffer, make_rollouts, Rollout
@@ -27,7 +35,7 @@ from prime_rl.orchestrator.batch import prepare_batch
 from prime_rl.utils.logger import setup_logger
 from prime_rl.orchestrator.advantage import compute_advantages
 from prime_rl.orchestrator.utils import (
-    wait_for_weight_checkpoint,
+    monkey_patch_chat_completion_logprobs,
     print_benchmark,
     parse_is_truncated_completions,
 )
@@ -37,8 +45,10 @@ from prime_rl.utils.utils import (
     clean_exit,
     format_num,
     get_rollout_dir,
+    get_step_path,
     get_weights_dir,
     to_col_format,
+    wait_for_path,
 )
 import numpy as np
 
@@ -50,6 +60,7 @@ async def orchestrate(config: OrchestratorConfig):
     logger = setup_logger(
         config.log.level, log_file=config.output_dir / "logs" / "orchestrator.log" if config.log.file else None
     )
+    vf.setup_logging(level=config.log.vf_level.upper())
     logger.info("Starting orchestrator")
 
     # Print warning if running in benchmark mode
@@ -61,9 +72,11 @@ async def orchestrate(config: OrchestratorConfig):
     # Setup client
     assert config.client.server_type == "vllm", "Orchestrator only supports vLLM server type."
     logger.info(
-        f"Initializing OpenAI client (base_url={config.client.base_url}, api_key_var={config.client.api_key_var}, server_type={config.client.server_type})"
+        f"Initializing clients (base_url={config.client.base_url}, api_key_var={config.client.api_key_var}, server_type={config.client.server_type})"
     )
-    client = setup_client(config.client)
+    clients = setup_clients(config.client)
+    admin_clients = setup_admin_clients(config.client)
+    evals_client = setup_evals_client()
 
     # Load tokenizer
     logger.info(f"Initializing tokenizer for {config.model.name}")
@@ -89,8 +102,8 @@ async def orchestrate(config: OrchestratorConfig):
 
     # Check health of the client
     logger.info("Waiting for inference pool to be ready")
-    await check_health(client)
-    await check_has_model(client, config.model.name)
+    await check_health(admin_clients)
+    await check_has_model(clients, config.model.name)
     logger.success("Inference pool ready")
 
     # Get checkpoint manager
@@ -104,10 +117,10 @@ async def orchestrate(config: OrchestratorConfig):
         logger.info(f"Resuming training from checkpoint step `{config.ckpt.resume_step}`")
         ckpt_manager.load(progress, buffer, step=config.ckpt.resume_step)
         ckpt_step = max(progress.step - config.async_level, 0)
-        await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
+        await update_weights(admin_clients, get_step_path(get_weights_dir(config.output_dir), ckpt_step))
     else:
         logger.info("Training from scratch. Resetting weights to base model")
-        await reload_weights(client)
+        await reload_weights(admin_clients)
 
     # Iterate over dataset in batches
     max_steps = config.max_steps or int(1e9)
@@ -115,6 +128,7 @@ async def orchestrate(config: OrchestratorConfig):
     ckpt_step = 0
     last_eval_step = -1
     is_first_step = True
+
     while True:
         # Save checkpoint (if we are at an interval step and not at the first or last step)
         is_last_step = config.max_steps is not None and progress.step == config.max_steps - 1
@@ -151,14 +165,14 @@ async def orchestrate(config: OrchestratorConfig):
             ckpt_step = progress.step - config.async_level
             logger.info(f"Waiting for weight checkpoint {ckpt_step}")
             wait_for_weight_ckpt_start_time = time.time()
-            wait_for_weight_checkpoint(get_weights_dir(config.output_dir), ckpt_step)
+            await wait_for_path(get_step_path(get_weights_dir(config.output_dir), ckpt_step) / "STABLE")
             wait_for_weight_ckpt_time = time.time() - wait_for_weight_ckpt_start_time
             logger.debug(f"Waited {wait_for_weight_ckpt_time:.2f}s for weight checkpoint")
 
             # Update the weights
             logger.info(f"Updating weights to weight checkpoint {ckpt_step}")
             update_weights_start_time = time.time()
-            await update_weights(client, get_weights_dir(config.output_dir), ckpt_step)
+            await update_weights(admin_clients, get_step_path(get_weights_dir(config.output_dir), ckpt_step))
             update_weights_time = time.time() - update_weights_start_time
             logger.debug(f"Updated weights in {update_weights_time:.2f}s")
 
@@ -175,11 +189,12 @@ async def orchestrate(config: OrchestratorConfig):
             logger.info(f"Running evals for checkpoint step {ckpt_step}")
             eval_start_time = time.time()
             await run_evals(
-                client=client,
+                clients=clients,
                 eval_config=config.eval,
                 model_config=config.model,
                 sampling_config=config.eval.sampling,
                 client_config=config.client,
+                evals_client=evals_client,
                 output_dir=config.output_dir,
                 ckpt_step=ckpt_step,
                 step=progress.step,
@@ -193,20 +208,7 @@ async def orchestrate(config: OrchestratorConfig):
         problems_to_sample = problems_per_batch
         while True:
             # Get the batch
-            problem_ids, problems = buffer.sample_problems(problems_to_sample)
-
-            # Duplicate problems `rollouts_per_example` times
-            problem_ids = [problem_id for problem_id in problem_ids for _ in range(config.rollouts_per_example)]
-            problems = [problem for problem in problems for _ in range(config.rollouts_per_example)]
-
-            # Prepare inputs for verifiers generation
-            # TODO: Can we use `prime_rl.utils.utils.to_col_format` here?
-            inputs = {
-                "prompt": [problem["prompt"] for problem in problems],
-                "info": [problem.get("info", {}) for problem in problems],
-                "task": [problem.get("task", config.environment.id) for problem in problems],
-                "answer": [problem.get("answer", "") for problem in problems],
-            }
+            problems = buffer.sample_problems(problems_to_sample)
 
             # Convert SamplingConfig to vLLM OAI sampling args
             # https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html#extra-parameters_2
@@ -222,13 +224,16 @@ async def orchestrate(config: OrchestratorConfig):
             sampling_args["extra_body"]["repetition_penalty"] = sampling_args.pop("repetition_penalty")
 
             # Generate completions + rewards with verifiers
-            logger.info(f"Sending {len(problems)} requests to environments")
             generate_completions_start_time = time.time()
-            generate_outputs: GenerateOutputs = await vf_env.a_generate(
-                inputs=inputs,
-                client=client,
-                model=config.model.name,
+            semaphore = asyncio.Semaphore(config.max_concurrent) if config.max_concurrent is not None else None
+            generate_outputs: GenerateOutputs = await generate_batch(
+                clients=clients,
+                env=vf_env,
+                model_name=config.model.name,
+                problems=problems,
+                rollouts_per_example=config.rollouts_per_example,
                 sampling_args=sampling_args,
+                semaphore=semaphore,
             )
             generate_completions_time = time.time() - generate_completions_start_time
             problem_requests += problems_to_sample
@@ -259,7 +264,7 @@ async def orchestrate(config: OrchestratorConfig):
                 rewards=processed_outputs.rewards,
                 completion_lengths=list(map(len, processed_outputs.completion_ids)),
                 samples_per_problem=config.rollouts_per_example,
-                advantage_type=config.advantage_type,
+                advantage_config=config.advantage,
             )
 
             # Parse whether the completions were truncated
@@ -268,7 +273,7 @@ async def orchestrate(config: OrchestratorConfig):
 
             # Update pool
             rollouts = make_rollouts(
-                problem_ids=problem_ids,
+                problem_ids=[problem["id"] for problem in problems for _ in range(config.rollouts_per_example)],
                 prompt_tokens=processed_outputs.prompt_ids,
                 prompt_masks=processed_outputs.prompt_mask,
                 completion_tokens=processed_outputs.completion_ids,
@@ -328,7 +333,7 @@ async def orchestrate(config: OrchestratorConfig):
         assert is_truncated.numel() == config.batch_size
 
         logger.debug(f"Got rewards: {lt.lovely(rewards)}")
-        logger.debug(f"Got advantages ({config.advantage_type}): {lt.lovely(advantages)}")
+        logger.debug(f"Got advantages: {lt.lovely(advantages)}")
 
         # Compute progress metrics and throughput
         num_tokens = int(seq_lens.sum().item())
@@ -347,8 +352,6 @@ async def orchestrate(config: OrchestratorConfig):
             rollouts=rollouts,
             temperature=config.sampling.temperature,
             tokenizer=tokenizer,
-            batch_size=config.batch_size,
-            micro_batch_size=config.micro_batch_size,
             num_train_workers=config.num_train_workers,
             seq_len=config.seq_len,
         )
@@ -485,11 +488,12 @@ async def orchestrate(config: OrchestratorConfig):
     if config.eval:
         logger.info("Running final evals")
         await run_evals(
-            client=client,
+            clients=clients,
             eval_config=config.eval,
             model_config=config.model,
             sampling_config=config.eval.sampling,
             client_config=config.client,
+            evals_client=evals_client,
             output_dir=config.output_dir,
             ckpt_step=ckpt_step,
             step=progress.step,
